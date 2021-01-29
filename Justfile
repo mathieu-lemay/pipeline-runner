@@ -1,7 +1,8 @@
 app := "pipeline_runner"
 
 run *args: _deps
-	poetry run python -m {{ app }} {{ args }}
+	DOCKER_CONFIG=./.ci/docker \
+		poetry run python -m {{ app }} {{ args }}
 
 test: _deps
 	poetry run pytest -v tests
