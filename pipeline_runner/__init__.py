@@ -1,6 +1,8 @@
+import base64
 import logging
 from typing import List, Optional, Union
 
+import boto3
 import click
 import docker
 
@@ -102,18 +104,27 @@ class DockerRunner:
         logger.info("Refreshing image: %s", self._image.name)
 
         auth_config = self._get_docker_auth_config()
-        logger.info("auth_config: %s", auth_config)
 
         logger.info("Getting image: %s", self._image.name)
         self._client.images.pull(self._image.name, auth_config=auth_config)
 
     def _get_docker_auth_config(self):
         if self._image.aws:
+            client = boto3.client(
+                "ecr",
+                aws_access_key_id=self._image.aws["access-key"],
+                aws_secret_access_key=self._image.aws["secret-key"],
+                region_name="ca-central-1",
+            )
+
+            resp = client.get_authorization_token()
+
+            credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
+            username, password = credentials.split(":", maxsplit=1)
+
             return {
-                # "username": os.path.expandvars(self._image.aws['access-key']),
-                # "password": os.path.expandvars(self._image.aws['secret-key']),
-                "username": self._image.aws["access-key"],
-                "password": self._image.aws["secret-key"],
+                "username": username,
+                "password": password,
             }
 
         if self._image.username and self._image.password:

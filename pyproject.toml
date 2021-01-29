@@ -10,6 +10,7 @@ PyYAML = "^5.4.1"
 docker = "^4.4.1"
 click = "^7.1.2"
 python-slugify = "^4.0.1"
+boto3 = "^1.16.63"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
