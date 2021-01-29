@@ -6,9 +6,15 @@ authors = ["Mathieu Lemay <mathieu.lemay@broadsign.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+PyYAML = "^5.4.1"
+docker = "^4.4.1"
+click = "^7.1.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
+
+[tool.poetry.scripts]
+pipeline-runner = 'pipeline_runner:main'
 
 [tool.black]
 line-length = 120
