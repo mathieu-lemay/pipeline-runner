@@ -1,6 +1,6 @@
 import base64
 import logging
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import boto3
 import click
@@ -137,6 +137,23 @@ class DockerRunner:
 
     def _build_docker_run_command_line(self) -> [str]:
         return [""]
+
+    def _get_pipelines_env_vars(self) -> Dict[str, str]:
+        return {
+            "BITBUCKET_BRANCH": "${BITBUCKET_BRANCH}",
+            "BITBUCKET_BUILD_NUMBER": "${BITBUCKET_BUILD_NUMBER}",
+            "BITBUCKET_CLONE_DIR": "/pipeline",
+            "BITBUCKET_COMMIT": "${BITBUCKET_COMMIT}",
+            "BITBUCKET_EXIT_CODE": "${BITBUCKET_EXIT_CODE}",
+            "BITBUCKET_PROJECT_KEY": "PR",
+            "BITBUCKET_REPO_FULL_NAME": "pipeline-runner/pipeline-runner",
+            "BITBUCKET_REPO_IS_PRIVATE": "true",
+            "BITBUCKET_REPO_OWNER": "mathieu-lemay",
+            "BITBUCKET_REPO_OWNER_UUID": "{9c7b13eb-f607-4d0b-a0e8-7c87d8a994f0}",
+            "BITBUCKET_REPO_SLUG": "pipeline-runner",
+            "BITBUCKET_REPO_UUID": "{bcc6cd90-8b08-499c-b739-38ced5a97c3e}",
+            "BITBUCKET_WORKSPACE": "pipeline-runner",
+        }
 
 
 @click.command("Pipeline Runner")
