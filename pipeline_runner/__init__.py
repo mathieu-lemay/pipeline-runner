@@ -1,5 +1,7 @@
 import base64
+import functools
 import logging
+from time import time as ts
 from typing import Dict, List, Optional, Union
 
 import boto3
@@ -19,7 +21,7 @@ logger.setLevel("INFO")
 
 docker_logger = logging.getLogger("docker")
 docker_logger.handlers.append(handler)
-docker_logger.setLevel("DEBUG")
+docker_logger.setLevel("INFO")
 
 
 class RunnerContext:
@@ -44,24 +46,26 @@ class PipelineRunner:
         self._execute_pipeline(pipeline_to_run, pipelines_definition)
 
     def _execute_pipeline(self, pipeline, definitions):
+        return_code = 0
+
         for step in pipeline.steps:
-            PipelineStepRunner(step, definitions, self._ctx).run()
+            runner = StepRunnerFactory.get(step, definitions, self._ctx)
+
+            start = ts()
+            return_code = runner.run()
+            logger.info("Step '%s' executed in %.3fs. ReturnCode: %s", step.name, ts() - start, return_code)
+
+            if return_code:
+                break
 
 
-class PipelineStepRunner:
+class StepRunner:
     def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
         self._step = step
         self._definitions = definitions
         self._ctx = ctx
 
-    def run(self):
-        if isinstance(self._step, ParallelStep):
-            # TODO: Real parallel
-            for s in self._step.steps:
-                PipelineStepRunner(s, self._definitions, self._ctx).run()
-
-            return
-
+    def run(self) -> Optional[int]:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return
@@ -73,6 +77,12 @@ class PipelineStepRunner:
         runner = DockerRunner(image, None, self._ctx.env_files)
         runner.start_container()
 
+    def _should_run(self):
+        if self._ctx.selected_steps and self._step.name not in self._ctx.selected_steps:
+            return False
+
+        return True
+
     def _get_image(self):
         if self._step.image:
             return self._step.image
@@ -82,11 +92,46 @@ class PipelineStepRunner:
 
         return Image(DEFAULT_IMAGE)
 
-    def _should_run(self):
-        if self._ctx.selected_steps and self._step.name not in self._ctx.selected_steps:
-            return False
 
-        return True
+class ParallelStepRunner(StepRunner):
+    def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
+        self._step = step
+        self._definitions = definitions
+        self._ctx = ctx
+
+    def run(self) -> Optional[int]:
+        if not self._should_run():
+            logger.info("Skipping step: %s", self._step.name)
+            return
+
+        return_code = 0
+        for s in self._step.steps:
+            runner = StepRunnerFactory.get(s, self._definitions, self._ctx)
+            rc = runner.run()
+            if rc:
+                return_code = rc
+
+        return return_code
+
+
+class StepRunnerFactory:
+    @staticmethod
+    def get(step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
+        if isinstance(step, ParallelStep):
+            return ParallelStepRunner(step, definitions, ctx)
+        else:
+            return StepRunner(step, definitions, ctx)
+
+
+def timing(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        s = ts()
+        ret = fn(*args, **kwargs)
+        logger.info("Executed in %.3fs", ts() - s)
+        return ret
+
+    return wrapper
 
 
 class DockerRunner:
@@ -100,12 +145,11 @@ class DockerRunner:
     def start_container(self):
         self._pull_image()
 
+    @timing
     def _pull_image(self):
-        logger.info("Refreshing image: %s", self._image.name)
+        logger.info("Pulling image: %s", self._image.name)
 
         auth_config = self._get_docker_auth_config()
-
-        logger.info("Getting image: %s", self._image.name)
         self._client.images.pull(self._image.name, auth_config=auth_config)
 
     def _get_docker_auth_config(self):

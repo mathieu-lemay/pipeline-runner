@@ -23,8 +23,7 @@ class PipelinesFileParser:
             raise ValueError(f"Pipelines file not found: {self._file_path}")
 
         with open(self._file_path) as f:
-            yaml_data = os.path.expandvars(f.read())
-            pipelines_data = yaml.load(yaml_data, Loader=YamlLoader)
+            pipelines_data = yaml.load(f, Loader=YamlLoader)
 
         pipelines = self._parse_pipelines(pipelines_data)
         caches, services = self._parse_definitions(pipelines_data)
@@ -97,13 +96,27 @@ class PipelinesFileParser:
             return Image(value)
 
         name = value["name"]
-        username = value.get("username")
-        password = value.get("password")
-        email = value.get("email")
-        user = value.get("run-as-user")
-        aws = value.get("aws")
+        username = expandvars(value.get("username"))
+        password = expandvars(value.get("password"))
+        email = expandvars(value.get("email"))
+        user = expandvars(value.get("run-as-user"))
+        aws = self._parse_aws_credentials(value)
 
         return Image(name, username, password, email, user, aws)
+
+    def _parse_aws_credentials(self, value):
+        if "aws" not in value:
+            return None
+
+        creds = value["aws"]
+
+        access_key = expandvars(creds.get("access-key"))
+        secret_key = expandvars(creds.get("secret-key"))
+
+        return {
+            "access-key": access_key,
+            "secret-key": secret_key,
+        }
 
     def _parse_definitions(self, data):
         if "definitions" not in data:
@@ -124,3 +137,13 @@ class PipelinesFileParser:
             services.append(Service(name, image, environment, memory))
 
         return caches, services
+
+
+def expandvars(value):
+    if value is None:
+        return None
+
+    value = os.path.expandvars(value)
+
+    if "$" in value:
+        raise ValueError(f"Missing envvars: {value}")

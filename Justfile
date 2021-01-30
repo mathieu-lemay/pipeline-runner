@@ -7,6 +7,9 @@ run *args: _deps
 test: _deps
 	poetry run pytest -v tests
 
+lint:
+	pre-commit run --all
+
 clean:
 	rm -f .make.* .coverage
 
