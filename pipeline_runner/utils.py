@@ -1,18 +1,30 @@
 import json
 from typing import List, Union
 
-DEFAULT_IMAGE = "atlassian/default-image:latest"
+from git import Repo
 
-DEFAULT_CACHES = {
-    "composer": "~/.composer/cache",
-    "dotnetcore": "~/.nuget/packages",
-    "gradle": "~/.gradle/caches ",
-    "ivy2": "~/.ivy2/cache",
-    "maven": "~/.m2/repository",
-    "node": "node_modules",
-    "pip": "~/.cache/pip",
-    "sbt": "~/.sbt",
-}
+_git_repo = None
+
+
+def _get_git_repo() -> Repo:
+    global _git_repo
+
+    if not _git_repo:
+        from . import conf
+
+        _git_repo = Repo(conf.project_directory)
+
+    return _git_repo
+
+
+def get_git_current_branch() -> str:
+    r = _get_git_repo()
+    return r.active_branch.name
+
+
+def get_git_current_commit() -> str:
+    r = _get_git_repo()
+    return r.head.commit.hexsha
 
 
 def stringify(value: Union[str, List[str]], sep: str = " "):

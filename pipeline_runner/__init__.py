@@ -3,16 +3,22 @@ import functools
 import logging
 import os
 import sys
+import uuid
 from time import time as ts
 from typing import Dict, List, Optional, Union
 
 import boto3
 import click
 import docker
+from slugify import slugify
 
+from .config import Config
 from .models import Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
-from .utils import DEFAULT_IMAGE, stringify
+from .utils import get_git_current_branch, get_git_current_commit, stringify
+
+conf = Config()
+
 
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
@@ -39,9 +45,8 @@ class RunnerContext:
 
 
 class PipelineRunner:
-    def __init__(self, pipeline: str, ctx: RunnerContext):
+    def __init__(self, pipeline: str):
         self._pipeline = pipeline
-        self._ctx = ctx
 
     def run(self):
         pipelines_definition = PipelinesFileParser("bitbucket-pipelines.yml").parse()
@@ -57,7 +62,7 @@ class PipelineRunner:
         return_code = 0
 
         for step in pipeline.steps:
-            runner = StepRunnerFactory.get(step, definitions, self._ctx)
+            runner = StepRunnerFactory.get(step, definitions)
 
             start = ts()
             return_code = runner.run()
@@ -69,10 +74,9 @@ class PipelineRunner:
 
 
 class StepRunner:
-    def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
+    def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines):
         self._step = step
         self._definitions = definitions
-        self._ctx = ctx
 
     def run(self) -> Optional[int]:
         if not self._should_run():
@@ -83,13 +87,13 @@ class StepRunner:
 
         image = self._get_image()
 
-        runner = DockerRunner(image, None, self._ctx.env_files)
+        runner = DockerRunner(image)
         exit_code = runner.run(self._step.script)
 
         return exit_code
 
     def _should_run(self):
-        if self._ctx.selected_steps and self._step.name not in self._ctx.selected_steps:
+        if conf.selected_steps and self._step.name not in conf.selected_steps:
             return False
 
         return True
@@ -101,12 +105,12 @@ class StepRunner:
         if self._definitions.image:
             return self._definitions.image
 
-        return Image(DEFAULT_IMAGE)
+        return Image(conf.default_image)
 
 
 class ParallelStepRunner(StepRunner):
-    def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
-        super().__init__(step, definitions, ctx)
+    def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines):
+        super().__init__(step, definitions)
 
     def run(self) -> Optional[int]:
         if not self._should_run():
@@ -115,7 +119,7 @@ class ParallelStepRunner(StepRunner):
 
         return_code = 0
         for s in self._step.steps:
-            runner = StepRunnerFactory.get(s, self._definitions, self._ctx)
+            runner = StepRunnerFactory.get(s, self._definitions)
             rc = runner.run()
             if rc:
                 return_code = rc
@@ -125,11 +129,11 @@ class ParallelStepRunner(StepRunner):
 
 class StepRunnerFactory:
     @staticmethod
-    def get(step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
+    def get(step: Union[Step, ParallelStep], definitions: Pipelines):
         if isinstance(step, ParallelStep):
-            return ParallelStepRunner(step, definitions, ctx)
+            return ParallelStepRunner(step, definitions)
         else:
-            return StepRunner(step, definitions, ctx)
+            return StepRunner(step, definitions)
 
 
 def timing(fn):
@@ -144,10 +148,9 @@ def timing(fn):
 
 
 class DockerRunner:
-    def __init__(self, image: Image, user: Optional[str], env_files: List[str]):
+    def __init__(self, image: Image, user: Optional[str] = None):
         self._image = image
         self._user = user
-        self._env_files = env_files
 
         self._client = docker.from_env()
         self._container = None
@@ -191,14 +194,16 @@ class DockerRunner:
         logger.info("Starting container")
         self._container = self._client.containers.run(
             self._image.name,
+            name=slugify(f"{os.path.basename(conf.project_directory)}-{uuid.uuid4()}"),
             entrypoint="sh",
             tty=True,
             detach=True,
             remove=True,
-            working_dir="/pipeline",
+            working_dir=conf.build_dir,
             environment=self._get_pipelines_env_vars(),
             volumes={os.getcwd(): {"bind": "/var/run/workspace", "mode": "ro"}},
         )
+        logger.debug("Created container: %s", self._container.name)
 
     @timing
     def _clone_repository(self):
@@ -212,7 +217,7 @@ class DockerRunner:
                 "git",
                 "clone",
                 "--branch",
-                "${BITBUCKET_BRANCH}",
+                get_git_current_branch(),
                 "--depth",
                 "50",
                 "/var/run/workspace",
@@ -272,26 +277,37 @@ class DockerRunner:
 
     @staticmethod
     def _get_pipelines_env_vars() -> Dict[str, str]:
+        project_slug = conf.project_slug
         return {
-            "BUILD_DIR": "/pipeline",
-            "BITBUCKET_BRANCH": "master",
-            "BITBUCKET_BUILD_NUMBER": "1",
-            "BITBUCKET_CLONE_DIR": "/pipeline",
-            "BITBUCKET_COMMIT": "master",
-            "BITBUCKET_EXIT_CODE": "${BITBUCKET_EXIT_CODE}",
+            "BUILD_DIR": conf.build_dir,
+            "BITBUCKET_BRANCH": get_git_current_branch(),
+            "BITBUCKET_BUILD_NUMBER": 1,
+            "BITBUCKET_CLONE_DIR": conf.build_dir,
+            "BITBUCKET_COMMIT": get_git_current_commit(),
+            "BITBUCKET_EXIT_CODE": 0,
             "BITBUCKET_PROJECT_KEY": "PR",
-            "BITBUCKET_REPO_FULL_NAME": "pipeline-runner/pipeline-runner",
+            "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
-            "BITBUCKET_REPO_OWNER": "mathieu-lemay",
-            "BITBUCKET_REPO_OWNER_UUID": "{9c7b13eb-f607-4d0b-a0e8-7c87d8a994f0}",
-            "BITBUCKET_REPO_SLUG": "pipeline-runner",
-            "BITBUCKET_REPO_UUID": "{bcc6cd90-8b08-499c-b739-38ced5a97c3e}",
-            "BITBUCKET_WORKSPACE": "pipeline-runner",
+            "BITBUCKET_REPO_OWNER": conf.username,
+            "BITBUCKET_REPO_OWNER_UUID": conf.owner_uuid,
+            "BITBUCKET_REPO_SLUG": project_slug,
+            "BITBUCKET_REPO_UUID": conf.repo_uuid,
+            "BITBUCKET_WORKSPACE": project_slug,
         }
 
 
 @click.command("Pipeline Runner")
 @click.argument("pipeline", required=True)
+@click.option(
+    "-p",
+    "--project-directory",
+    help="Root directory of the project. Defaults to current directory.",
+)
+@click.option(
+    "-f",
+    "--pipeline-file",
+    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
+)
 @click.option(
     "-s",
     "--step",
@@ -306,12 +322,24 @@ class DockerRunner:
     multiple=True,
     help="Read in a file of environment variables. Can be specified multiple times.",
 )
-def main(pipeline, steps, env_files):
+def main(pipeline, project_directory, pipeline_file, steps, env_files):
     """
     Runs the pipeline PIPELINE.
 
     PIPELINE is the full path to the pipeline to run. Ex: branches.master
     """
 
-    ctx = RunnerContext(steps, env_files)
-    PipelineRunner(pipeline, ctx).run()
+    if project_directory:
+        conf.project_directory = project_directory
+
+    if pipeline_file:
+        conf.pipeline_file = pipeline_file
+
+    if steps:
+        conf.selected_steps = steps
+
+    if env_files:
+        conf.env_files = env_files
+
+    runner = PipelineRunner(pipeline)
+    runner.run()
