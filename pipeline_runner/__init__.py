@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Union
 import boto3
 import click
 import docker
+from dotenv import dotenv_values, load_dotenv
 from slugify import slugify
 
 from .config import Config
@@ -18,7 +19,6 @@ from .parse import PipelinesFileParser
 from .utils import get_git_current_branch, get_git_current_commit, stringify
 
 conf = Config()
-
 
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
@@ -38,18 +38,14 @@ output_logger.handlers.append(handler)
 output_logger.setLevel("INFO")
 
 
-class RunnerContext:
-    def __init__(self, selected_steps: List[str], env_files: List[str]):
-        self.selected_steps = selected_steps
-        self.env_files = env_files
-
-
 class PipelineRunner:
     def __init__(self, pipeline: str):
         self._pipeline = pipeline
 
     def run(self):
-        pipelines_definition = PipelinesFileParser("bitbucket-pipelines.yml").parse()
+        self._load_env_files()
+
+        pipelines_definition = PipelinesFileParser(conf.pipeline_file).parse()
 
         pipeline_to_run = pipelines_definition.get_pipeline(self._pipeline)
 
@@ -57,6 +53,18 @@ class PipelineRunner:
             raise ValueError(f"Invalid pipeline: {self._pipeline}")
 
         self._execute_pipeline(pipeline_to_run, pipelines_definition)
+
+    @staticmethod
+    def _load_env_files():
+        logger.debug("Loading .env file (if exists)")
+        load_dotenv(override=True)
+
+        for env_file in conf.env_files:
+            if not os.path.exists(env_file):
+                raise ValueError(f"Invalid env file: {env_file}")
+
+            logger.debug("Loading env file: %s", env_file)
+            load_dotenv(env_file, override=True)
 
     def _execute_pipeline(self, pipeline, definitions):
         return_code = 0
@@ -156,13 +164,16 @@ class DockerRunner:
         self._container = None
 
     def run(self, script: Union[str, List[str]]) -> int:
-        self._setup_build()
-
-        exit_code = self._execute(script)
-
-        self._stop_container()
-
-        return exit_code
+        try:
+            self._setup_build()
+            exit_code = self._execute(script)
+        except Exception as e:
+            logger.exception(f"Error running script in docker container: {e}")
+            raise
+        else:
+            return exit_code
+        finally:
+            self._stop_container()
 
     def _setup_build(self):
         self._pull_image()
@@ -200,8 +211,8 @@ class DockerRunner:
             detach=True,
             remove=True,
             working_dir=conf.build_dir,
-            environment=self._get_pipelines_env_vars(),
-            volumes={os.getcwd(): {"bind": "/var/run/workspace", "mode": "ro"}},
+            environment=self._get_env_vars(),
+            volumes={conf.project_directory: {"bind": "/var/run/workspace", "mode": "ro"}},
         )
         logger.debug("Created container: %s", self._container.name)
 
@@ -226,12 +237,12 @@ class DockerRunner:
         )
 
         if exit_code:
-            raise Exception()
+            raise Exception("Error cloning repository")
 
         exit_code = self._run_in_container(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
 
         if exit_code:
-            raise Exception()
+            raise Exception("Error resetting to HEAD commit")
 
     def _run_in_container(self, command: Union[str, List[str]]):
         def wrap_in_shell(cmd):
@@ -250,10 +261,15 @@ class DockerRunner:
 
     def _get_docker_auth_config(self):
         if self._image.aws:
+            aws_access_key_id = self._image.aws["access-key"]
+            aws_secret_access_key = self._image.aws["secret-key"]
+            aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+
             client = boto3.client(
                 "ecr",
-                aws_access_key_id=self._image.aws["access-key"],
-                aws_secret_access_key=self._image.aws["secret-key"],
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_session_token=aws_session_token,
                 region_name="ca-central-1",
             )
 
@@ -274,6 +290,15 @@ class DockerRunner:
             }
 
         return None
+
+    def _get_env_vars(self):
+        env_vars = self._get_pipelines_env_vars()
+
+        env_vars.update(dotenv_values())
+        for env_file in conf.env_files:
+            env_vars.update(dotenv_values(env_file))
+
+        return env_vars
 
     @staticmethod
     def _get_pipelines_env_vars() -> Dict[str, str]:
