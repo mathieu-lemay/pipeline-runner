@@ -17,7 +17,7 @@ handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s
 
 logger = logging.getLogger(__name__)
 logger.handlers.append(handler)
-logger.setLevel("INFO")
+logger.setLevel("DEBUG")
 
 docker_logger = logging.getLogger("docker")
 docker_logger.handlers.append(handler)
@@ -76,6 +76,11 @@ class StepRunner:
 
         runner = DockerRunner(image, None, self._ctx.env_files)
         runner.start_container()
+
+        for cmd in self._step.script:
+            runner.execute(cmd)
+
+        runner.stop_container()
 
     def _should_run(self):
         if self._ctx.selected_steps and self._step.name not in self._ctx.selected_steps:
@@ -141,9 +146,25 @@ class DockerRunner:
         self._env_files = env_files
 
         self._client = docker.from_env()
+        self._container = None
 
     def start_container(self):
         self._pull_image()
+        self._container = self._start_container()
+
+    def execute(self, command: Union[str, List[str]]) -> int:
+        logger.debug("Executing command: %s", command)
+        exit_code, output = self._container.exec_run(command, tty=True)
+
+        logger.debug("Command exited with code: %d", exit_code)
+        logger.debug("Command output: %s", output)
+
+        return exit_code
+
+    @timing
+    def stop_container(self):
+        logger.info("Killing container: %s", self._container.name)
+        self._container.kill()
 
     @timing
     def _pull_image(self):
@@ -151,6 +172,12 @@ class DockerRunner:
 
         auth_config = self._get_docker_auth_config()
         self._client.images.pull(self._image.name, auth_config=auth_config)
+
+    @timing
+    def _start_container(self):
+        logger.info("Starting container")
+        container = self._client.containers.run(self._image.name, entrypoint="sh", tty=True, detach=True, remove=True)
+        return container
 
     def _get_docker_auth_config(self):
         if self._image.aws:
