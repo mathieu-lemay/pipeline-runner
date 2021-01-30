@@ -196,6 +196,23 @@ pipelines:
       - step: *step_test_helm
 
   custom:
+    test:
+      - step:
+          name: Test
+          script:
+            - echo "Test"
+            - echo "Current branch is '${BITBUCKET_BRANCH}'"
+            - if [ "$BITBUCKET_BRANCH" = "integration" ]; then
+            -    echo "INTEGRATION"
+            - else
+            -    echo "NOT INTEGRATION"
+            - fi
+            - exit 69
+      - step:
+          name: Test2
+          script:
+            - echo "THIS SHOULD NOT HAPPEN"
+
     run_system_tests:
       - step:
           name: Build Deb Package
