@@ -1,6 +1,8 @@
 import base64
 import functools
 import logging
+import os
+import sys
 from time import time as ts
 from typing import Dict, List, Optional, Union
 
@@ -10,18 +12,24 @@ import docker
 
 from .models import Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
-from .utils import DEFAULT_IMAGE
+from .utils import DEFAULT_IMAGE, stringify
 
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
 
 logger = logging.getLogger(__name__)
 logger.handlers.append(handler)
-logger.setLevel("DEBUG")
+logger.setLevel("INFO")
 
 docker_logger = logging.getLogger("docker")
 docker_logger.handlers.append(handler)
 docker_logger.setLevel("INFO")
+
+handler = logging.StreamHandler(stream=sys.stdout)
+handler.setFormatter(logging.Formatter("%(message)s"))
+output_logger = logging.getLogger("output")
+output_logger.handlers.append(handler)
+output_logger.setLevel("INFO")
 
 
 class RunnerContext:
@@ -56,7 +64,8 @@ class PipelineRunner:
             logger.info("Step '%s' executed in %.3fs. ReturnCode: %s", step.name, ts() - start, return_code)
 
             if return_code:
-                break
+                logger.error("Step '%s': FAIL", step.name)
+                return return_code
 
 
 class StepRunner:
@@ -75,12 +84,9 @@ class StepRunner:
         image = self._get_image()
 
         runner = DockerRunner(image, None, self._ctx.env_files)
-        runner.start_container()
+        exit_code = runner.run(self._step.script)
 
-        for cmd in self._step.script:
-            runner.execute(cmd)
-
-        runner.stop_container()
+        return exit_code
 
     def _should_run(self):
         if self._ctx.selected_steps and self._step.name not in self._ctx.selected_steps:
@@ -100,9 +106,7 @@ class StepRunner:
 
 class ParallelStepRunner(StepRunner):
     def __init__(self, step: Union[Step, ParallelStep], definitions: Pipelines, ctx: RunnerContext):
-        self._step = step
-        self._definitions = definitions
-        self._ctx = ctx
+        super().__init__(step, definitions, ctx)
 
     def run(self) -> Optional[int]:
         if not self._should_run():
@@ -148,21 +152,30 @@ class DockerRunner:
         self._client = docker.from_env()
         self._container = None
 
-    def start_container(self):
+    def run(self, script: Union[str, List[str]]) -> int:
+        self._setup_build()
+
+        exit_code = self._execute(script)
+
+        self._stop_container()
+
+        return exit_code
+
+    def _setup_build(self):
         self._pull_image()
-        self._container = self._start_container()
+        self._start_container()
+        self._clone_repository()
 
-    def execute(self, command: Union[str, List[str]]) -> int:
-        logger.debug("Executing command: %s", command)
-        exit_code, output = self._container.exec_run(command, tty=True)
+    @timing
+    def _execute(self, command: Union[str, List[str]]) -> int:
+        command = stringify(command, sep="\n")
 
-        logger.debug("Command exited with code: %d", exit_code)
-        logger.debug("Command output: %s", output)
+        exit_code = self._run_in_container(command)
 
         return exit_code
 
     @timing
-    def stop_container(self):
+    def _stop_container(self):
         logger.info("Killing container: %s", self._container.name)
         self._container.kill()
 
@@ -176,8 +189,59 @@ class DockerRunner:
     @timing
     def _start_container(self):
         logger.info("Starting container")
-        container = self._client.containers.run(self._image.name, entrypoint="sh", tty=True, detach=True, remove=True)
-        return container
+        self._container = self._client.containers.run(
+            self._image.name,
+            entrypoint="sh",
+            tty=True,
+            detach=True,
+            remove=True,
+            working_dir="/pipeline",
+            environment=self._get_pipelines_env_vars(),
+            volumes={os.getcwd(): {"bind": "/var/run/workspace", "mode": "ro"}},
+        )
+
+    @timing
+    def _clone_repository(self):
+        # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
+        # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
+        # $BUILD_DIR
+
+        exit_code = self._run_in_container(
+            [
+                "GIT_LFS_SKIP_SMUDGE=1",
+                "git",
+                "clone",
+                "--branch",
+                "${BITBUCKET_BRANCH}",
+                "--depth",
+                "50",
+                "/var/run/workspace",
+                "$BUILD_DIR",
+            ]
+        )
+
+        if exit_code:
+            raise Exception()
+
+        exit_code = self._run_in_container(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
+
+        if exit_code:
+            raise Exception()
+
+    def _run_in_container(self, command: Union[str, List[str]]):
+        def wrap_in_shell(cmd):
+            return ["sh", "-e", "-c", cmd]
+
+        command = stringify(command)
+
+        output_logger.info("+ " + command.replace("\n", "\n+ "))
+
+        exit_code, output = self._container.exec_run(wrap_in_shell(command), tty=True)
+        logger.debug("Command exited with code: %d", exit_code)
+
+        output_logger.info(output.decode())
+
+        return exit_code
 
     def _get_docker_auth_config(self):
         if self._image.aws:
@@ -206,15 +270,14 @@ class DockerRunner:
 
         return None
 
-    def _build_docker_run_command_line(self) -> [str]:
-        return [""]
-
-    def _get_pipelines_env_vars(self) -> Dict[str, str]:
+    @staticmethod
+    def _get_pipelines_env_vars() -> Dict[str, str]:
         return {
-            "BITBUCKET_BRANCH": "${BITBUCKET_BRANCH}",
-            "BITBUCKET_BUILD_NUMBER": "${BITBUCKET_BUILD_NUMBER}",
+            "BUILD_DIR": "/pipeline",
+            "BITBUCKET_BRANCH": "master",
+            "BITBUCKET_BUILD_NUMBER": "1",
             "BITBUCKET_CLONE_DIR": "/pipeline",
-            "BITBUCKET_COMMIT": "${BITBUCKET_COMMIT}",
+            "BITBUCKET_COMMIT": "master",
             "BITBUCKET_EXIT_CODE": "${BITBUCKET_EXIT_CODE}",
             "BITBUCKET_PROJECT_KEY": "PR",
             "BITBUCKET_REPO_FULL_NAME": "pipeline-runner/pipeline-runner",

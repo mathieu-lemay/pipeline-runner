@@ -147,3 +147,5 @@ def expandvars(value):
 
     if "$" in value:
         raise ValueError(f"Missing envvars: {value}")
+
+    return value

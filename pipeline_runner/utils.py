@@ -1,4 +1,5 @@
 import json
+from typing import List, Union
 
 DEFAULT_IMAGE = "atlassian/default-image:latest"
 
@@ -12,6 +13,13 @@ DEFAULT_CACHES = {
     "pip": "~/.cache/pip",
     "sbt": "~/.sbt",
 }
+
+
+def stringify(value: Union[str, List[str]], sep: str = " "):
+    if isinstance(value, list):
+        value = sep.join(value)
+
+    return value
 
 
 def dumps(*args, **kwargs):
