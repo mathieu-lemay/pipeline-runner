@@ -50,9 +50,18 @@ class PipelineRunner:
         pipeline_to_run = pipelines_definition.get_pipeline(self._pipeline)
 
         if not pipeline_to_run:
-            raise ValueError(f"Invalid pipeline: {self._pipeline}")
+            logger.error("Invalid pipeline: %s", self._pipeline)
+            logger.info(
+                "Available pipelines:\n\t%s", "\n\t".join(sorted(pipelines_definition.get_available_pipelines()))
+            )
+            sys.exit(1)
 
-        self._execute_pipeline(pipeline_to_run, pipelines_definition)
+        s = ts()
+        exit_code = self._execute_pipeline(pipeline_to_run, pipelines_definition)
+        logger.info("Pipeline '%s' executed in %.3f.", pipeline_to_run.name, ts() - s)
+
+        if exit_code:
+            logger.error("Pipeline '%s' failed", pipeline_to_run.name)
 
     @staticmethod
     def _load_env_files():
@@ -67,18 +76,15 @@ class PipelineRunner:
             load_dotenv(env_file, override=True)
 
     def _execute_pipeline(self, pipeline, definitions):
-        return_code = 0
+        exit_code = 0
 
         for step in pipeline.steps:
             runner = StepRunnerFactory.get(step, definitions)
 
-            start = ts()
-            return_code = runner.run()
-            logger.info("Step '%s' executed in %.3fs. ReturnCode: %s", step.name, ts() - start, return_code)
+            exit_code = runner.run()
 
-            if return_code:
-                logger.error("Step '%s': FAIL", step.name)
-                return return_code
+            if exit_code:
+                return exit_code
 
 
 class StepRunner:
@@ -92,11 +98,17 @@ class StepRunner:
             return
 
         logger.info("Running step: %s", self._step.name)
+        s = ts()
 
         image = self._get_image()
 
         runner = DockerRunner(image)
         exit_code = runner.run(self._step.script)
+
+        logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
+
+        if exit_code:
+            logger.error("Step '%s': FAIL", self._step.name)
 
         return exit_code
 
@@ -149,7 +161,7 @@ def timing(fn):
     def wrapper(*args, **kwargs):
         s = ts()
         ret = fn(*args, **kwargs)
-        logger.info("Executed in %.3fs", ts() - s)
+        logger.debug("Executed in %.3fs", ts() - s)
         return ret
 
     return wrapper

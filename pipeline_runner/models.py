@@ -81,3 +81,6 @@ class Pipelines(DebugMixin):
 
     def get_pipeline(self, path) -> Optional[Pipeline]:
         return self.pipelines.get(path)
+
+    def get_available_pipelines(self) -> List[str]:
+        return self.pipelines.keys()

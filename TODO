@@ -1,5 +1,7 @@
 - Artifacts
-- Exit Code
+- Pass BB_EXIT_CODE
+- After Script
 - Caches
 - Services
+- Clone the real thing
 - pipes
