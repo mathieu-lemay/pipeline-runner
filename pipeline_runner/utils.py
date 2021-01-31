@@ -37,6 +37,15 @@ def _get_project_cache_directory() -> str:
     return os.path.join(_get_user_cache_directory(), config.project_env_name)
 
 
+def get_local_cache_directory(cache_name: str) -> str:
+    d = os.path.join(_get_project_cache_directory(), "caches", cache_name)
+
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+    return d
+
+
 def get_artifact_directory(pipeline_uuid: str) -> str:
     d = os.path.join(_get_project_cache_directory(), "artifacts", pipeline_uuid)
 

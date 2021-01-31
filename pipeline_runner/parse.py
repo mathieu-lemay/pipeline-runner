@@ -104,7 +104,8 @@ class PipelinesFileParser:
 
         return Image(name, username, password, email, user, aws)
 
-    def _parse_aws_credentials(self, value):
+    @staticmethod
+    def _parse_aws_credentials(value):
         if "aws" not in value:
             return None
 
@@ -118,16 +119,17 @@ class PipelinesFileParser:
             "secret-key": secret_key,
         }
 
-    def _parse_definitions(self, data):
+    @staticmethod
+    def _parse_definitions(data):
         if "definitions" not in data:
             return None, None
 
         definitions = data["definitions"]
-        caches = []
+        caches = {}
         services = []
 
         for name, path in definitions.get("caches", {}).items():
-            caches.append(Cache(name, path))
+            caches[name] = Cache(name, path)
 
         for name, value in definitions.get("services", {}).items():
             image = value.get("image")

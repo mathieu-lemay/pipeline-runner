@@ -3,11 +3,12 @@ import functools
 import gzip
 import logging
 import os
+import re
 import sys
 import tarfile
 import uuid
 from time import time as ts
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import boto3
 import click
@@ -15,9 +16,16 @@ import docker
 from dotenv import dotenv_values, load_dotenv
 
 from .config import config
-from .models import Image, ParallelStep, Pipelines, Step
+from .models import Cache, Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
-from .utils import FileStreamer, get_artifact_directory, get_git_current_branch, get_git_current_commit, stringify
+from .utils import (
+    FileStreamer,
+    get_artifact_directory,
+    get_git_current_branch,
+    get_git_current_commit,
+    get_local_cache_directory,
+    stringify,
+)
 
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
@@ -109,7 +117,7 @@ class StepRunner:
 
         image = self._get_image()
 
-        runner = DockerRunner(image, self._pipeline_uuid, self._step_uuid)
+        runner = DockerRunner(image, self._pipeline_uuid, self._step_uuid, self._step, self._definitions.caches)
 
         try:
             exit_code = runner.run(self._step.script)
@@ -181,11 +189,12 @@ def timing(fn):
 
 
 class DockerRunner:
-    def __init__(self, image: Image, pipeline_uuid: str, step_uuid: str, user: Optional[str] = None):
+    def __init__(self, image: Image, pipeline_uuid: str, step_uuid: str, step: Step, caches: Dict[str, Cache]):
         self._image = image
         self._pipeline_uuid = pipeline_uuid
         self._step_uuid = step_uuid
-        self._user = user
+        self._step = step
+        self._caches = caches
 
         self._client = docker.from_env()
         self._container = None
@@ -225,6 +234,9 @@ class DockerRunner:
 
     @timing
     def _stop_container(self):
+        if not self._container:
+            return
+
         logger.info("Killing container: %s", self._container.name)
         self._container.kill()
 
@@ -238,6 +250,13 @@ class DockerRunner:
     @timing
     def _start_container(self):
         logger.info("Starting container")
+
+        volumes = self._get_volumes()
+
+        # TODO: Only when needed
+        if True:
+            volumes["/var/run/docker.sock"] = {"bind": "/var/run/docker.sock"}
+
         self._container = self._client.containers.run(
             self._image.name,
             name=f"{config.project_slug}-{self._step_uuid}",
@@ -247,7 +266,7 @@ class DockerRunner:
             remove=True,
             working_dir=config.build_dir,
             environment=self._get_env_vars(),
-            volumes={config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"}},
+            volumes=volumes,
         )
         logger.debug("Created container: %s", self._container.name)
 
@@ -356,7 +375,47 @@ class DockerRunner:
             "BITBUCKET_REPO_SLUG": project_slug,
             "BITBUCKET_REPO_UUID": config.repo_uuid,
             "BITBUCKET_WORKSPACE": project_slug,
+            "COMPOSE_DOCKER_CLI_BUILD": 0,
         }
+
+    def _get_volumes(self):
+        volumes = {config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"}}
+
+        for cache_name in self._step.caches:
+            cache_dirs = self._get_cache_directories(cache_name)
+            if not cache_dirs:
+                continue
+
+            local_dir, remote_dir = cache_dirs
+            remote_dir = self._normalize_home(remote_dir)
+            volumes[local_dir] = {"bind": remote_dir}
+
+        return volumes
+
+    def _get_cache_directories(self, cache_name) -> Optional[Tuple[str, str]]:
+        if cache_name == "docker":
+            return None
+
+        local_dir = get_local_cache_directory(cache_name)
+        if cache_name in self._caches:
+            remote_dir = self._caches[cache_name].path
+        elif cache_name in config.default_caches:
+            remote_dir = config.default_caches[cache_name]
+        else:
+            raise ValueError(f"Invalid cache: {cache_name}")
+
+        return local_dir, remote_dir
+
+    def _normalize_home(self, path: str) -> str:
+        home_dir = self._get_home_dir()
+        path = re.sub("^~/", home_dir + "/", path)
+        path = re.sub("\\$HOME/", home_dir + "/", path)
+
+        return path
+
+    @staticmethod
+    def _get_home_dir() -> str:
+        return "/root"
 
     @timing
     def _save_artifacts(self, artifacts: List[str]):
