@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import boto3
 import click
 import docker
+import requests
 from dotenv import dotenv_values, load_dotenv
 
 from .config import config
@@ -221,6 +222,7 @@ class DockerRunner:
     def _setup_build(self):
         self._pull_image()
         self._start_container()
+        self._start_services()
         self._clone_repository()
         self._load_artifacts()
 
@@ -445,6 +447,18 @@ class DockerRunner:
                 if not res:
                     raise Exception(f"Error loading artifact: {af}")
 
+    def _start_services(self):
+        if "docker" in self._step.services:
+            bin_path = self._ensure_docker_binary()
+
+    def _ensure_docker_binary(self):
+        docker_binary_path = os.path.join(utils.get_data_directory(), "docker")
+        if os.path.exists(docker_binary_path):
+            return docker_binary_path
+
+        resp = requests.get("https://download.docker.com/linux/static/stable/x86_64/docker-20.10.2.tgz", stream=True)
+        tarfile.open(fileobj=resp.content)
+
 
 @click.command("Pipeline Runner")
 @click.argument("pipeline", required=True)
@@ -491,5 +505,17 @@ def main(pipeline, project_directory, pipeline_file, steps, env_files):
     if env_files:
         config.env_files = env_files
 
-    runner = PipelineRunner(pipeline)
-    runner.run()
+    def _ensure_docker_binary():
+        data_dir = utils.get_data_directory()
+        docker_binary_path = os.path.join(data_dir, "docker")
+        if os.path.exists(docker_binary_path):
+            return docker_binary_path
+
+        resp = requests.get("https://download.docker.com/linux/static/stable/x86_64/docker-20.10.2.tgz", stream=True)
+        with tarfile.open(fileobj=resp.content) as f:
+            f.extractall(data_dir)
+
+    _ensure_docker_binary()
+
+    # runner = PipelineRunner(pipeline)
+    # runner.run()

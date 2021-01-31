@@ -3,7 +3,7 @@ import os
 from typing import List, Union
 
 from git import Repo
-from xdg import xdg_cache_home
+from xdg import xdg_cache_home, xdg_data_home
 
 from . import config
 
@@ -53,6 +53,10 @@ def get_artifact_directory(pipeline_uuid: str) -> str:
         os.makedirs(d)
 
     return d
+
+
+def get_data_directory() -> str:
+    return os.path.join(xdg_data_home(), "pipeline-runner")
 
 
 def stringify(value: Union[str, List[str]], sep: str = " "):
