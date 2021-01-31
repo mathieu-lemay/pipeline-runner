@@ -1,4 +1,6 @@
+import base64
 import getpass
+import hashlib
 import os
 import re
 
@@ -61,3 +63,13 @@ class Config:
     @property
     def project_slug(self):
         return slugify(self.project_name)
+
+    @property
+    def project_env_name(self):
+        h = hashlib.sha256(self.project_directory.encode()).digest()
+        h = base64.urlsafe_b64encode(h).decode()[:8]
+
+        return "{}-{}".format(self.project_slug, h)
+
+
+config = Config()

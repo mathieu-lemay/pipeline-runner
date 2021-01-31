@@ -1,7 +1,10 @@
-- Artifacts
-- Pass BB_EXIT_CODE
-- After Script
-- Caches
+- After Script (with prev exit code)
+- Caches (+ validate them when parsing)
 - Services
 - Clone the real thing
 - pipes
+- Streaming output
+- Docker in docker
+- List / Run / Cache command
+- Execution report
+- Memory Limits

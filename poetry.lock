@@ -338,10 +338,18 @@ python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 [package.dependencies]
 six = "*"
 
+[[package]]
+name = "xdg"
+version = "5.0.1"
+description = "Variables defined by the XDG Base Directory Specification"
+category = "main"
+optional = false
+python-versions = ">=3.6,<4.0"
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "4d1711694c4204451b8ebf9467843f718e95ae7dc8ecef226a904a1453024079"
+content-hash = "8cb9184ba252f59c1ddc93926191e8bd2eef3a305343a706232dc9cb1660913f"
 
 [metadata.files]
 atomicwrites = [
@@ -499,4 +507,8 @@ urllib3 = [
 websocket-client = [
     {file = "websocket_client-0.57.0-py2.py3-none-any.whl", hash = "sha256:0fc45c961324d79c781bab301359d5a1b00b13ad1b10415a4780229ef71a5549"},
     {file = "websocket_client-0.57.0.tar.gz", hash = "sha256:d735b91d6d1692a6a181f2a8c9e0238e5f6373356f561bb9dc4c7af36f452010"},
+]
+xdg = [
+    {file = "xdg-5.0.1-py3-none-any.whl", hash = "sha256:9ddd6649bee9148f952305603a08474e3ef37c909eb19dfcb9737d54ebcc407e"},
+    {file = "xdg-5.0.1.tar.gz", hash = "sha256:97a27058caa61b4ce04e05471643caa6bc8c563d2638f92c0516ac50208146d8"},
 ]
