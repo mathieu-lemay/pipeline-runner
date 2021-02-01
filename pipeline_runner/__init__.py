@@ -22,6 +22,7 @@ from .parse import PipelinesFileParser
 from .utils import (
     FileStreamer,
     get_artifact_directory,
+    get_data_directory,
     get_git_current_branch,
     get_git_current_commit,
     get_local_cache_directory,
@@ -451,13 +452,19 @@ class DockerRunner:
         if "docker" in self._step.services:
             bin_path = self._ensure_docker_binary()
 
-    def _ensure_docker_binary(self):
-        docker_binary_path = os.path.join(utils.get_data_directory(), "docker")
+    @staticmethod
+    def _ensure_docker_binary():
+        data_dir = get_data_directory()
+        docker_binary_path = os.path.join(data_dir, "docker", "docker")
         if os.path.exists(docker_binary_path):
             return docker_binary_path
 
         resp = requests.get("https://download.docker.com/linux/static/stable/x86_64/docker-20.10.2.tgz", stream=True)
-        tarfile.open(fileobj=resp.content)
+        # noinspection PyTypeChecker
+        with tarfile.open(fileobj=FileStreamer(resp.iter_content(chunk_size=1024 * 1024)), mode="r|gz") as f:
+            f.extractall(data_dir)
+
+        return docker_binary_path
 
 
 @click.command("Pipeline Runner")
@@ -505,17 +512,5 @@ def main(pipeline, project_directory, pipeline_file, steps, env_files):
     if env_files:
         config.env_files = env_files
 
-    def _ensure_docker_binary():
-        data_dir = utils.get_data_directory()
-        docker_binary_path = os.path.join(data_dir, "docker")
-        if os.path.exists(docker_binary_path):
-            return docker_binary_path
-
-        resp = requests.get("https://download.docker.com/linux/static/stable/x86_64/docker-20.10.2.tgz", stream=True)
-        with tarfile.open(fileobj=resp.content) as f:
-            f.extractall(data_dir)
-
-    _ensure_docker_binary()
-
-    # runner = PipelineRunner(pipeline)
-    # runner.run()
+    runner = PipelineRunner(pipeline)
+    runner.run()
