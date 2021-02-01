@@ -18,11 +18,11 @@ class CacheManager:
         self._container = container
         self._cache_definitions = cache_definitions
 
-    def upload_caches(self, cache_names: List[str]):
+    def upload(self, cache_names: List[str]):
         for cache in cache_names:
             self._upload_cache(cache)
 
-    def download_caches(self, cache_names: List[str]):
+    def download(self, cache_names: List[str]):
         for cache in cache_names:
             self._download_cache(cache)
 

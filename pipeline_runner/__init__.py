@@ -1,32 +1,18 @@
-import base64
-import functools
-import gzip
 import logging
 import os
-import sys
-import tarfile
 import uuid
 from time import time as ts
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
-import boto3
 import click
-import docker
-import requests
-from dotenv import dotenv_values, load_dotenv
+from dotenv import load_dotenv
 
+from .artifacts import ArtifactManager
 from .cache import CacheManager
 from .config import config
-from .models import Cache, Image, ParallelStep, Pipelines, Step
+from .container import ContainerRunner
+from .models import Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
-from .utils import (
-    FileStreamer,
-    get_artifact_directory,
-    get_data_directory,
-    get_git_current_branch,
-    get_git_current_commit,
-    stringify,
-)
 
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
@@ -38,12 +24,6 @@ logger.setLevel("INFO")
 docker_logger = logging.getLogger("docker")
 docker_logger.handlers.append(handler)
 docker_logger.setLevel("INFO")
-
-handler = logging.StreamHandler(stream=sys.stdout)
-handler.setFormatter(logging.Formatter("%(message)s"))
-output_logger = logging.getLogger("output")
-output_logger.handlers.append(handler)
-output_logger.setLevel("INFO")
 
 
 class PipelineRunner:
@@ -108,6 +88,8 @@ class StepRunner:
         self._step_uuid = step_uuid
         self._definitions = definitions
 
+        self._container_runner = None
+
     def run(self) -> Optional[int]:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
@@ -116,25 +98,24 @@ class StepRunner:
         logger.info("Running step: %s", self._step.name)
         s = ts()
 
-        image = self._get_image()
-
-        runner = DockerRunner(image, self._pipeline_uuid, self._step_uuid, self._step, self._definitions.caches)
-
         try:
-            container = runner.start_container()
+            image = self._get_image()
+            container_name = f"{config.project_slug}-{self._step_uuid}"
+
+            self._container_runner = ContainerRunner(image, container_name)
+
+            container = self._container_runner.start()
 
             self._build_setup(container)
 
-            exit_code = runner.run(self._step.script)
+            exit_code = self._container_runner.run_script(self._step.script)
 
             if exit_code:
                 logger.error("Step '%s': FAIL", self._step.name)
 
-            runner.collect_artifacts(self._step.artifacts)
-
             self._build_teardown(container)
         finally:
-            runner.close()
+            self._container_runner.stop()
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 
@@ -159,8 +140,11 @@ class StepRunner:
         logger.info("Build setup: '%s'", self._step.name)
         s = ts()
 
+        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
+        am.load()
+
         cm = CacheManager(container, self._definitions.caches)
-        cm.upload_caches(self._step.caches)
+        cm.upload(self._step.caches)
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
@@ -169,7 +153,10 @@ class StepRunner:
         s = ts()
 
         cm = CacheManager(container, self._definitions.caches)
-        cm.download_caches(self._step.caches)
+        cm.download(self._step.caches)
+
+        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
+        am.save(self._step.artifacts)
 
         logger.info("Build teardown finished in %.3fs: '%s'", ts() - s, self._step.name)
 
@@ -200,264 +187,6 @@ class StepRunnerFactory:
             return ParallelStepRunner(step, pipeline_uuid, step_uuid, definitions)
         else:
             return StepRunner(step, pipeline_uuid, step_uuid, definitions)
-
-
-def timing(fn):
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        s = ts()
-        ret = fn(*args, **kwargs)
-        logger.debug("Executed in %.3fs", ts() - s)
-        return ret
-
-    return wrapper
-
-
-class DockerRunner:
-    def __init__(self, image: Image, pipeline_uuid: str, step_uuid: str, step: Step, caches: Dict[str, Cache]):
-        self._image = image
-        self._pipeline_uuid = pipeline_uuid
-        self._step_uuid = step_uuid
-        self._step = step
-        self._caches = caches
-
-        self._client = docker.from_env()
-        self._container = None
-
-    def start_container(self):
-        self._pull_image()
-        self._start_container()
-
-        # TODO: Move to step setup
-        self._start_services()
-        self._clone_repository()
-        self._load_artifacts()
-
-        return self._container
-
-    def run(self, script: Union[str, List[str]]) -> int:
-        try:
-            exit_code = self._execute(script)
-        except Exception as e:
-            logger.exception(f"Error running script in docker container: {e}")
-            raise
-        else:
-            return exit_code
-
-    def close(self):
-        self._stop_container()
-
-    def collect_artifacts(self, artifacts: Optional[List[str]]):
-        if not artifacts:
-            return
-
-        self._save_artifacts(artifacts)
-
-    @timing
-    def _execute(self, command: Union[str, List[str]]) -> int:
-        command = stringify(command, sep="\n")
-
-        exit_code = self._run_in_container(command)
-
-        return exit_code
-
-    @timing
-    def _stop_container(self):
-        if not self._container:
-            return
-
-        logger.info("Killing container: %s", self._container.name)
-        self._container.kill()
-
-    @timing
-    def _pull_image(self):
-        logger.info("Pulling image: %s", self._image.name)
-
-        auth_config = self._get_docker_auth_config()
-        self._client.images.pull(self._image.name, auth_config=auth_config)
-
-    @timing
-    def _start_container(self):
-        logger.info("Starting container")
-
-        volumes = self._get_volumes()
-
-        # TODO: Only when needed
-        if True:
-            volumes["/var/run/docker.sock"] = {"bind": "/var/run/docker.sock"}
-
-        self._container = self._client.containers.run(
-            self._image.name,
-            name=f"{config.project_slug}-{self._step_uuid}",
-            entrypoint="sh",
-            tty=True,
-            detach=True,
-            remove=True,
-            working_dir=config.build_dir,
-            environment=self._get_env_vars(),
-            volumes=volumes,
-        )
-        logger.debug("Created container: %s", self._container.name)
-
-    @timing
-    def _clone_repository(self):
-        # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
-        # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
-        # $BUILD_DIR
-
-        exit_code = self._run_in_container(
-            [
-                "GIT_LFS_SKIP_SMUDGE=1",
-                "git",
-                "clone",
-                "--branch",
-                get_git_current_branch(),
-                "--depth",
-                "50",
-                "/var/run/workspace",
-                "$BUILD_DIR",
-            ]
-        )
-
-        if exit_code:
-            raise Exception("Error cloning repository")
-
-        exit_code = self._run_in_container(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
-
-        if exit_code:
-            raise Exception("Error resetting to HEAD commit")
-
-    def _run_in_container(self, command: Union[str, List[str]], shell=True):
-        def wrap_in_shell(cmd):
-            if shell:
-                return ["sh", "-e", "-c", cmd]
-            else:
-                return cmd
-
-        command = stringify(command)
-
-        output_logger.info("+ " + command.replace("\n", "\n+ "))
-
-        exit_code, output = self._container.exec_run(wrap_in_shell(command), tty=True)
-        logger.debug("Command exited with code: %d", exit_code)
-
-        output_logger.info(output.decode())
-
-        return exit_code
-
-    def _get_docker_auth_config(self):
-        if self._image.aws:
-            aws_access_key_id = self._image.aws["access-key"]
-            aws_secret_access_key = self._image.aws["secret-key"]
-            aws_session_token = os.getenv("AWS_SESSION_TOKEN")
-
-            client = boto3.client(
-                "ecr",
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name="ca-central-1",
-            )
-
-            resp = client.get_authorization_token()
-
-            credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
-            username, password = credentials.split(":", maxsplit=1)
-
-            return {
-                "username": username,
-                "password": password,
-            }
-
-        if self._image.username and self._image.password:
-            return {
-                "username": self._image.username,
-                "password": self._image.password,
-            }
-
-        return None
-
-    def _get_env_vars(self):
-        env_vars = self._get_pipelines_env_vars()
-
-        env_vars.update(dotenv_values())
-        for env_file in config.env_files:
-            env_vars.update(dotenv_values(env_file))
-
-        return env_vars
-
-    @staticmethod
-    def _get_pipelines_env_vars() -> Dict[str, str]:
-        project_slug = config.project_slug
-        return {
-            "BUILD_DIR": config.build_dir,
-            "BITBUCKET_BRANCH": get_git_current_branch(),
-            "BITBUCKET_BUILD_NUMBER": 1,
-            "BITBUCKET_CLONE_DIR": config.build_dir,
-            "BITBUCKET_COMMIT": get_git_current_commit(),
-            "BITBUCKET_EXIT_CODE": 0,
-            "BITBUCKET_PROJECT_KEY": "PR",
-            "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
-            "BITBUCKET_REPO_IS_PRIVATE": "true",
-            "BITBUCKET_REPO_OWNER": config.username,
-            "BITBUCKET_REPO_OWNER_UUID": config.owner_uuid,
-            "BITBUCKET_REPO_SLUG": project_slug,
-            "BITBUCKET_REPO_UUID": config.repo_uuid,
-            "BITBUCKET_WORKSPACE": project_slug,
-            "COMPOSE_DOCKER_CLI_BUILD": 0,
-        }
-
-    @staticmethod
-    def _get_volumes():
-        volumes = {config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"}}
-
-        return volumes
-
-    @timing
-    def _save_artifacts(self, artifacts: List[str]):
-        artifact_file = f"artifacts-{self._step_uuid}.tar.gz"
-
-        logger.info("Saving artifacts")
-
-        self._run_in_container(["tar", "zcf", artifact_file, "-C", config.build_dir] + artifacts)
-        data, stat = self._container.get_archive(os.path.join(config.build_dir, artifact_file))
-        logger.debug("artifacts stats: %s", stat)
-
-        artifact_directory = get_artifact_directory(self._pipeline_uuid)
-
-        # noinspection PyTypeChecker
-        with tarfile.open(fileobj=FileStreamer(data), mode="r|") as tar:
-            tar.extractall(artifact_directory)
-
-        logger.info("Artifacts saved to %s", artifact_directory)
-
-    @timing
-    def _load_artifacts(self):
-        artifact_directory = get_artifact_directory(self._pipeline_uuid)
-
-        for af in os.listdir(artifact_directory):
-            with gzip.open(os.path.join(artifact_directory, af), "rb") as f:
-                res = self._container.put_archive(config.build_dir, f)
-                if not res:
-                    raise Exception(f"Error loading artifact: {af}")
-
-    def _start_services(self):
-        if "docker" in self._step.services:
-            bin_path = self._ensure_docker_binary()
-
-    @staticmethod
-    def _ensure_docker_binary():
-        data_dir = get_data_directory()
-        docker_binary_path = os.path.join(data_dir, "docker", "docker")
-        if os.path.exists(docker_binary_path):
-            return docker_binary_path
-
-        resp = requests.get("https://download.docker.com/linux/static/stable/x86_64/docker-20.10.2.tgz", stream=True)
-        # noinspection PyTypeChecker
-        with tarfile.open(fileobj=FileStreamer(resp.iter_content(chunk_size=1024 * 1024)), mode="r|gz") as f:
-            f.extractall(data_dir)
-
-        return docker_binary_path
 
 
 @click.command("Pipeline Runner")
