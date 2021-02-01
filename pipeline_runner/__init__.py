@@ -3,12 +3,11 @@ import functools
 import gzip
 import logging
 import os
-import re
 import sys
 import tarfile
 import uuid
 from time import time as ts
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import boto3
 import click
@@ -16,6 +15,7 @@ import docker
 import requests
 from dotenv import dotenv_values, load_dotenv
 
+from .cache import CacheManager
 from .config import config
 from .models import Cache, Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
@@ -25,7 +25,6 @@ from .utils import (
     get_data_directory,
     get_git_current_branch,
     get_git_current_commit,
-    get_local_cache_directory,
     stringify,
 )
 
@@ -122,16 +121,22 @@ class StepRunner:
         runner = DockerRunner(image, self._pipeline_uuid, self._step_uuid, self._step, self._definitions.caches)
 
         try:
+            container = runner.start_container()
+
+            self._build_setup(container)
+
             exit_code = runner.run(self._step.script)
-
-            runner.collect_artifacts(self._step.artifacts)
-
-            logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 
             if exit_code:
                 logger.error("Step '%s': FAIL", self._step.name)
+
+            runner.collect_artifacts(self._step.artifacts)
+
+            self._build_teardown(container)
         finally:
             runner.close()
+
+        logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 
         return exit_code
 
@@ -149,6 +154,24 @@ class StepRunner:
             return self._definitions.image
 
         return Image(config.default_image)
+
+    def _build_setup(self, container):
+        logger.info("Build setup: '%s'", self._step.name)
+        s = ts()
+
+        cm = CacheManager(container, self._definitions.caches)
+        cm.upload_caches(self._step.caches)
+
+        logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
+
+    def _build_teardown(self, container):
+        logger.info("Build teardown: '%s'", self._step.name)
+        s = ts()
+
+        cm = CacheManager(container, self._definitions.caches)
+        cm.download_caches(self._step.caches)
+
+        logger.info("Build teardown finished in %.3fs: '%s'", ts() - s, self._step.name)
 
 
 class ParallelStepRunner(StepRunner):
@@ -201,9 +224,19 @@ class DockerRunner:
         self._client = docker.from_env()
         self._container = None
 
+    def start_container(self):
+        self._pull_image()
+        self._start_container()
+
+        # TODO: Move to step setup
+        self._start_services()
+        self._clone_repository()
+        self._load_artifacts()
+
+        return self._container
+
     def run(self, script: Union[str, List[str]]) -> int:
         try:
-            self._setup_build()
             exit_code = self._execute(script)
         except Exception as e:
             logger.exception(f"Error running script in docker container: {e}")
@@ -219,13 +252,6 @@ class DockerRunner:
             return
 
         self._save_artifacts(artifacts)
-
-    def _setup_build(self):
-        self._pull_image()
-        self._start_container()
-        self._start_services()
-        self._clone_repository()
-        self._load_artifacts()
 
     @timing
     def _execute(self, command: Union[str, List[str]]) -> int:
@@ -381,44 +407,11 @@ class DockerRunner:
             "COMPOSE_DOCKER_CLI_BUILD": 0,
         }
 
-    def _get_volumes(self):
+    @staticmethod
+    def _get_volumes():
         volumes = {config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"}}
 
-        for cache_name in self._step.caches:
-            cache_dirs = self._get_cache_directories(cache_name)
-            if not cache_dirs:
-                continue
-
-            local_dir, remote_dir = cache_dirs
-            remote_dir = self._normalize_home(remote_dir)
-            volumes[local_dir] = {"bind": remote_dir}
-
         return volumes
-
-    def _get_cache_directories(self, cache_name) -> Optional[Tuple[str, str]]:
-        if cache_name == "docker":
-            return None
-
-        local_dir = get_local_cache_directory(cache_name)
-        if cache_name in self._caches:
-            remote_dir = self._caches[cache_name].path
-        elif cache_name in config.default_caches:
-            remote_dir = config.default_caches[cache_name]
-        else:
-            raise ValueError(f"Invalid cache: {cache_name}")
-
-        return local_dir, remote_dir
-
-    def _normalize_home(self, path: str) -> str:
-        home_dir = self._get_home_dir()
-        path = re.sub("^~/", home_dir + "/", path)
-        path = re.sub("\\$HOME/", home_dir + "/", path)
-
-        return path
-
-    @staticmethod
-    def _get_home_dir() -> str:
-        return "/root"
 
     @timing
     def _save_artifacts(self, artifacts: List[str]):

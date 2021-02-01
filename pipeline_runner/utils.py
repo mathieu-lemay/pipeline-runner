@@ -5,7 +5,7 @@ from typing import List, Union
 from git import Repo
 from xdg import xdg_cache_home, xdg_data_home
 
-from . import config
+from .config import config
 
 _git_repo = None
 
@@ -37,8 +37,8 @@ def _get_project_cache_directory() -> str:
     return os.path.join(_get_user_cache_directory(), config.project_env_name)
 
 
-def get_local_cache_directory(cache_name: str) -> str:
-    d = os.path.join(_get_project_cache_directory(), "caches", cache_name)
+def get_local_cache_directory() -> str:
+    d = os.path.join(_get_project_cache_directory(), "caches")
 
     if not os.path.exists(d):
         os.makedirs(d)
@@ -64,6 +64,29 @@ def stringify(value: Union[str, List[str]], sep: str = " "):
         value = sep.join(value)
 
     return value
+
+
+def get_human_readable_size(num):
+    for unit in ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB"]:
+
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}"
+
+        num /= 1024.0
+
+    return f"{num:.1f}{unit}"
+
+
+def wrap_in_shell(command: Union[str, List[str]], stop_on_error=True):
+    command = stringify(command)
+
+    wrapped = ["sh"]
+    if stop_on_error:
+        wrapped.append("-e")
+
+    wrapped += ["-c", command]
+
+    return wrapped
 
 
 def dumps(*args, **kwargs):
