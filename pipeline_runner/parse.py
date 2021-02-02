@@ -8,6 +8,7 @@ from .models import Cache, Image, ParallelStep, Pipeline, Pipelines, Service, St
 try:
     from yaml import CLoader as YamlLoader
 except ImportError:
+    # noinspection PyUnresolvedReferences
     from yaml import YamlLoader
 
 
