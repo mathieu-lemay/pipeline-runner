@@ -113,7 +113,7 @@ class StepRunner:
             if exit_code:
                 logger.error("Step '%s': FAIL", self._step.name)
 
-            self._build_teardown()
+            self._build_teardown(exit_code)
         finally:
             self._container_runner.stop()
 
@@ -148,12 +148,15 @@ class StepRunner:
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
-    def _build_teardown(self):
+    def _build_teardown(self, exit_code):
         logger.info("Build teardown: '%s'", self._step.name)
         s = ts()
 
-        cm = CacheManager(self._container_runner, self._definitions.caches)
-        cm.download(self._step.caches)
+        if exit_code == 0:
+            cm = CacheManager(self._container_runner, self._definitions.caches)
+            cm.download(self._step.caches)
+        else:
+            logger.warning("Skipping caches for failed step")
 
         am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
         am.save(self._step.artifacts)
