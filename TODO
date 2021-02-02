@@ -1,10 +1,8 @@
-- After Script (with prev exit code)
-- Caches (+ validate them when parsing)
 - Services
+- Docker in docker
+- After Script (with prev exit code)
 - Clone the real thing
 - pipes
 - Streaming output
-- Docker in docker
 - List / Run / Cache command
 - Execution report
-- Memory Limits

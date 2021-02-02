@@ -44,6 +44,7 @@ class Step(DebugMixin):
         services: Optional[List[str]],
         artifacts: Optional[List[str]],
         after_script: Optional[List[str]],
+        size: int,
     ):
         self.name = name
         self.script = script
@@ -52,6 +53,7 @@ class Step(DebugMixin):
         self.services = services or []
         self.artifacts = artifacts or []
         self.after_script = after_script or []
+        self.size = size
 
 
 class ParallelStep(DebugMixin):

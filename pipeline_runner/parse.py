@@ -77,19 +77,35 @@ class PipelinesFileParser:
             if image:
                 image = self._parse_image(image)
 
+            services = value.get("services", [])
+            if len(services) > 5:
+                raise ValueError("Too many services. Enforcing a limit of 5 services per step.")
+
+            size = self._parse_step_size(value.get("size"))
+
             steps.append(
                 Step(
                     value["name"],
                     value["script"],
                     image,
                     value.get("caches"),
-                    value.get("services"),
+                    services,
                     value.get("artifacts"),
                     value.get("after-script"),
+                    size,
                 )
             )
 
         return steps
+
+    @staticmethod
+    def _parse_step_size(value):
+        if not value:
+            return 1
+        elif value == "2x":
+            return 2
+        else:
+            raise ValueError(f"Invalid size: {value}")
 
     def _parse_image(self, value):
         if isinstance(value, str):

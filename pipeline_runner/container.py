@@ -22,9 +22,10 @@ output_logger.setLevel("INFO")
 
 
 class ContainerRunner:
-    def __init__(self, image: Image, name: str):
+    def __init__(self, image: Image, name: str, mem_limit: int):
         self._image = image
         self._name = name
+        self._mem_limit = mem_limit
 
         self._client = docker.from_env()
         self._container = None
@@ -34,7 +35,6 @@ class ContainerRunner:
         self._start_container()
 
         # TODO: Move to step setup
-        # self._start_services()
         self._clone_repository()
 
         return self._container
@@ -113,6 +113,7 @@ class ContainerRunner:
             working_dir=config.build_dir,
             environment=self._get_env_vars(),
             volumes=volumes,
+            mem_limit=self._mem_limit,
         )
         logger.debug("Created container: %s", self._container.name)
 

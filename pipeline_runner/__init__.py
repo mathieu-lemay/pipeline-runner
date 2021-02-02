@@ -101,8 +101,9 @@ class StepRunner:
         try:
             image = self._get_image()
             container_name = f"{config.project_slug}-{self._step_uuid}"
+            mem_limit = self._get_build_container_memory_limit()
 
-            self._container_runner = ContainerRunner(image, container_name)
+            self._container_runner = ContainerRunner(image, container_name, mem_limit)
 
             self._container_runner.start()
 
@@ -135,6 +136,12 @@ class StepRunner:
             return self._definitions.image
 
         return Image(config.default_image)
+
+    def _get_build_container_memory_limit(self) -> int:
+        return config.build_container_base_memory_limit * self._step.size
+
+    def _get_service_containers_memory_limit(self) -> int:
+        return config.service_containers_base_memory_limit * self._step.size
 
     def _build_setup(self):
         logger.info("Build setup: '%s'", self._step.name)

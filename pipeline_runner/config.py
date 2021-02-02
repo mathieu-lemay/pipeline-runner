@@ -35,6 +35,9 @@ class Config:
         self.build_dir = "/var/run/pipeline"
         self.username = getpass.getuser()
 
+        self.build_container_base_memory_limit = 2 ** 30  # 1GiB
+        self.service_containers_base_memory_limit = 3 * 2 ** 30  # 3GiB
+
         # Randomly Generated
         # TODO: Generate them per project
         self.owner_uuid = "e07413cc-dcd9-4c68-aa2e-08e296b1a8af"
