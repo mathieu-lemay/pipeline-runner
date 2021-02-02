@@ -1,4 +1,3 @@
-import gzip
 import logging
 import os.path
 from time import time as ts
@@ -32,8 +31,7 @@ class CacheManager:
             logger.info("Cache '%s': Ignoring", cache_name)
             return
 
-        cache_archive_file_name = f"{cache_name}.tar.gz"
-        local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
+        local_cache_archive_path = self._get_local_cache_archive_path(cache_name)
 
         if not os.path.exists(local_cache_archive_path):
             logger.info("Cache '%s': Not found: Skipping", cache_name)
@@ -57,7 +55,7 @@ class CacheManager:
             logger.error("Remote command failed: %s", output.decode())
             raise Exception(f"Error uploading cache: {cache_name}")
 
-        with gzip.open(local_cache_archive_path, "rb") as f:
+        with open(local_cache_archive_path, "rb") as f:
             success = self._container.put_archive(remote_cache_parent_directory, f)
             if not success:
                 raise Exception(f"Error uploading cache: {cache_name}")
@@ -73,8 +71,7 @@ class CacheManager:
             logger.info("Cache '%s': Ignoring", cache_name)
             return
 
-        cache_archive_file_name = f"{cache_name}.tar.gz"
-        local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
+        local_cache_archive_path = self._get_local_cache_archive_path(cache_name)
         remote_cache_directory = self._get_remote_directory(cache_name)
         if not remote_cache_directory:
             logger.info("Cache '%s': Ignoring", cache_name)
@@ -83,7 +80,7 @@ class CacheManager:
 
         t = ts()
 
-        with gzip.open(local_cache_archive_path, "wb") as f:
+        with open(local_cache_archive_path, "wb") as f:
             data, _ = self._container.get_archive(remote_cache_directory)
             size = 0
             for chunk in data:
@@ -96,6 +93,10 @@ class CacheManager:
 
     def _should_ignore(self, cache_name: str) -> bool:
         return cache_name in self._ignored_caches
+
+    @staticmethod
+    def _get_local_cache_archive_path(cache_name: str) -> str:
+        return os.path.join(utils.get_local_cache_directory(), f"{cache_name}.tar")
 
     def _get_remote_directory(self, cache_name: str) -> str:
         if cache_name in self._cache_definitions:
