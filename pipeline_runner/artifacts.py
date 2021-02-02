@@ -19,38 +19,7 @@ class ArtifactManager:
         self._pipeline_id = pipeline_id
         self._step_id = step_id
 
-    def save(self, artifacts: List[str]):
-        if not artifacts:
-            return
-
-        artifact_file = f"artifacts-{self._step_id}.tar"
-        artifact_remote_path = os.path.join(config.build_dir, artifact_file)
-        artifact_local_directory = utils.get_artifact_directory(self._pipeline_id)
-
-        logger.info("Collecting artifacts")
-
-        t = ts()
-
-        self._container.run_command(["tar", "cf", artifact_file, "-C", config.build_dir] + artifacts)
-        data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
-        logger.debug("artifacts stats: %s", stats)
-
-        # noinspection PyTypeChecker
-        with tarfile.open(fileobj=utils.FileStreamer(data), mode="r|") as wrapper_tar:
-            for entry in wrapper_tar:
-                with tarfile.open(fileobj=wrapper_tar.extractfile(entry), mode="r|") as tar:
-                    tar.extractall(artifact_local_directory)
-
-        t = ts() - t
-
-        logger.info(
-            "Artifacts saved %s to %s in %.3fs",
-            utils.get_human_readable_size(stats["size"]),
-            artifact_local_directory,
-            t,
-        )
-
-    def load(self):
+    def upload(self):
         artifact_directory = utils.get_artifact_directory(self._pipeline_id)
 
         logger.info("Loading artifacts")
@@ -81,3 +50,34 @@ class ArtifactManager:
         t = ts() - t
 
         logger.info("Artifacts loaded in %.3fs", t)
+
+    def download(self, artifacts: List[str]):
+        if not artifacts:
+            return
+
+        artifact_file = f"artifacts-{self._step_id}.tar"
+        artifact_remote_path = os.path.join(config.build_dir, artifact_file)
+        artifact_local_directory = utils.get_artifact_directory(self._pipeline_id)
+
+        logger.info("Collecting artifacts")
+
+        t = ts()
+
+        self._container.run_command(["tar", "cf", artifact_file, "-C", config.build_dir] + artifacts)
+        data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
+        logger.debug("artifacts stats: %s", stats)
+
+        # noinspection PyTypeChecker
+        with tarfile.open(fileobj=utils.FileStreamer(data), mode="r|") as wrapper_tar:
+            for entry in wrapper_tar:
+                with tarfile.open(fileobj=wrapper_tar.extractfile(entry), mode="r|") as tar:
+                    tar.extractall(artifact_local_directory)
+
+        t = ts() - t
+
+        logger.info(
+            "Artifacts saved %s to %s in %.3fs",
+            utils.get_human_readable_size(stats["size"]),
+            artifact_local_directory,
+            t,
+        )

@@ -2,6 +2,7 @@ import os.path
 
 import yaml
 
+from .config import config
 from .models import Cache, Image, ParallelStep, Pipeline, Pipelines, Service, Step
 
 try:
@@ -25,8 +26,8 @@ class PipelinesFileParser:
         with open(self._file_path) as f:
             pipelines_data = yaml.load(f, Loader=YamlLoader)
 
-        pipelines = self._parse_pipelines(pipelines_data)
         caches, services = self._parse_definitions(pipelines_data)
+        pipelines = self._parse_pipelines(pipelines_data)
 
         if "image" in pipelines_data:
             image = self._parse_image(pipelines_data["image"])
@@ -135,10 +136,23 @@ class PipelinesFileParser:
             "secret-key": secret_key,
         }
 
-    @staticmethod
-    def _parse_definitions(data):
+    def _parse_definitions(self, data):
         caches = {}
-        services = []
+        services = {}
+
+        for name, path in config.default_caches.items():
+            caches[name] = Cache(name, path)
+
+        for name, values in config.default_services.items():
+            if "image" in values:
+                image = self._parse_image(values["image"])
+            else:
+                image = None
+
+            environment = values.get("environment")
+            memory = int(values.get("memory", config.service_container_default_memory_limit))
+
+            services[name] = Service(name, image, environment, memory)
 
         if "definitions" not in data:
             return caches, services
@@ -149,11 +163,15 @@ class PipelinesFileParser:
             caches[name] = Cache(name, path)
 
         for name, value in definitions.get("services", {}).items():
-            image = value.get("image")
-            environment = value.get("environment")
-            memory = int(value["memory"]) if "memory" in value else None
+            if "image" in value:
+                image = self._parse_image(value["image"])
+            else:
+                raise ValueError(f"Missing image for service: {name}")
 
-            services.append(Service(name, image, environment, memory))
+            environment = value.get("environment")
+            memory = int(value.get("memory", config.service_container_default_memory_limit))
+
+            services[name] = Service(name, image, environment, memory)
 
         return caches, services
 

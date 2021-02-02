@@ -22,16 +22,17 @@ output_logger.setLevel("INFO")
 
 
 class ContainerRunner:
-    def __init__(self, image: Image, name: str, mem_limit: int):
+    def __init__(self, image: Image, name: str, mem_limit: int, service_names: List[str]):
         self._image = image
         self._name = name
-        self._mem_limit = mem_limit
+        self._mem_limit = mem_limit * 2 ** 20  # MiB to B
+        self._service_names = service_names
 
         self._client = docker.from_env()
         self._container = None
 
     def start(self):
-        self._pull_image()
+        pull_image(self._client, self._image)
         self._start_container()
 
         # TODO: Move to step setup
@@ -92,12 +93,6 @@ class ContainerRunner:
     def _wrap_in_shell(cmd):
         return ["sh", "-e", "-c", cmd]
 
-    def _pull_image(self):
-        logger.info("Pulling image: %s", self._image.name)
-
-        auth_config = self._get_docker_auth_config()
-        self._client.images.pull(self._image.name, auth_config=auth_config)
-
     def _start_container(self):
         logger.info("Starting container")
 
@@ -114,6 +109,7 @@ class ContainerRunner:
             environment=self._get_env_vars(),
             volumes=volumes,
             mem_limit=self._mem_limit,
+            links={s: s for s in self._service_names},
         )
         logger.debug("Created container: %s", self._container.name)
 
@@ -143,38 +139,6 @@ class ContainerRunner:
 
         if exit_code:
             raise Exception("Error resetting to HEAD commit")
-
-    def _get_docker_auth_config(self):
-        if self._image.aws:
-            aws_access_key_id = self._image.aws["access-key"]
-            aws_secret_access_key = self._image.aws["secret-key"]
-            aws_session_token = os.getenv("AWS_SESSION_TOKEN")
-
-            client = boto3.client(
-                "ecr",
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                aws_session_token=aws_session_token,
-                region_name="ca-central-1",
-            )
-
-            resp = client.get_authorization_token()
-
-            credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
-            username, password = credentials.split(":", maxsplit=1)
-
-            return {
-                "username": username,
-                "password": password,
-            }
-
-        if self._image.username and self._image.password:
-            return {
-                "username": self._image.username,
-                "password": self._image.password,
-            }
-
-        return None
 
     def _get_env_vars(self):
         env_vars = self._get_pipelines_env_vars()
@@ -216,10 +180,6 @@ class ContainerRunner:
             "/var/run/docker.sock": {"bind": "/var/run/docker.sock"},
         }
 
-    # def _start_services(self):
-    #     if "docker" in self._step.services:
-    #         bin_path = self._ensure_docker_binary()
-
     # @staticmethod
     # def _ensure_docker_binary():
     #     data_dir = get_data_directory()
@@ -233,3 +193,54 @@ class ContainerRunner:
     #         f.extractall(data_dir)
     #
     #     return docker_binary_path
+
+
+_pulled_images = set()
+
+
+def pull_image(client, image):
+    global _pulled_images
+
+    if image.name in _pulled_images:
+        logger.info("Image already pulled: %s", image.name)
+        return
+
+    logger.info("Pulling image: %s", image.name)
+
+    auth_config = get_image_authentication(image)
+    client.images.pull(image.name, auth_config=auth_config)
+
+    _pulled_images.add(image.name)
+
+
+def get_image_authentication(image: Image):
+    if image.aws:
+        aws_access_key_id = image.aws["access-key"]
+        aws_secret_access_key = image.aws["secret-key"]
+        aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+
+        client = boto3.client(
+            "ecr",
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
+            region_name="ca-central-1",
+        )
+
+        resp = client.get_authorization_token()
+
+        credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
+        username, password = credentials.split(":", maxsplit=1)
+
+        return {
+            "username": username,
+            "password": password,
+        }
+
+    if image.username and image.password:
+        return {
+            "username": image.username,
+            "password": image.password,
+        }
+
+    return None

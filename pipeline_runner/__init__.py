@@ -13,6 +13,7 @@ from .config import config
 from .container import ContainerRunner
 from .models import Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
+from .service import ServicesManager
 
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
@@ -88,6 +89,7 @@ class StepRunner:
         self._step_uuid = step_uuid
         self._definitions = definitions
 
+        self._services_manager = None
         self._container_runner = None
 
     def run(self) -> Optional[int]:
@@ -103,8 +105,12 @@ class StepRunner:
             container_name = f"{config.project_slug}-{self._step_uuid}"
             mem_limit = self._get_build_container_memory_limit()
 
-            self._container_runner = ContainerRunner(image, container_name, mem_limit)
+            self._services_manager = ServicesManager(self._step.services, self._definitions.services, self._step.size)
+            self._services_manager.start_services()
 
+            links = self._services_manager.get_container_links()
+
+            self._container_runner = ContainerRunner(image, container_name, mem_limit, links)
             self._container_runner.start()
 
             self._build_setup()
@@ -116,7 +122,11 @@ class StepRunner:
 
             self._build_teardown(exit_code)
         finally:
-            self._container_runner.stop()
+            if self._container_runner:
+                self._container_runner.stop()
+
+            if self._services_manager:
+                self._services_manager.stop_services()
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 
@@ -140,35 +150,46 @@ class StepRunner:
     def _get_build_container_memory_limit(self) -> int:
         return config.build_container_base_memory_limit * self._step.size
 
-    def _get_service_containers_memory_limit(self) -> int:
-        return config.service_containers_base_memory_limit * self._step.size
-
     def _build_setup(self):
         logger.info("Build setup: '%s'", self._step.name)
         s = ts()
 
-        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
-        am.load()
-
-        cm = CacheManager(self._container_runner, self._definitions.caches)
-        cm.upload(self._step.caches)
+        self._upload_artifacts()
+        self._upload_caches()
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
+
+    def _upload_artifacts(self):
+        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
+        am.upload()
+
+    def _upload_caches(self):
+        cm = CacheManager(self._container_runner, self._definitions.caches)
+        cm.upload(self._step.caches)
 
     def _build_teardown(self, exit_code):
         logger.info("Build teardown: '%s'", self._step.name)
         s = ts()
 
+        self._download_caches(exit_code)
+        self._download_artifacts()
+        self._stop_services()
+
+        logger.info("Build teardown finished in %.3fs: '%s'", ts() - s, self._step.name)
+
+    def _download_caches(self, exit_code):
         if exit_code == 0:
             cm = CacheManager(self._container_runner, self._definitions.caches)
             cm.download(self._step.caches)
         else:
             logger.warning("Skipping caches for failed step")
 
+    def _download_artifacts(self):
         am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
-        am.save(self._step.artifacts)
+        am.download(self._step.artifacts)
 
-        logger.info("Build teardown finished in %.3fs: '%s'", ts() - s, self._step.name)
+    def _stop_services(self):
+        pass
 
 
 class ParallelStepRunner(StepRunner):

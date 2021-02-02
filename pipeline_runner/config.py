@@ -32,11 +32,14 @@ class Config:
             "sbt": "~/.sbt",
         }
 
+        self.default_services = {"docker": {}}
+
         self.build_dir = "/var/run/pipeline"
         self.username = getpass.getuser()
 
-        self.build_container_base_memory_limit = 2 ** 30  # 1GiB
-        self.service_containers_base_memory_limit = 3 * 2 ** 30  # 3GiB
+        self.build_container_base_memory_limit = 1024
+        self.service_containers_base_memory_limit = 3072
+        self.service_container_default_memory_limit = 1024
 
         # Randomly Generated
         # TODO: Generate them per project

@@ -3,14 +3,6 @@ from typing import List, Optional, Union
 from .utils import DebugMixin
 
 
-class Service(DebugMixin):
-    def __init__(self, name: str, image: str = None, environment: {str: str} = None, memory: int = None):
-        self.name = name
-        self.image = image
-        self.environment = environment
-        self.memory = memory
-
-
 class Cache(DebugMixin):
     def __init__(self, name: str, path: str):
         self.name = name
@@ -32,6 +24,14 @@ class Image(DebugMixin):
         self.password = password
         self.email = email
         self.aws = aws
+
+
+class Service(DebugMixin):
+    def __init__(self, name: str, image: Image = None, environment: {str: str} = None, memory: int = None):
+        self.name = name
+        self.image = image
+        self.environment = environment
+        self.memory = memory
 
 
 class Step(DebugMixin):
