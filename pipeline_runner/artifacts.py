@@ -31,7 +31,7 @@ class ArtifactManager:
 
         t = ts()
 
-        self._container.exec(["tar", "cf", artifact_file, "-C", config.build_dir] + artifacts)
+        self._container.run_command(["tar", "cf", artifact_file, "-C", config.build_dir] + artifacts)
         data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
         logger.debug("artifacts stats: %s", stats)
 

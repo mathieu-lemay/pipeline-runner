@@ -49,24 +49,9 @@ class ContainerRunner:
     def run_script(self, script: Union[str, List[str]], shell=True) -> int:
         command = utils.stringify(script, sep="\n")
 
-        return self.exec(command, shell)
+        return self.run_command(command, shell)
 
-    def exec(self, command: Union[str, List[str]], shell=True) -> int:
-        try:
-            exit_code = self._execute(command, shell)
-        except Exception as e:
-            logger.exception(f"Error running script in docker container: {e}")
-            raise
-        else:
-            return exit_code
-
-    def get_archive(self, *args, **kwargs):
-        return self._container.get_archive(*args, **kwargs)
-
-    def put_archive(self, *args, **kwargs):
-        return self._container.put_archive(*args, **kwargs)
-
-    def _execute(self, command: Union[str, List[str]], shell):
+    def run_command(self, command: Union[str, List[str]], shell=True) -> int:
         command = utils.stringify(command)
 
         output_logger.info("+ " + command.replace("\n", "\n+ "))
@@ -75,11 +60,33 @@ class ContainerRunner:
             command = self._wrap_in_shell(command)
 
         exit_code, output = self._container.exec_run(command, tty=True)
-        logger.debug("Command exited with code: %d", exit_code)
 
         output_logger.info(output.decode())
 
         return exit_code
+
+    def execute_in_container(self, command: Union[str, List[str]], shell=True):
+        command = utils.stringify(command)
+
+        if shell:
+            command = self._wrap_in_shell(command)
+
+        return self._container.exec_run(command, tty=True)
+
+    def get_archive(self, *args, **kwargs):
+        return self._container.get_archive(*args, **kwargs)
+
+    def put_archive(self, *args, **kwargs):
+        return self._container.put_archive(*args, **kwargs)
+
+    def expand_path(self, path) -> str:
+        cmd = utils.wrap_in_shell(["echo", "-n", path])
+        exit_code, output = self._container.exec_run(cmd, tty=True)
+        if exit_code != 0:
+            logger.error("Remote command failed: %s", output.decode())
+            raise Exception(f"Error expanding path: {path}")
+
+        return output.decode().strip()
 
     @staticmethod
     def _wrap_in_shell(cmd):
@@ -114,7 +121,7 @@ class ContainerRunner:
         # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
         # $BUILD_DIR
 
-        exit_code = self.exec(
+        exit_code = self.run_command(
             [
                 "GIT_LFS_SKIP_SMUDGE=1",
                 "git",
@@ -131,7 +138,7 @@ class ContainerRunner:
         if exit_code:
             raise Exception("Error cloning repository")
 
-        exit_code = self.exec(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
+        exit_code = self.run_command(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
 
         if exit_code:
             raise Exception("Error resetting to HEAD commit")

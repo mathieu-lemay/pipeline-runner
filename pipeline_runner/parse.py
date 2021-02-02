@@ -121,12 +121,13 @@ class PipelinesFileParser:
 
     @staticmethod
     def _parse_definitions(data):
-        if "definitions" not in data:
-            return None, None
-
-        definitions = data["definitions"]
         caches = {}
         services = []
+
+        if "definitions" not in data:
+            return caches, services
+
+        definitions = data["definitions"]
 
         for name, path in definitions.get("caches", {}).items():
             caches[name] = Cache(name, path)

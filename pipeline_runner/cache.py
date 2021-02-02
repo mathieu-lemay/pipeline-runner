@@ -4,17 +4,16 @@ import os.path
 from time import time as ts
 from typing import Dict, List
 
-from docker.models.containers import Container
-
 from . import utils
 from .config import config
+from .container import ContainerRunner
 from .models import Cache
 
 logger = logging.getLogger(__name__)
 
 
 class CacheManager:
-    def __init__(self, container: Container, cache_definitions: Dict[str, Cache]):
+    def __init__(self, container: ContainerRunner, cache_definitions: Dict[str, Cache]):
         self._container = container
         self._cache_definitions = cache_definitions
 
@@ -30,6 +29,7 @@ class CacheManager:
         cache_archive_file_name = f"{cache_name}.tar.gz"
         local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
         remote_cache_directory = self._get_remote_directory(cache_name)
+        remote_cache_parent_directory = os.path.dirname(remote_cache_directory)
 
         if not os.path.exists(local_cache_archive_path):
             logger.info('Cache "%s": Not found: Skipping', cache_name)
@@ -41,19 +41,19 @@ class CacheManager:
 
         t = ts()
 
-        with gzip.open(local_cache_archive_path, "rb") as f:
-            success = self._container.put_archive("/tmp", f)
-            if not success:
-                logger.error(f"Error uploading cache: {cache_name}")
-                raise Exception(f"Error uploading cache: {cache_name}")
-
-        move_cache_dir_cmd = (
-            f'mkdir -p "$(dirname {remote_cache_directory})"' f' && mv "/tmp/{cache_name}" "{remote_cache_directory}"'
+        prepare_cache_dir_cmd = (
+            f'[ -d "{remote_cache_directory}" ] && rm -rf "{remote_cache_directory}"; '
+            f'mkdir -p "{remote_cache_parent_directory}"'
         )
-        res, output = self._container.exec_run(utils.wrap_in_shell(move_cache_dir_cmd))
+        res, output = self._container.execute_in_container(prepare_cache_dir_cmd)
         if res != 0:
             logger.error("Remote command failed: %s", output.decode())
             raise Exception(f"Error uploading cache: {cache_name}")
+
+        with gzip.open(local_cache_archive_path, "rb") as f:
+            success = self._container.put_archive(remote_cache_parent_directory, f)
+            if not success:
+                raise Exception(f"Error uploading cache: {cache_name}")
 
         t = ts() - t
 
@@ -69,17 +69,14 @@ class CacheManager:
         logger.info("Cache '%s': Downloading", cache_name)
 
         t = ts()
-        tmp_cache_dir = f"/tmp/{cache_name}"
-        exit_code, _ = self._container.exec_run(["sh", "-e", "-c", f'mv "{remote_cache_directory}" "{tmp_cache_dir}"'])
-        if exit_code != 0:
-            raise Exception(f"Error downloading cache: {cache_name}")
 
         with gzip.open(local_cache_archive_path, "wb") as f:
-            data, _ = self._container.get_archive(tmp_cache_dir)
+            data, _ = self._container.get_archive(remote_cache_directory)
             size = 0
             for chunk in data:
                 size += len(chunk)
                 f.write(chunk)
+
         t = ts() - t
 
         logger.info("Cache '%s': Downloaded %s in %.3fs", cache_name, utils.get_human_readable_size(size), t)
@@ -92,13 +89,4 @@ class CacheManager:
         else:
             raise ValueError(f"Invalid cache: {cache_name}")
 
-        return self._expand(remote_dir)
-
-    def _expand(self, path) -> str:
-        cmd = utils.wrap_in_shell(["echo", "-n", path])
-        exit_code, output = self._container.exec_run(cmd, tty=True)
-        if exit_code != 0:
-            logger.error("Remote command failed: %s", output.decode())
-            raise Exception(f"Error expanding path: {path}")
-
-        return output.decode().strip()
+        return self._container.expand_path(remote_dir)

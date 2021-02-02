@@ -104,16 +104,16 @@ class StepRunner:
 
             self._container_runner = ContainerRunner(image, container_name)
 
-            container = self._container_runner.start()
+            self._container_runner.start()
 
-            self._build_setup(container)
+            self._build_setup()
 
             exit_code = self._container_runner.run_script(self._step.script)
 
             if exit_code:
                 logger.error("Step '%s': FAIL", self._step.name)
 
-            self._build_teardown(container)
+            self._build_teardown()
         finally:
             self._container_runner.stop()
 
@@ -136,23 +136,23 @@ class StepRunner:
 
         return Image(config.default_image)
 
-    def _build_setup(self, container):
+    def _build_setup(self):
         logger.info("Build setup: '%s'", self._step.name)
         s = ts()
 
         am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
         am.load()
 
-        cm = CacheManager(container, self._definitions.caches)
+        cm = CacheManager(self._container_runner, self._definitions.caches)
         cm.upload(self._step.caches)
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
-    def _build_teardown(self, container):
+    def _build_teardown(self):
         logger.info("Build teardown: '%s'", self._step.name)
         s = ts()
 
-        cm = CacheManager(container, self._definitions.caches)
+        cm = CacheManager(self._container_runner, self._definitions.caches)
         cm.download(self._step.caches)
 
         am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
