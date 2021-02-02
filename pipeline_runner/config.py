@@ -32,7 +32,7 @@ class Config:
             "sbt": "~/.sbt",
         }
 
-        self.default_services = {"docker": {}}
+        self.default_services = {"docker": {"image": "docker:dind"}}
 
         self.build_dir = "/var/run/pipeline"
         self.username = getpass.getuser()

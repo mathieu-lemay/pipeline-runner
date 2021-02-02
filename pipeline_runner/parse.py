@@ -144,15 +144,7 @@ class PipelinesFileParser:
             caches[name] = Cache(name, path)
 
         for name, values in config.default_services.items():
-            if "image" in values:
-                image = self._parse_image(values["image"])
-            else:
-                image = None
-
-            environment = values.get("environment")
-            memory = int(values.get("memory", config.service_container_default_memory_limit))
-
-            services[name] = Service(name, image, environment, memory)
+            services[name] = self._parse_service(name, values)
 
         if "definitions" not in data:
             return caches, services
@@ -162,18 +154,30 @@ class PipelinesFileParser:
         for name, path in definitions.get("caches", {}).items():
             caches[name] = Cache(name, path)
 
-        for name, value in definitions.get("services", {}).items():
-            if "image" in value:
-                image = self._parse_image(value["image"])
+        for name, values in definitions.get("services", {}).items():
+            service = self._parse_service(name, values)
+
+            if name in services:
+                services[name].update(service)
             else:
-                raise ValueError(f"Missing image for service: {name}")
+                services[name] = service
 
-            environment = value.get("environment")
-            memory = int(value.get("memory", config.service_container_default_memory_limit))
-
-            services[name] = Service(name, image, environment, memory)
+        for s in services.values():
+            if not s.image:
+                raise ValueError(f"No image for service: {s.name}")
 
         return caches, services
+
+    def _parse_service(self, name, values):
+        if "image" in values:
+            image = self._parse_image(values["image"])
+        else:
+            image = None
+
+        environment = values.get("environment")
+        memory = int(values.get("memory", config.service_container_default_memory_limit))
+
+        return Service(name, image, environment, memory)
 
 
 def expandvars(value):

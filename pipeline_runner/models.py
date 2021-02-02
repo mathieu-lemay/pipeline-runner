@@ -33,6 +33,12 @@ class Service(DebugMixin):
         self.environment = environment
         self.memory = memory
 
+    def update(self, service: "Service"):
+        for attr in ("name", "image", "environment", "memory"):
+            val = getattr(service, attr)
+            if val is not None:
+                setattr(self, attr, val)
+
 
 class Step(DebugMixin):
     def __init__(
