@@ -2,7 +2,7 @@ import gzip
 import logging
 import os.path
 from time import time as ts
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from . import utils
 from .config import config
@@ -17,6 +17,8 @@ class CacheManager:
         self._container = container
         self._cache_definitions = cache_definitions
 
+        self._ignored_caches = {"docker"}
+
     def upload(self, cache_names: List[str]):
         for cache in cache_names:
             self._upload_cache(cache)
@@ -28,12 +30,16 @@ class CacheManager:
     def _upload_cache(self, cache_name: str):
         cache_archive_file_name = f"{cache_name}.tar.gz"
         local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
-        remote_cache_directory = self._get_remote_directory(cache_name)
-        remote_cache_parent_directory = os.path.dirname(remote_cache_directory)
 
         if not os.path.exists(local_cache_archive_path):
-            logger.info('Cache "%s": Not found: Skipping', cache_name)
+            logger.info("Cache '%s': Not found: Skipping", cache_name)
             return
+
+        remote_cache_directory = self._get_remote_directory(cache_name)
+        if not remote_cache_directory:
+            logger.info("Cache '%s': Ignoring", cache_name)
+
+        remote_cache_parent_directory = os.path.dirname(remote_cache_directory)
 
         cache_archive_size = os.path.getsize(local_cache_archive_path)
 
@@ -65,6 +71,8 @@ class CacheManager:
         cache_archive_file_name = f"{cache_name}.tar.gz"
         local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
         remote_cache_directory = self._get_remote_directory(cache_name)
+        if not remote_cache_directory:
+            logger.info("Cache '%s': Ignoring", cache_name)
 
         logger.info("Cache '%s': Downloading", cache_name)
 
@@ -81,11 +89,13 @@ class CacheManager:
 
         logger.info("Cache '%s': Downloaded %s in %.3fs", cache_name, utils.get_human_readable_size(size), t)
 
-    def _get_remote_directory(self, cache_name: str) -> str:
+    def _get_remote_directory(self, cache_name: str) -> Optional[str]:
         if cache_name in self._cache_definitions:
             remote_dir = self._cache_definitions[cache_name].path
         elif cache_name in config.default_caches:
             remote_dir = config.default_caches[cache_name]
+        elif cache_name in self._ignored_caches:
+            return None
         else:
             raise ValueError(f"Invalid cache: {cache_name}")
 
