@@ -27,11 +27,19 @@ class Image(DebugMixin):
 
 
 class Service(DebugMixin):
-    def __init__(self, name: str, image: Image = None, environment: {str: str} = None, memory: int = None):
+    def __init__(
+        self,
+        name: str,
+        image: Image = None,
+        environment: {str: str} = None,
+        memory: int = None,
+        command: Union[str, List[str]] = None,
+    ):
         self.name = name
         self.image = image
         self.environment = environment
         self.memory = memory
+        self.command = command
 
     def update(self, service: "Service"):
         for attr in ("name", "image", "environment", "memory"):

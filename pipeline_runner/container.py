@@ -102,14 +102,13 @@ class ContainerRunner:
             self._image.name,
             name=self._name,
             entrypoint="sh",
-            tty=True,
-            detach=True,
-            remove=True,
             working_dir=config.build_dir,
             environment=self._get_env_vars(),
             volumes=volumes,
             mem_limit=self._mem_limit,
             links={s: s for s in self._service_names},
+            tty=True,
+            detach=True,
         )
         logger.debug("Created container: %s", self._container.name)
 

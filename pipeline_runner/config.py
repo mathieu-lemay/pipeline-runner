@@ -33,7 +33,12 @@ class Config:
         }
 
         self.default_services = {
-            "docker": {"image": "docker:dind", "memory": 1024, "environment": {"DOCKER_TLS_CERTDIR": None}}
+            "docker": {
+                "image": "docker:dind",
+                "memory": 1024,
+                "command": "--tls=false",
+                "environment": {"DOCKER_TLS_CERTDIR": None},
+            }
         }
 
         self.build_dir = "/var/run/pipeline"

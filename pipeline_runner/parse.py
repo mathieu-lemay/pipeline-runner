@@ -176,8 +176,9 @@ class PipelinesFileParser:
 
         environment = values.get("environment")
         memory = int(values.get("memory", config.service_container_default_memory_limit))
+        command = values.get("command")
 
-        return Service(name, image, environment, memory)
+        return Service(name, image, environment, memory, command)
 
 
 def expandvars(value):

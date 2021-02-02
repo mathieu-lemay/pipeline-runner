@@ -2,6 +2,7 @@ import logging
 from typing import Dict, List
 
 import docker
+from slugify import slugify
 
 from .config import config
 from .container import pull_image
@@ -43,20 +44,22 @@ class ServicesManager:
         logger.info("Starting service: %s", service.name)
         pull_image(self._client, service.image)
 
-        name = f"{config.project_slug}-service-{service.name}"
+        service_name_slug = slugify(service.name)
+
+        name = f"{config.project_slug}-service-{service_name_slug}"
 
         container = self._client.containers.run(
             service.image.name,
             name=name,
-            detach=True,
-            remove=True,
-            hostname=service.name,
-            privileged=self._is_privileged(service.name),
+            command=service.command,
             environment=service.environment,
+            hostname=service_name_slug,
+            privileged=self._is_privileged(service.name),
             mem_limit=service.memory * 2 ** 20,
+            detach=True,
         )
 
-        self._containers[service.name] = container
+        self._containers[service_name_slug] = container
 
     def _get_service_definition(self, service_name):
         if service_name not in self._service_definitions:

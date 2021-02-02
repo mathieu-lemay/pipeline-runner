@@ -103,7 +103,7 @@ class StepRunner:
 
         try:
             image = self._get_image()
-            container_name = f"{config.project_slug}-{slugify(self._step.name)}"
+            container_name = f"{config.project_slug}-step-{slugify(self._step.name)}"
             mem_limit = self._get_build_container_memory_limit()
 
             self._services_manager = ServicesManager(self._step.services, self._definitions.services, self._step.size)
