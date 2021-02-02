@@ -4,7 +4,6 @@ from time import time as ts
 from typing import Dict, List
 
 from . import utils
-from .config import config
 from .container import ContainerRunner
 from .models import Cache
 
@@ -99,11 +98,9 @@ class CacheManager:
         return os.path.join(utils.get_local_cache_directory(), f"{cache_name}.tar")
 
     def _get_remote_directory(self, cache_name: str) -> str:
-        if cache_name in self._cache_definitions:
-            remote_dir = self._cache_definitions[cache_name].path
-        elif cache_name in config.default_caches:
-            remote_dir = config.default_caches[cache_name]
-        else:
+        if cache_name not in self._cache_definitions:
             raise ValueError(f"Invalid cache: {cache_name}")
+
+        remote_dir = self._cache_definitions[cache_name].path
 
         return self._container.expand_path(remote_dir)

@@ -62,10 +62,10 @@ class ServicesManager:
         self._containers[service.name] = container
 
     def _get_service_definition(self, service_name):
-        if service_name in self._service_definitions:
-            return self._service_definitions[service_name]
-        else:
+        if service_name not in self._service_definitions:
             raise ValueError(f"Invalid service: {service_name}")
+
+        return self._service_definitions[service_name]
 
     def _ensure_memory_for_services(self, services):
         requested_mem = sum(s.memory for s in services)
