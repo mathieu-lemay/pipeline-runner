@@ -17,8 +17,7 @@ class ServicesManager:
         self._memory_multiplier = memory_multiplier
 
         self._client = docker.from_env()
-        # TRY: https://hub.docker.com/_/docker:w
-        self._ignored_services = {"docker"}
+        self._privileged_services = ("docker",)
 
         self._containers = {}
 
@@ -41,10 +40,6 @@ class ServicesManager:
         return {c.name: s for s, c in self._containers.items()}
 
     def _start_service(self, service: Service):
-        if self._should_ignore(service.name):
-            logger.info("Service: '%s': Ignoring", service.name)
-            return
-
         logger.info("Starting service: %s", service.name)
         pull_image(self._client, service.image)
 
@@ -55,6 +50,8 @@ class ServicesManager:
             name=name,
             detach=True,
             remove=True,
+            hostname=service.name,
+            privileged=self._is_privileged(service.name),
             environment=service.environment,
             mem_limit=service.memory * 2 ** 20,
         )
@@ -78,5 +75,5 @@ class ServicesManager:
     def _get_service_containers_memory_limit(self) -> int:
         return config.service_containers_base_memory_limit * self._memory_multiplier
 
-    def _should_ignore(self, name):
-        return name in self._ignored_services
+    def _is_privileged(self, name):
+        return name in self._privileged_services

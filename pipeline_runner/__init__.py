@@ -6,6 +6,7 @@ from typing import Optional, Union
 
 import click
 from dotenv import load_dotenv
+from slugify import slugify
 
 from .artifacts import ArtifactManager
 from .cache import CacheManager
@@ -102,7 +103,7 @@ class StepRunner:
 
         try:
             image = self._get_image()
-            container_name = f"{config.project_slug}-{self._step_uuid}"
+            container_name = f"{config.project_slug}-{slugify(self._step.name)}"
             mem_limit = self._get_build_container_memory_limit()
 
             self._services_manager = ServicesManager(self._step.services, self._definitions.services, self._step.size)

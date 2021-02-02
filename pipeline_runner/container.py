@@ -170,6 +170,7 @@ class ContainerRunner:
             "BITBUCKET_REPO_SLUG": project_slug,
             "BITBUCKET_REPO_UUID": config.repo_uuid,
             "BITBUCKET_WORKSPACE": project_slug,
+            "DOCKER_HOST": "tcp://docker:2375",
             "COMPOSE_DOCKER_CLI_BUILD": 0,
         }
 
@@ -177,7 +178,6 @@ class ContainerRunner:
     def _get_volumes():
         return {
             config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"},
-            "/var/run/docker.sock": {"bind": "/var/run/docker.sock"},
         }
 
     # @staticmethod
