@@ -2,7 +2,7 @@ import gzip
 import logging
 import os.path
 from time import time as ts
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from . import utils
 from .config import config
@@ -28,6 +28,10 @@ class CacheManager:
             self._download_cache(cache)
 
     def _upload_cache(self, cache_name: str):
+        if self._should_ignore(cache_name):
+            logger.info("Cache '%s': Ignoring", cache_name)
+            return
+
         cache_archive_file_name = f"{cache_name}.tar.gz"
         local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
 
@@ -36,9 +40,6 @@ class CacheManager:
             return
 
         remote_cache_directory = self._get_remote_directory(cache_name)
-        if not remote_cache_directory:
-            logger.info("Cache '%s': Ignoring", cache_name)
-
         remote_cache_parent_directory = os.path.dirname(remote_cache_directory)
 
         cache_archive_size = os.path.getsize(local_cache_archive_path)
@@ -68,6 +69,10 @@ class CacheManager:
         )
 
     def _download_cache(self, cache_name: str):
+        if self._should_ignore(cache_name):
+            logger.info("Cache '%s': Ignoring", cache_name)
+            return
+
         cache_archive_file_name = f"{cache_name}.tar.gz"
         local_cache_archive_path = os.path.join(utils.get_local_cache_directory(), cache_archive_file_name)
         remote_cache_directory = self._get_remote_directory(cache_name)
@@ -89,13 +94,14 @@ class CacheManager:
 
         logger.info("Cache '%s': Downloaded %s in %.3fs", cache_name, utils.get_human_readable_size(size), t)
 
-    def _get_remote_directory(self, cache_name: str) -> Optional[str]:
+    def _should_ignore(self, cache_name: str) -> bool:
+        return cache_name in self._ignored_caches
+
+    def _get_remote_directory(self, cache_name: str) -> str:
         if cache_name in self._cache_definitions:
             remote_dir = self._cache_definitions[cache_name].path
         elif cache_name in config.default_caches:
             remote_dir = config.default_caches[cache_name]
-        elif cache_name in self._ignored_caches:
-            return None
         else:
             raise ValueError(f"Invalid cache: {cache_name}")
 
