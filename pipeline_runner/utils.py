@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Union
+from typing import List, Optional, Union
 
 from git import Repo
 from xdg import xdg_cache_home, xdg_data_home
@@ -77,10 +77,10 @@ def get_human_readable_size(num):
     return f"{num:.1f}{unit}"
 
 
-def wrap_in_shell(command: Union[str, List[str]], stop_on_error=True):
+def wrap_in_shell(command: Union[str, List[str]], shell: Optional[str] = "bash", stop_on_error=True):
     command = stringify(command)
 
-    wrapped = ["sh"]
+    wrapped = [shell]
     if stop_on_error:
         wrapped.append("-e")
 

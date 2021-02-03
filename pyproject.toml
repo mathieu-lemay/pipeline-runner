@@ -5,7 +5,7 @@ description = "Run a bitbucket pipeline locally"
 authors = ["Mathieu Lemay <mathieu.lemay@broadsign.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.6"
 PyYAML = "^5.4.1"
 docker = "^4.4.1"
 click = "^7.1.2"

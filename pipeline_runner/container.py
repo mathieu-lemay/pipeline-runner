@@ -2,7 +2,7 @@ import base64
 import logging
 import os.path
 import sys
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import boto3
 import docker
@@ -34,6 +34,7 @@ class ContainerRunner:
     def start(self):
         pull_image(self._client, self._image)
         self._start_container()
+        self._ensure_required_binaries()
 
         # TODO: Move to step setup
         self._clone_repository()
@@ -47,32 +48,36 @@ class ContainerRunner:
         logger.info("Removing container: %s", self._container.name)
         self._container.remove(v=True, force=True)
 
-    def run_script(self, script: Union[str, List[str]], shell=True) -> int:
+    def run_script(self, script: Union[str, List[str]], shell: Optional[str] = "bash") -> int:
         command = utils.stringify(script, sep="\n")
 
         return self.run_command(command, shell)
 
-    def run_command(self, command: Union[str, List[str]], shell=True) -> int:
+    def run_command(
+        self, command: Union[str, List[str]], shell: Optional[str] = "bash", user: Union[int, str] = 0
+    ) -> int:
         command = utils.stringify(command)
 
         output_logger.info("+ " + command.replace("\n", "\n+ "))
 
         if shell:
-            command = self._wrap_in_shell(command)
+            command = utils.wrap_in_shell(command, shell)
 
-        exit_code, output = self._container.exec_run(command, tty=True)
+        exit_code, output = self._container.exec_run(command, user=str(user), tty=True)
 
         output_logger.info(output.decode())
 
         return exit_code
 
-    def execute_in_container(self, command: Union[str, List[str]], shell=True):
+    def execute_in_container(
+        self, command: Union[str, List[str]], shell: Optional[str] = "bash", user: Union[int, str] = 0
+    ):
         command = utils.stringify(command)
 
         if shell:
-            command = self._wrap_in_shell(command)
+            command = utils.wrap_in_shell(command, shell)
 
-        return self._container.exec_run(command, tty=True)
+        return self._container.exec_run(command, user=str(user), tty=True)
 
     def get_archive(self, *args, **kwargs):
         return self._container.get_archive(*args, **kwargs)
@@ -88,10 +93,6 @@ class ContainerRunner:
             raise Exception(f"Error expanding path: {path}")
 
         return output.decode().strip()
-
-    @staticmethod
-    def _wrap_in_shell(cmd):
-        return ["sh", "-e", "-c", cmd]
 
     def _start_container(self):
         logger.info("Starting container")
@@ -179,19 +180,21 @@ class ContainerRunner:
             config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"},
         }
 
-    # @staticmethod
-    # def _ensure_docker_binary():
-    #     data_dir = get_data_directory()
-    #     docker_binary_path = os.path.join(data_dir, "docker", "docker")
-    #     if os.path.exists(docker_binary_path):
-    #         return docker_binary_path
-    #
-    #     resp = requests.get("https://download.docker.com/linux/static/stable/x86_64/docker-20.10.2.tgz", stream=True)
-    #     # noinspection PyTypeChecker
-    #     with tarfile.open(fileobj=FileStreamer(resp.iter_content(chunk_size=1024 * 1024)), mode="r|gz") as f:
-    #         f.extractall(data_dir)
-    #
-    #     return docker_binary_path
+    def _ensure_required_binaries(self):
+        cmd = """
+        if type apt-get >/dev/null 2>&1; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update && apt-get install -y --no-install-recommends bash docker.io git
+        elif type apk >/dev/null 2>&1; then
+            apk add --no-cache bash git docker-cli
+        else
+            echo "Unsupported distribution" >&2
+            exit 1
+        fi
+        """
+
+        if self.run_command(cmd, shell="sh", user=0) != 0:
+            raise Exception("Error installing necessary binaries")
 
 
 _pulled_images = set()
