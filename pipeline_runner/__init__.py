@@ -198,10 +198,6 @@ class ParallelStepRunner(StepRunner):
         super().__init__(step, pipeline_uuid, step_uuid, definitions)
 
     def run(self) -> Optional[int]:
-        if not self._should_run():
-            logger.info("Skipping step: %s", self._step.name)
-            return
-
         return_code = 0
         for s in self._step.steps:
             runner = StepRunnerFactory.get(s, self._pipeline_uuid, self._step_uuid, self._definitions)
