@@ -48,57 +48,77 @@ class PipelinesFileParser:
         if not group_names:
             raise ParseError("No pipeline groups")
 
-        invalid_groups = group_names - {"branches", "custom"}
+        invalid_groups = group_names - {"branches", "custom", "pull-requests"}
         if invalid_groups:
             raise ParseError(f"Invalid groups: {invalid_groups}")
 
         pipelines = {}
 
         for g in group_names:
-            for name, steps in pipeline_groups[g].items():
+            for name, values in pipeline_groups[g].items():
                 path = f"{g}.{name}"
-                pipelines[path] = Pipeline(path, name, self._parse_steps(steps))
+                pipelines[path] = self._parse_pipeline(path, name, values)
 
         return pipelines
 
-    def _parse_steps(self, step_list):
+    def _parse_pipeline(self, path, name, elements):
+        if not isinstance(elements, list):
+            raise ValueError(f"Invalid elements for step: {name}")
+
         steps = []
-        for value in step_list:
-            if "parallel" in value:
-                value = value["parallel"]
-                pstep = ParallelStep(self._parse_steps(value))
-                steps.append(pstep)
-                continue
 
-            if "step" not in value:
-                raise ValueError("Invalid step")
+        # TODO: Variables
 
-            value = value["step"]
+        for element in elements:
+            if "step" in element:
+                steps.append(self._parse_step(element["step"]))
+            elif "parallel" in element:
+                steps.append(self._parse_parallel_step(element["parallel"]))
+            elif "variables" in element:
+                # variables.append(self._parse_variables(element['variables']))
+                pass
+            else:
+                raise ValueError(f"Invalid element for pipeline: {element}")
 
-            image = value.get("image")
-            if image:
-                image = self._parse_image(image)
+        return Pipeline(path, name, steps)
 
-            services = value.get("services", [])
-            if len(services) > 5:
-                raise ValueError("Too many services. Enforcing a limit of 5 services per step.")
+    def _parse_step(self, values):
+        image = values.get("image")
+        if image:
+            image = self._parse_image(image)
 
-            size = self._parse_step_size(value.get("size"))
+        services = values.get("services", [])
+        if len(services) > 5:
+            raise ValueError("Too many services. Enforcing a limit of 5 services per step.")
 
-            steps.append(
-                Step(
-                    value["name"],
-                    value["script"],
-                    image,
-                    value.get("caches"),
-                    services,
-                    value.get("artifacts"),
-                    value.get("after-script"),
-                    size,
-                )
-            )
+        size = self._parse_step_size(values.get("size"))
 
-        return steps
+        step = Step(
+            values["name"],
+            values["script"],
+            image,
+            values.get("caches"),
+            services,
+            values.get("artifacts"),
+            values.get("after-script"),
+            size,
+        )
+
+        return step
+
+    def _parse_parallel_step(self, items):
+        if not isinstance(items, list):
+            raise ValueError(f"Invalid elements for parallel step: {items}")
+
+        steps = []
+
+        for item in items:
+            if "step" not in item:
+                raise ValueError(f"Invalid element for parallel step: {item}")
+
+            steps.append(self._parse_step(item["step"]))
+
+        return ParallelStep(steps)
 
     @staticmethod
     def _parse_step_size(value):
