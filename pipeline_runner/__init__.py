@@ -48,7 +48,7 @@ class PipelineRunner:
     @staticmethod
     def _load_env_files():
         logger.debug("Loading .env file (if exists)")
-        load_dotenv(override=True)
+        load_dotenv(".env", override=True)
 
         for env_file in config.env_files:
             if not os.path.exists(env_file):

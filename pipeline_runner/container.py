@@ -143,7 +143,7 @@ class ContainerRunner:
     def _get_env_vars(self):
         env_vars = self._get_pipelines_env_vars()
 
-        env_vars.update(dotenv_values())
+        env_vars.update(dotenv_values(".env"))
         for env_file in config.env_files:
             env_vars.update(dotenv_values(env_file))
 
