@@ -158,7 +158,7 @@ class ContainerRunner:
         return {
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
-            "BITBUCKET_BUILD_NUMBER": 1,
+            "BITBUCKET_BUILD_NUMBER": config.bitbucket_build_number,
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
             "BITBUCKET_PROJECT_KEY": "PR",
@@ -170,7 +170,6 @@ class ContainerRunner:
             "BITBUCKET_REPO_UUID": config.repo_uuid,
             "BITBUCKET_WORKSPACE": project_slug,
             "DOCKER_HOST": "tcp://localhost:2375",
-            "COMPOSE_DOCKER_CLI_BUILD": 0,
         }
 
     @staticmethod
