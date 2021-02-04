@@ -2,6 +2,7 @@ import base64
 import getpass
 import hashlib
 import os
+import posixpath
 import re
 
 from slugify import slugify
@@ -41,7 +42,11 @@ class Config:
             }
         }
 
-        self.build_dir = "/var/run/pipeline"
+        self.remote_pipeline_dir = "/var/run/pipeline"
+        self.build_dir = posixpath.join(self.remote_pipeline_dir, "build")
+        self.scripts_dir = posixpath.join(self.remote_pipeline_dir, "scripts")
+        self.temp_dir = posixpath.join(self.remote_pipeline_dir, "temp")
+
         self.username = getpass.getuser()
 
         self.build_container_base_memory_limit = 1024

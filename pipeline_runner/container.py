@@ -1,11 +1,16 @@
 import base64
+import io
 import logging
 import os.path
+import posixpath
 import sys
-from typing import Dict, List, Optional, Union
+import tarfile
+import uuid
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import boto3
 import docker
+from docker.models.containers import Container
 from dotenv import dotenv_values
 
 from . import utils
@@ -34,6 +39,7 @@ class ContainerRunner:
     def start(self):
         pull_image(self._client, self._image)
         self._start_container()
+        self._create_pipeline_directories()
         self._ensure_required_binaries()
 
         # TODO: Move to step setup
@@ -48,26 +54,16 @@ class ContainerRunner:
         logger.info("Removing container: %s", self._container.name)
         self._container.remove(v=True, force=True)
 
-    def run_script(self, script: Union[str, List[str]], shell: Optional[str] = "bash") -> int:
+    def run_script(self, script: Union[str, List[str]], user: Union[int, str] = 0) -> int:
         command = utils.stringify(script, sep="\n")
 
-        return self.run_command(command, shell)
+        return self.run_command(command, user)
 
-    def run_command(
-        self, command: Union[str, List[str]], shell: Optional[str] = "bash", user: Union[int, str] = 0
-    ) -> int:
+    def run_command(self, command: Union[str, List[str]], user: Union[int, str] = 0) -> int:
         command = utils.stringify(command)
+        csr = ContainerScriptRunner(self._container, command, user)
 
-        output_logger.info("+ " + command.replace("\n", "\n+ "))
-
-        if shell:
-            command = utils.wrap_in_shell(command, shell)
-
-        exit_code, output = self._container.exec_run(command, user=str(user), tty=True)
-
-        output_logger.info(output.decode())
-
-        return exit_code
+        return csr.run()
 
     def execute_in_container(
         self, command: Union[str, List[str]], shell: Optional[str] = "bash", user: Union[int, str] = 0
@@ -112,6 +108,12 @@ class ContainerRunner:
             detach=True,
         )
         logger.debug("Created container: %s", self._container.name)
+
+    def _create_pipeline_directories(self):
+        mkdir_cmd = " ".join(["/bin/mkdir", "-p", config.build_dir, config.scripts_dir, config.temp_dir])
+        exit_code, output = self._container.exec_run(["sh", "-c", mkdir_cmd], tty=True)
+        if exit_code != 0:
+            raise Exception(f"Error creating required directories: {output}")
 
     def _clone_repository(self):
         # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
@@ -161,7 +163,6 @@ class ContainerRunner:
             "BITBUCKET_BUILD_NUMBER": 1,
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
-            "BITBUCKET_EXIT_CODE": 0,
             "BITBUCKET_PROJECT_KEY": "PR",
             "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
@@ -193,8 +194,119 @@ class ContainerRunner:
         fi
         """
 
-        if self.run_command(cmd, shell="sh", user=0) != 0:
+        if self.run_command(cmd, user=0) != 0:
             raise Exception("Error installing necessary binaries")
+
+
+class ContainerScriptRunner:
+    def __init__(self, container: Container, script: str, user: Union[str, int] = 0):
+        self._container = container
+        self._script = script
+        self._user = str(user)
+
+    def run(self) -> int:
+        entrypoint, exit_code_file_path = self._prepare_script_for_remote_execution()
+
+        self._execute_script_on_container(entrypoint)
+        return self._get_exit_code_of_command(exit_code_file_path)
+
+    def _prepare_script_for_remote_execution(self) -> Tuple[str, str]:
+        script = self._add_traces_to_script(self._script)
+        exit_code_file_path = posixpath.join(config.temp_dir, f"exit_code-{uuid.uuid4().hex}")
+
+        sh_script_name = f"shell_script-{uuid.uuid4().hex}.sh"
+        sh_script_path = posixpath.join(config.scripts_dir, sh_script_name)
+        sh_script = self._wrap_script_in_posix_shell(script)
+
+        bash_script_name = f"bash_script-{uuid.uuid4().hex}.sh"
+        bash_script_path = posixpath.join(config.scripts_dir, bash_script_name)
+        bash_script = self._wrap_script_in_bash(script)
+
+        wrapper_script_name = f"wrapper_script-{uuid.uuid4().hex}.sh"
+        wrapper_script_path = posixpath.join(config.scripts_dir, wrapper_script_name)
+        wrapper_script = self._make_wrapper_script(sh_script_path, bash_script_path, exit_code_file_path)
+
+        scripts = (
+            (sh_script_name, sh_script),
+            (bash_script_name, bash_script),
+            (wrapper_script_name, wrapper_script),
+        )
+
+        self._upload_to_container(scripts)
+
+        return wrapper_script_path, exit_code_file_path
+
+    def _execute_script_on_container(self, entrypoint):
+        _, output_stream = self._container.exec_run(
+            ["/bin/sh", entrypoint], user=self._user, tty=True, stream=True, demux=True
+        )
+
+        for stdout, stderr in output_stream:
+            if stdout:
+                print(stdout.decode(), end="")
+            if stderr:
+                print(stderr.decode(), end="", file=sys.stderr)
+
+    def _get_exit_code_of_command(self, exit_code_file_path: str) -> int:
+        meta_exit_code, output = self._container.exec_run(["/bin/cat", exit_code_file_path], tty=True)
+        if meta_exit_code != 0:
+            raise Exception(f"Error getting command exit code: {output.decode()}")
+
+        str_code = output.decode().strip()
+
+        try:
+            exit_code = int(str_code)
+        except ValueError:
+            raise Exception(f"Invalid exit code: {str_code}")
+        else:
+            return exit_code
+
+    @staticmethod
+    def _add_traces_to_script(script):
+        script_lines = map(lambda i: i.strip(), script.split("\n"))
+
+        return '\nprintf "\\n"\n'.join(f'printf "\\x1d+ {line}\\n"\n{line}' for line in script_lines if line)
+
+    @staticmethod
+    def _wrap_script_in_posix_shell(script):
+        return "\n".join(["#! /bin/sh", "set -e", script])
+
+    @staticmethod
+    def _wrap_script_in_bash(script):
+        return "\n".join(["#! /bin/bash", "set -e", "set +H", script])
+
+    @staticmethod
+    def _make_wrapper_script(sh_script_path, bash_script_path, exit_code_file_path):
+        return "\n".join(
+            [
+                "#! /bin/sh",
+                "if [ -f /bin/bash ]; then",
+                f"    /bin/bash -i {bash_script_path}",
+                f"    echo $? > {exit_code_file_path}",
+                "    exit $?",
+                "else",
+                f"    /bin/sh {sh_script_path}",
+                f"    echo $? > {exit_code_file_path}",
+                "    exit $?",
+                "fi",
+            ]
+        )
+
+    def _upload_to_container(self, scripts: Iterable[Tuple[str, str]]):
+        tar_data = io.BytesIO()
+
+        with tarfile.open(fileobj=tar_data, mode="w|") as tar:
+            for (name, script) in scripts:
+                ti = tarfile.TarInfo(name)
+                script_data = script.encode()
+                ti.size = len(script_data)
+                ti.mode = 0o644
+
+                tar.addfile(ti, io.BytesIO(script_data))
+
+        res = self._container.put_archive(config.scripts_dir, tar_data.getvalue())
+        if not res:
+            raise Exception("Error uploading scripts to container")
 
 
 _pulled_images = set()

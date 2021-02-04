@@ -1,12 +1,11 @@
-- Docker in docker
+- Use static docker binary
+- Figure out git binary
 - Variables
 - After Script (with prev exit code)
 - Retry pipeline from step
 - Clone the real thing
 - pipes
-- Streaming output
 - List / Run / Cache command
 - Execution report
 - Isolated network
 - SSH Keys
-- Use bash if possible
