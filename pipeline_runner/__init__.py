@@ -5,6 +5,7 @@ from time import time as ts
 from typing import Optional, Union
 
 import click
+import pkg_resources
 from dotenv import load_dotenv
 from slugify import slugify
 
@@ -218,7 +219,7 @@ class StepRunnerFactory:
 
 
 @click.command("Pipeline Runner")
-@click.argument("pipeline", required=True)
+@click.argument("pipeline", required=False)
 @click.option(
     "-p",
     "--project-directory",
@@ -243,12 +244,26 @@ class StepRunnerFactory:
     multiple=True,
     help="Read in a file of environment variables. Can be specified multiple times.",
 )
-def main(pipeline, project_directory, pipeline_file, steps, env_files):
+@click.option(
+    "-V",
+    "--version",
+    "version",
+    is_flag=True,
+    help="Print project version and exit.",
+)
+def main(pipeline, project_directory, pipeline_file, steps, env_files, version):
     """
     Runs the pipeline PIPELINE.
 
     PIPELINE is the full path to the pipeline to run. Ex: branches.master
     """
+    if version:
+        print(f"Pipeline Runner {pkg_resources.get_distribution(__name__).version}")
+        return
+
+    if not pipeline:
+        ctx = click.get_current_context()
+        ctx.fail("Error: Missing argument 'PIPELINE'.")
 
     if project_directory:
         config.project_directory = project_directory
