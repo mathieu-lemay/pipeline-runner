@@ -8,7 +8,7 @@ authors = ["Mathieu Lemay <mathieu.lemay@broadsign.com>"]
 python = "^3.6"
 PyYAML = "^5.4.1"
 docker = "^4.4.1"
-click = "^7.1.2"
+click = ">=6.7,<8.0"
 python-slugify = "^4.0.1"
 boto3 = "^1.16.63"
 GitPython = "^3.1.12"
