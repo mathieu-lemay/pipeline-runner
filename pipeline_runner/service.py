@@ -1,9 +1,11 @@
 import logging
+import os
 from typing import Dict, List
 
 import docker
 from slugify import slugify
 
+from . import utils
 from .config import config
 from .container import pull_image
 from .models import Service
@@ -54,7 +56,9 @@ class ServicesManager:
             command=service.command,
             environment=service.environment,
             hostname=service_name_slug,
+            network_mode="host",
             privileged=self._is_privileged(service.name),
+            volumes=self._get_volumes(service.name),
             mem_limit=service.memory * 2 ** 20,
             detach=True,
         )
@@ -80,3 +84,11 @@ class ServicesManager:
 
     def _is_privileged(self, name):
         return name in self._privileged_services
+
+    @staticmethod
+    def _get_volumes(name):
+        if name == "docker":
+            return {
+                os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
+            }
+        return None

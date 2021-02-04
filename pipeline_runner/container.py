@@ -93,17 +93,15 @@ class ContainerRunner:
     def _start_container(self):
         logger.info("Starting container")
 
-        volumes = self._get_volumes()
-
         self._container = self._client.containers.run(
             self._image.name,
             name=self._name,
             entrypoint="sh",
             working_dir=config.build_dir,
             environment=self._get_env_vars(),
-            volumes=volumes,
+            volumes=self._get_volumes(),
             mem_limit=self._mem_limit,
-            links={s: s for s in self._service_names},
+            network_mode="host",
             tty=True,
             detach=True,
         )
@@ -171,7 +169,7 @@ class ContainerRunner:
             "BITBUCKET_REPO_SLUG": project_slug,
             "BITBUCKET_REPO_UUID": config.repo_uuid,
             "BITBUCKET_WORKSPACE": project_slug,
-            "DOCKER_HOST": "tcp://docker:2375",
+            "DOCKER_HOST": "tcp://localhost:2375",
             "COMPOSE_DOCKER_CLI_BUILD": 0,
         }
 
