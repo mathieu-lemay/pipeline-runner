@@ -29,12 +29,12 @@ def get_git_current_commit() -> str:
     return r.head.commit.hexsha
 
 
-def _get_user_cache_directory() -> str:
+def get_user_cache_directory() -> str:
     return os.path.join(xdg_cache_home(), "pipeline-runner")
 
 
 def _get_project_cache_directory() -> str:
-    return os.path.join(_get_user_cache_directory(), config.project_env_name)
+    return os.path.join(get_user_cache_directory(), config.project_env_name)
 
 
 def get_local_cache_directory() -> str:

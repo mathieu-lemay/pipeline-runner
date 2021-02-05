@@ -4,8 +4,6 @@ import uuid
 from time import time as ts
 from typing import Optional, Union
 
-import click
-import pkg_resources
 from dotenv import load_dotenv
 from slugify import slugify
 
@@ -216,66 +214,3 @@ class StepRunnerFactory:
             return ParallelStepRunner(step, pipeline_uuid, step_uuid, definitions)
         else:
             return StepRunner(step, pipeline_uuid, step_uuid, definitions)
-
-
-@click.command("Pipeline Runner")
-@click.argument("pipeline", required=False)
-@click.option(
-    "-p",
-    "--project-directory",
-    help="Root directory of the project. Defaults to current directory.",
-)
-@click.option(
-    "-f",
-    "--pipeline-file",
-    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
-)
-@click.option(
-    "-s",
-    "--step",
-    "steps",
-    multiple=True,
-    help="Steps to run. If none are specified, they will all be run. Can be specified multiple times.",
-)
-@click.option(
-    "-e",
-    "--env-file",
-    "env_files",
-    multiple=True,
-    help="Read in a file of environment variables. Can be specified multiple times.",
-)
-@click.option(
-    "-V",
-    "--version",
-    "version",
-    is_flag=True,
-    help="Print project version and exit.",
-)
-def main(pipeline, project_directory, pipeline_file, steps, env_files, version):
-    """
-    Runs the pipeline PIPELINE.
-
-    PIPELINE is the full path to the pipeline to run. Ex: branches.master
-    """
-    if version:
-        print(f"Pipeline Runner {pkg_resources.get_distribution(__name__).version}")
-        return
-
-    if not pipeline:
-        ctx = click.get_current_context()
-        ctx.fail("Error: Missing argument 'PIPELINE'.")
-
-    if project_directory:
-        config.project_directory = project_directory
-
-    if pipeline_file:
-        config.pipeline_file = pipeline_file
-
-    if steps:
-        config.selected_steps = steps
-
-    if env_files:
-        config.env_files = env_files
-
-    runner = PipelineRunner(pipeline)
-    runner.run()
