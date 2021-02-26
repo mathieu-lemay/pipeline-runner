@@ -90,5 +90,6 @@ class ServicesManager:
         if name == "docker":
             return {
                 os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
+                "PipelineDataVolume": {"bind": config.remote_pipeline_dir},
             }
         return None

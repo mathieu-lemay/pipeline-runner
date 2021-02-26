@@ -3,7 +3,7 @@
 - Variables
 - After Script (with prev exit code)
 - Retry pipeline from step
-- Clone the real thing
+- Clone the real thing (with depth config)
 - pipes
 - List / Run / Cache command
 - Execution report

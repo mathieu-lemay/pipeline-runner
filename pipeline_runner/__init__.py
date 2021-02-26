@@ -122,11 +122,11 @@ class StepRunner:
 
             self._build_teardown(exit_code)
         finally:
-            if self._container_runner:
-                self._container_runner.stop()
-
             if self._services_manager:
                 self._services_manager.stop_services()
+
+            if self._container_runner:
+                self._container_runner.stop()
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 

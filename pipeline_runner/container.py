@@ -54,6 +54,13 @@ class ContainerRunner:
         logger.info("Removing container: %s", self._container.name)
         self._container.remove(v=True, force=True)
 
+        for vol_name in self._get_volumes().keys():
+            volume = next(iter(self._client.volumes.list(filters={"name": vol_name})), None)
+
+            if volume:
+                logger.info("Removing volume: %s", volume.name)
+                volume.remove()
+
     def run_script(self, script: Union[str, List[str]], user: Union[int, str] = 0) -> int:
         command = utils.stringify(script, sep="\n")
 
@@ -91,7 +98,7 @@ class ContainerRunner:
         return output.decode().strip()
 
     def _start_container(self):
-        logger.info("Starting container")
+        logger.info("Starting container '%s' (%s)", self._name, self._image.name)
 
         self._container = self._client.containers.run(
             self._image.name,
@@ -176,6 +183,7 @@ class ContainerRunner:
     def _get_volumes():
         return {
             config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"},
+            "PipelineDataVolume": {"bind": config.remote_pipeline_dir},
         }
 
     def _ensure_required_binaries(self):
