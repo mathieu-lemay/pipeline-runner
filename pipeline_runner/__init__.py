@@ -16,7 +16,11 @@ from .parse import PipelinesFileParser
 from .service import ServicesManager
 
 handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"))
+handler.setFormatter(
+    logging.Formatter(
+        fmt="%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+)
 
 logger = logging.getLogger(__name__)
 logger.handlers.append(handler)
