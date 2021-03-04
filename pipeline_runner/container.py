@@ -134,7 +134,7 @@ class ContainerRunner:
                 utils.get_git_current_branch(),
                 "--depth",
                 "50",
-                "/var/run/workspace",
+                config.remote_workspace_dir,
                 "$BUILD_DIR",
             ]
         )
@@ -182,7 +182,7 @@ class ContainerRunner:
     @staticmethod
     def _get_volumes():
         return {
-            config.project_directory: {"bind": "/var/run/workspace", "mode": "ro"},
+            config.project_directory: {"bind": config.remote_workspace_dir, "mode": "ro"},
             "PipelineDataVolume": {"bind": config.remote_pipeline_dir},
         }
 
