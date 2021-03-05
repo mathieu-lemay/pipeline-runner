@@ -1,3 +1,4 @@
+- Proper docker cache (save / restore images)
 - Use static docker binary
 - Figure out git binary
 - Variables
