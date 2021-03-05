@@ -6,7 +6,7 @@ import posixpath
 import sys
 import tarfile
 import uuid
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import boto3
 import docker
@@ -61,14 +61,18 @@ class ContainerRunner:
                 logger.info("Removing volume: %s", volume.name)
                 volume.remove()
 
-    def run_script(self, script: Union[str, List[str]], user: Union[int, str] = 0) -> int:
+    def run_script(
+        self, script: Union[str, List[str]], user: Union[int, str] = 0, env: Optional[Dict[str, Any]] = None
+    ) -> int:
         command = utils.stringify(script, sep="\n")
 
-        return self.run_command(command, user)
+        return self.run_command(command, user, env)
 
-    def run_command(self, command: Union[str, List[str]], user: Union[int, str] = 0) -> int:
+    def run_command(
+        self, command: Union[str, List[str]], user: Union[int, str] = 0, env: Optional[Dict[str, Any]] = None
+    ) -> int:
         command = utils.stringify(command)
-        csr = ContainerScriptRunner(self._container, command, user)
+        csr = ContainerScriptRunner(self._container, command, user, env)
 
         return csr.run()
 
@@ -204,10 +208,13 @@ class ContainerRunner:
 
 
 class ContainerScriptRunner:
-    def __init__(self, container: Container, script: str, user: Union[str, int] = 0):
+    def __init__(
+        self, container: Container, script: str, user: Union[str, int] = 0, env: Optional[Dict[str, Any]] = None
+    ):
         self._container = container
         self._script = script
         self._user = str(user)
+        self._env = env or {}
 
     def run(self) -> int:
         entrypoint, exit_code_file_path = self._prepare_script_for_remote_execution()
@@ -243,7 +250,7 @@ class ContainerScriptRunner:
 
     def _execute_script_on_container(self, entrypoint):
         _, output_stream = self._container.exec_run(
-            ["/bin/sh", entrypoint], user=self._user, tty=True, stream=True, demux=True
+            ["/bin/sh", entrypoint], user=self._user, tty=True, stream=True, demux=True, environment=self._env
         )
 
         for stdout, stderr in output_stream:
