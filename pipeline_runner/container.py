@@ -273,11 +273,24 @@ class ContainerScriptRunner:
         else:
             return exit_code
 
-    @staticmethod
-    def _add_traces_to_script(script):
-        script_lines = map(lambda i: i.strip(), script.split("\n"))
+    def _add_traces_to_script(self, script):
+        script_lines = map(self._add_trace_to_script_line, script.split("\n"))
 
-        return '\nprintf "\\n"\n'.join(f'printf "\\x1d+ {line}\\n"\n{line}' for line in script_lines if line)
+        return '\nprintf "\\n"\n'.join(line for line in script_lines if line)
+
+    def _add_trace_to_script_line(self, line):
+        line = line.strip()
+        if not line:
+            return None
+
+        return f"{self._add_group_separator(line)}\n{line}"
+
+    @staticmethod
+    def _add_group_separator(value):
+        for c in '"${}':
+            value = value.replace(c, f"\\x{ord(c):02x}")
+
+        return f'printf "\\x1d+ {value}\\n"'
 
     @staticmethod
     def _wrap_script_in_posix_shell(script):
