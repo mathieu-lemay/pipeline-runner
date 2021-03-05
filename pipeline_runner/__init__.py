@@ -43,10 +43,12 @@ class PipelineRunner:
 
         s = ts()
         exit_code = self._execute_pipeline(pipeline, pipelines_definition)
-        logger.info("Pipeline '%s' executed in %.3f.", pipeline.name, ts() - s)
+        logger.info("Pipeline '%s' executed in %.3fs.", pipeline.name, ts() - s)
 
         if exit_code:
-            logger.error("Pipeline '%s' failed", pipeline.name)
+            logger.error("Pipeline '%s': Failed", pipeline.name)
+        else:
+            logger.info("Pipeline '%s': Successful", pipeline.name)
 
     @staticmethod
     def _load_env_files():
