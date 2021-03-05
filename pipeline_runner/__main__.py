@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 
@@ -8,6 +9,28 @@ from . import PipelineRunner
 from . import __name__ as project_name
 from . import utils
 from .config import config
+
+
+def _init_logger():
+    import coloredlogs
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+        )
+    )
+
+    logger = logging.getLogger(project_name)
+    logger.handlers.append(handler)
+    logger.setLevel("INFO")
+
+    if config.color:
+        coloredlogs.install(level="DEBUG", logger=logger, fmt="%(asctime)s.%(msecs)03d %(name)s: %(message)s")
+
+    docker_logger = logging.getLogger("docker")
+    docker_logger.handlers.append(handler)
+    docker_logger.setLevel("INFO")
 
 
 @click.group("Pipeline Runner", invoke_without_command=True)
@@ -51,7 +74,13 @@ def main(ctx, show_version):
     multiple=True,
     help="Read in a file of environment variables. Can be specified multiple times.",
 )
-def run(pipeline, project_directory, pipeline_file, steps, env_files):
+@click.option(
+    "-c",
+    "--color/--no-color",
+    default=True,
+    help="Enable colored output",
+)
+def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
     """
     Runs the pipeline PIPELINE.
 
@@ -68,6 +97,10 @@ def run(pipeline, project_directory, pipeline_file, steps, env_files):
 
     if env_files:
         config.env_files = env_files
+
+    config.color = color
+
+    _init_logger()
 
     runner = PipelineRunner(pipeline)
     runner.run()

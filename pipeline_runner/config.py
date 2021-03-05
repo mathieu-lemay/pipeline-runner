@@ -19,6 +19,7 @@ class Config:
             re.split("[:;,]", os.environ["PIPELINE_ENV_FILES"]) if "PIPELINE_ENV_FILES" in os.environ else []
         )
         self.selected_steps = re.split("[:;,]", os.environ["PIPELINE_STEPS"]) if "PIPELINE_STEPS" in os.environ else []
+        self.color = True
 
         self.default_image = "atlassian/default-image:latest"
 

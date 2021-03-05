@@ -15,20 +15,7 @@ from .models import Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
 from .service import ServicesManager
 
-handler = logging.StreamHandler()
-handler.setFormatter(
-    logging.Formatter(
-        fmt="%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-    )
-)
-
 logger = logging.getLogger(__name__)
-logger.handlers.append(handler)
-logger.setLevel("INFO")
-
-docker_logger = logging.getLogger("docker")
-docker_logger.handlers.append(handler)
-docker_logger.setLevel("INFO")
 
 
 class PipelineRunner:
