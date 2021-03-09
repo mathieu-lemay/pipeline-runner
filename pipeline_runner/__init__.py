@@ -7,11 +7,12 @@ from typing import Optional, Union
 from dotenv import load_dotenv
 from slugify import slugify
 
+from . import utils
 from .artifacts import ArtifactManager
 from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
-from .models import Image, ParallelStep, Pipelines, Step
+from .models import CloneSettings, Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
 from .service import ServicesManager
 
@@ -151,6 +152,7 @@ class StepRunner:
 
         self._upload_artifacts()
         self._upload_caches()
+        self._clone_repository()
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
@@ -161,6 +163,64 @@ class StepRunner:
     def _upload_caches(self):
         cm = CacheManager(self._container_runner, self._definitions.caches)
         cm.upload(self._step.caches)
+
+    def _clone_repository(self):
+        # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
+        # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
+        # $BUILD_DIR
+        if not self._should_clone():
+            logger.info("Clone disabled: skipping")
+            return
+
+        cmd = []
+
+        if not self._should_clone_lfs():
+            cmd += ["GIT_LFS_SKIP_SMUDGE=1"]
+
+        cmd += ["git", "clone", "--branch", utils.get_git_current_branch()]
+
+        clone_depth = self._get_clone_depth()
+        if clone_depth:
+            cmd += ["--depth", str(clone_depth)]
+
+        cmd += [f"file://{config.remote_workspace_dir}", "$BUILD_DIR"]
+
+        exit_code = self._container_runner.run_command(cmd)
+
+        if exit_code:
+            raise Exception("Error cloning repository")
+
+        exit_code = self._container_runner.run_command(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
+
+        if exit_code:
+            raise Exception("Error resetting to HEAD commit")
+
+    def _should_clone(self) -> bool:
+        for v in (
+            self._step.clone_settings.enabled,
+            self._definitions.clone_settings.enabled,
+            CloneSettings.default().enabled,
+        ):
+            if v is not None:
+                return v
+
+    def _should_clone_lfs(self) -> bool:
+        for v in (
+            self._step.clone_settings.lfs,
+            self._definitions.clone_settings.lfs,
+            CloneSettings.default().lfs,
+        ):
+            if v is not None:
+                return v
+
+    def _get_clone_depth(self) -> Optional[int]:
+        for v in (
+            self._step.clone_settings.depth,
+            self._definitions.clone_settings.depth,
+            CloneSettings.default().depth,
+        ):
+            if v is not None:
+                return v
 
     def _build_teardown(self, exit_code):
         logger.info("Build teardown: '%s'", self._step.name)

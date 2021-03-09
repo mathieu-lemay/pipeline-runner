@@ -42,9 +42,6 @@ class ContainerRunner:
         self._create_pipeline_directories()
         self._ensure_required_binaries()
 
-        # TODO: Move to step setup
-        self._clone_repository()
-
         return self._container
 
     def stop(self):
@@ -123,33 +120,6 @@ class ContainerRunner:
         exit_code, output = self._container.exec_run(["sh", "-c", mkdir_cmd], tty=True)
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
-
-    def _clone_repository(self):
-        # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
-        # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
-        # $BUILD_DIR
-
-        exit_code = self.run_command(
-            [
-                "GIT_LFS_SKIP_SMUDGE=1",
-                "git",
-                "clone",
-                "--branch",
-                utils.get_git_current_branch(),
-                "--depth",
-                "50",
-                config.remote_workspace_dir,
-                "$BUILD_DIR",
-            ]
-        )
-
-        if exit_code:
-            raise Exception("Error cloning repository")
-
-        exit_code = self.run_command(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
-
-        if exit_code:
-            raise Exception("Error resetting to HEAD commit")
 
     def _get_env_vars(self):
         env_vars = self._get_pipelines_env_vars()

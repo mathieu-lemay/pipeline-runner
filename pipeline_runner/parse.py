@@ -1,9 +1,10 @@
 import os.path
+from typing import Optional
 
 import yaml
 
 from .config import config
-from .models import Cache, Image, ParallelStep, Pipeline, Pipelines, Service, Step
+from .models import Cache, CloneSettings, Image, ParallelStep, Pipeline, Pipelines, Service, Step
 
 try:
     from yaml import CLoader as YamlLoader
@@ -35,7 +36,12 @@ class PipelinesFileParser:
         else:
             image = None
 
-        return Pipelines(image, pipelines, caches, services)
+        if "clone" in pipelines_data:
+            clone_settings = self._parse_clone_settings(pipelines_data["clone"])
+        else:
+            clone_settings = None
+
+        return Pipelines(image, pipelines, caches, services, clone_settings)
 
     def _parse_pipelines(self, data):
         if "pipelines" not in data:
@@ -93,6 +99,12 @@ class PipelinesFileParser:
 
         size = self._parse_step_size(values.get("size"))
 
+        clone = values.get("clone")
+        if clone:
+            clone_settings = self._parse_clone_settings(clone)
+        else:
+            clone_settings = None
+
         step = Step(
             values["name"],
             values["script"],
@@ -102,6 +114,7 @@ class PipelinesFileParser:
             values.get("artifacts"),
             values.get("after-script"),
             size,
+            clone_settings,
         )
 
         return step
@@ -157,6 +170,29 @@ class PipelinesFileParser:
             "secret-key": secret_key,
         }
 
+    def _parse_clone_settings(self, value):
+        cs = CloneSettings.default()
+
+        if "depth" in value:
+            cs.depth = self._parse_clone_depth(value["depth"])
+
+        if "lfs" in value:
+            cs.lfs = self._parse_boolean(value["lfs"])
+
+        if "enabled" in value:
+            cs.enabled = self._parse_boolean(value["enabled"])
+
+        return cs
+
+    @staticmethod
+    def _parse_clone_depth(value) -> Optional[int]:
+        if value == "full":
+            return 0
+        elif isinstance(value, int) and value > 0:
+            return value
+
+        raise ValueError(f"Invalid value for 'depth': {value}")
+
     def _parse_definitions(self, data):
         caches = {}
         services = {}
@@ -200,6 +236,13 @@ class PipelinesFileParser:
         command = values.get("command")
 
         return Service(name, image, environment, memory, command)
+
+    @staticmethod
+    def _parse_boolean(value) -> bool:
+        if not isinstance(value, bool):
+            raise TypeError(f"Not a valid boolean: {value}")
+
+        return value
 
 
 def expandvars(value):

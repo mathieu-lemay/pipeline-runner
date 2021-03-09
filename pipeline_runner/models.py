@@ -48,6 +48,22 @@ class Service(DebugMixin):
                 setattr(self, attr, val)
 
 
+class CloneSettings(DebugMixin):
+    def __init__(
+        self,
+        depth: Optional[int] = None,
+        lfs: Optional[bool] = None,
+        enabled: Optional[bool] = None,
+    ):
+        self.depth = depth
+        self.lfs = lfs
+        self.enabled = enabled
+
+    @classmethod
+    def default(cls):
+        return cls(depth=50, lfs=False, enabled=True)
+
+
 class Step(DebugMixin):
     def __init__(
         self,
@@ -59,6 +75,7 @@ class Step(DebugMixin):
         artifacts: Optional[List[str]],
         after_script: Optional[List[str]],
         size: int,
+        clone_settings: CloneSettings,
     ):
         self.name = name
         self.script = script
@@ -68,6 +85,7 @@ class Step(DebugMixin):
         self.artifacts = artifacts or []
         self.after_script = after_script or []
         self.size = size
+        self.clone_settings = clone_settings or CloneSettings()
 
 
 class ParallelStep(DebugMixin):
@@ -89,11 +107,13 @@ class Pipelines(DebugMixin):
         pipelines: [Pipeline] = None,
         caches: [Cache] = None,
         services: [Service] = None,
+        clone_settings: CloneSettings = None,
     ):
         self.image = image
         self.pipelines = pipelines
         self.caches = caches
         self.services = services
+        self.clone_settings = clone_settings or CloneSettings()
 
     def get_pipeline(self, path) -> Optional[Pipeline]:
         return self.pipelines.get(path)
