@@ -90,7 +90,8 @@ class ContainerRunner:
         return self._container.put_archive(*args, **kwargs)
 
     def expand_path(self, path) -> str:
-        cmd = utils.wrap_in_shell(["echo", "-n", path])
+        expand_cmd = f"if type readlink >/dev/null; then readlink -n -m {path}; else echo -n {path}; fi"
+        cmd = utils.wrap_in_shell(expand_cmd)
         exit_code, output = self._container.exec_run(cmd, tty=True)
         if exit_code != 0:
             logger.error("Remote command failed: %s", output.decode())
