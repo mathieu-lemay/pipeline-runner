@@ -150,9 +150,9 @@ class StepRunner:
         logger.info("Build setup: '%s'", self._step.name)
         s = ts()
 
+        self._clone_repository()
         self._upload_artifacts()
         self._upload_caches()
-        self._clone_repository()
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
