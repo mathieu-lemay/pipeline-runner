@@ -110,7 +110,6 @@ class ServicesManager:
                 "    docker kill ${containers}",
                 "fi",
                 "docker container prune -f",
-                "docker image prune -f",
                 "docker volume prune -f",
             ]
         )
