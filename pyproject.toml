@@ -21,7 +21,7 @@ coloredlogs = "^15.0"
 pytest = "^6.2"
 
 [tool.poetry.scripts]
-pipeline-runner = 'pipeline_runner:main'
+pipeline-runner = 'pipeline_runner.cli:main'
 
 [tool.black]
 line-length = 120
