@@ -6,7 +6,7 @@ import sys
 import click
 import pkg_resources
 
-from . import PipelineRunner
+from . import PipelineRunner, PipelinesFileParser
 from . import __name__ as project_name
 from . import utils
 from .config import config
@@ -111,6 +111,42 @@ def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
     except Exception as e:
         logger.error(str(e))
         sys.exit(1)
+
+
+@main.command("list")
+@click.option(
+    "-p",
+    "--project-directory",
+    help="Root directory of the project. Defaults to current directory.",
+)
+@click.option(
+    "-f",
+    "--pipeline-file",
+    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
+)
+@click.option(
+    "-c",
+    "--color/--no-color",
+    default=True,
+    help="Enable colored output",
+)
+def list_(project_directory, pipeline_file, color):
+    """
+    List the available pipelines.
+    """
+    if project_directory:
+        config.project_directory = project_directory
+
+    if pipeline_file:
+        config.pipeline_file = pipeline_file
+
+    config.color = color
+
+    _init_logger()
+
+    pipelines_definition = PipelinesFileParser(config.pipeline_file, expand_vars=False).parse()
+
+    logger.info("Available pipelines:\n\t%s", "\n\t".join(sorted(pipelines_definition.get_available_pipelines())))
 
 
 @main.command()

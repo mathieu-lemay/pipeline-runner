@@ -18,8 +18,9 @@ class ParseError(Exception):
 
 
 class PipelinesFileParser:
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, *_, expand_vars=True):
         self._file_path = file_path
+        self._expand_vars = expand_vars
 
     def parse(self):
         if not os.path.isfile(self._file_path):
@@ -147,23 +148,22 @@ class PipelinesFileParser:
             return Image(value)
 
         name = value["name"]
-        username = expandvars(value.get("username"))
-        password = expandvars(value.get("password"))
-        email = expandvars(value.get("email"))
-        user = expandvars(value.get("run-as-user"))
+        username = self._expandvars(value.get("username"))
+        password = self._expandvars(value.get("password"))
+        email = self._expandvars(value.get("email"))
+        user = self._expandvars(value.get("run-as-user"))
         aws = self._parse_aws_credentials(value)
 
         return Image(name, username, password, email, user, aws)
 
-    @staticmethod
-    def _parse_aws_credentials(value):
+    def _parse_aws_credentials(self, value):
         if "aws" not in value:
             return None
 
         creds = value["aws"]
 
-        access_key = expandvars(creds.get("access-key"))
-        secret_key = expandvars(creds.get("secret-key"))
+        access_key = self._expandvars(creds.get("access-key"))
+        secret_key = self._expandvars(creds.get("secret-key"))
 
         return {
             "access-key": access_key,
@@ -244,14 +244,16 @@ class PipelinesFileParser:
 
         return value
 
+    def _expandvars(self, value):
+        if not self._expand_vars:
+            return value
 
-def expandvars(value):
-    if value is None:
-        return None
+        if value is None:
+            return None
 
-    value = os.path.expandvars(value)
+        value = os.path.expandvars(value)
 
-    if "$" in value:
-        raise ValueError(f"Missing envvars: {value}")
+        if "$" in value:
+            raise ValueError(f"Missing envvars: {value}")
 
-    return value
+        return value
