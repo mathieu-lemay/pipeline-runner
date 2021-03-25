@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import sys
 
 import click
 import pkg_resources
@@ -9,6 +10,8 @@ from . import PipelineRunner
 from . import __name__ as project_name
 from . import utils
 from .config import config
+
+logger = logging.getLogger(__name__)
 
 
 def _init_logger():
@@ -103,7 +106,11 @@ def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
     _init_logger()
 
     runner = PipelineRunner(pipeline)
-    runner.run()
+    try:
+        runner.run()
+    except Exception as e:
+        logger.error(str(e))
+        sys.exit(1)
 
 
 @main.command()
