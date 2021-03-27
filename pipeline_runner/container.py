@@ -27,11 +27,12 @@ output_logger.setLevel("INFO")
 
 
 class ContainerRunner:
-    def __init__(self, image: Image, name: str, mem_limit: int, service_names: List[str]):
+    def __init__(self, image: Image, name: str, mem_limit: int, service_names: List[str], data_volume_name):
         self._image = image
         self._name = name
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
         self._service_names = service_names
+        self._data_volume_name = data_volume_name
 
         self._client = docker.from_env()
         self._container = None
@@ -156,11 +157,10 @@ class ContainerRunner:
             "DOCKER_HOST": "tcp://localhost:2375",
         }
 
-    @staticmethod
-    def _get_volumes():
+    def _get_volumes(self):
         return {
             config.project_directory: {"bind": config.remote_workspace_dir, "mode": "ro"},
-            "PipelineDataVolume": {"bind": config.remote_pipeline_dir},
+            self._data_volume_name: {"bind": config.remote_pipeline_dir},
         }
 
     def _ensure_required_binaries(self):

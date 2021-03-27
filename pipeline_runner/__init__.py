@@ -102,14 +102,17 @@ class StepRunner:
         try:
             image = self._get_image()
             container_name = f"{config.project_slug}-step-{slugify(self._step.name)}"
+            data_volume_name = f"{container_name}-data"
             mem_limit = self._get_build_container_memory_limit()
 
-            self._services_manager = ServicesManager(self._step.services, self._definitions.services, self._step.size)
+            self._services_manager = ServicesManager(
+                self._step.services, self._definitions.services, self._step.size, data_volume_name
+            )
             self._services_manager.start_services()
 
             links = self._services_manager.get_container_links()
 
-            self._container_runner = ContainerRunner(image, container_name, mem_limit, links)
+            self._container_runner = ContainerRunner(image, container_name, mem_limit, links, data_volume_name)
             self._container_runner.start()
 
             self._build_setup()

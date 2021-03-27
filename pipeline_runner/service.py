@@ -14,10 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 class ServicesManager:
-    def __init__(self, service_names: List[str], service_definitions: Dict[str, Service], memory_multiplier: int):
+    def __init__(
+        self,
+        service_names: List[str],
+        service_definitions: Dict[str, Service],
+        memory_multiplier: int,
+        data_volume_name: str,
+    ):
         self._service_names = service_names
         self._service_definitions = service_definitions
         self._memory_multiplier = memory_multiplier
+        self._data_volume_name = data_volume_name
 
         self._client = docker.from_env()
         self._privileged_services = ("docker",)
@@ -92,13 +99,13 @@ class ServicesManager:
     def _is_privileged(self, name):
         return name in self._privileged_services
 
-    @staticmethod
-    def _get_volumes(name):
+    def _get_volumes(self, name):
         if name == "docker":
             return {
                 os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
-                "PipelineDataVolume": {"bind": config.remote_pipeline_dir},
+                self._data_volume_name: {"bind": config.remote_pipeline_dir},
             }
+
         return None
 
     @staticmethod
