@@ -100,7 +100,7 @@ class ContainerRunner:
         return output.decode().strip()
 
     def _start_container(self):
-        logger.info("Starting container '%s' (%s)", self._name, self._image.name)
+        logger.info("Creating container: %s", self._name)
 
         self._container = self._client.containers.run(
             self._image.name,
@@ -114,7 +114,9 @@ class ContainerRunner:
             tty=True,
             detach=True,
         )
+
         logger.debug("Created container: %s", self._container.name)
+        logger.debug("Image Used: %s", self._image.name)
 
     def _create_pipeline_directories(self):
         mkdir_cmd = " ".join(["/bin/mkdir", "-p", config.build_dir, config.scripts_dir, config.temp_dir])

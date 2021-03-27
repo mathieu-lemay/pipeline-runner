@@ -29,6 +29,9 @@ class PipelineRunner:
 
         pipeline, pipelines_definition = self._load_pipeline()
 
+        logger.info("Running pipeline: %s", pipeline.name)
+        logger.debug("Pipeline ID: %s", self._uuid)
+
         s = ts()
         exit_code = self._execute_pipeline(pipeline, pipelines_definition)
         logger.info("Pipeline '%s' executed in %.3fs.", pipeline.name, ts() - s)
@@ -92,6 +95,8 @@ class StepRunner:
             return
 
         logger.info("Running step: %s", self._step.name)
+        logger.debug("Step ID: %s", self._step_uuid)
+
         s = ts()
 
         try:
