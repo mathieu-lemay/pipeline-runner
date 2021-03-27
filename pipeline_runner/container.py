@@ -27,11 +27,13 @@ output_logger.setLevel("INFO")
 
 
 class ContainerRunner:
-    def __init__(self, image: Image, name: str, mem_limit: int, services_names: List[str], data_volume_name):
+    def __init__(
+        self, image: Image, name: str, data_volume_name: str, mem_limit: int = 512, services_names: List[str] = None
+    ):
         self._image = image
         self._name = name
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
-        self._services_names = services_names
+        self._services_names = services_names or []
         self._data_volume_name = data_volume_name
 
         self._client = docker.from_env()
@@ -51,13 +53,6 @@ class ContainerRunner:
 
         logger.info("Removing container: %s", self._container.name)
         self._container.remove(v=True, force=True)
-
-        for vol_name in self._get_volumes().keys():
-            volume = next(iter(self._client.volumes.list(filters={"name": vol_name})), None)
-
-            if volume:
-                logger.info("Removing volume: %s", volume.name)
-                volume.remove()
 
     def run_script(
         self, script: Union[str, List[str]], user: Union[int, str] = 0, env: Optional[Dict[str, Any]] = None
@@ -167,9 +162,9 @@ class ContainerRunner:
         cmd = """
         if type apt-get >/dev/null 2>&1; then
             export DEBIAN_FRONTEND=noninteractive
-            apt-get update && apt-get install -y --no-install-recommends bash docker.io git
+            apt-get update && apt-get install -y --no-install-recommends docker.io
         elif type apk >/dev/null 2>&1; then
-            apk add --no-cache bash git docker-cli
+            apk add --no-cache docker-cli
         else
             echo "Unsupported distribution" >&2
             exit 1

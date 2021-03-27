@@ -4,6 +4,7 @@ import uuid
 from time import time as ts
 from typing import Optional, Union
 
+import docker
 from dotenv import load_dotenv
 from slugify import slugify
 
@@ -86,8 +87,12 @@ class StepRunner:
         self._step_uuid = step_uuid
         self._definitions = definitions
 
+        self._docker_client = docker.from_env()
         self._services_manager = None
         self._container_runner = None
+
+        self._container_name = f"{config.project_slug}-step-{slugify(self._step.name)}"
+        self._data_volume_name = f"{self._container_name}-data"
 
     def run(self) -> Optional[int]:
         if not self._should_run():
@@ -101,18 +106,18 @@ class StepRunner:
 
         try:
             image = self._get_image()
-            container_name = f"{config.project_slug}-step-{slugify(self._step.name)}"
-            data_volume_name = f"{container_name}-data"
             mem_limit = self._get_build_container_memory_limit()
 
             self._services_manager = ServicesManager(
-                self._step.services, self._definitions.services, self._step.size, data_volume_name
+                self._step.services, self._definitions.services, self._step.size, self._data_volume_name
             )
             self._services_manager.start_services()
 
             services_names = self._services_manager.get_services_names()
 
-            self._container_runner = ContainerRunner(image, container_name, mem_limit, services_names, data_volume_name)
+            self._container_runner = ContainerRunner(
+                image, self._container_name, self._data_volume_name, mem_limit, services_names
+            )
             self._container_runner.start()
 
             self._build_setup()
@@ -126,11 +131,16 @@ class StepRunner:
 
             self._build_teardown(exit_code)
         finally:
+            if self._container_runner:
+                self._container_runner.stop()
+
             if self._services_manager:
                 self._services_manager.stop_services()
 
-            if self._container_runner:
-                self._container_runner.stop()
+            volume = next(iter(self._docker_client.volumes.list(filters={"name": self._data_volume_name})), None)
+            if volume:
+                logger.info("Removing volume: %s", volume.name)
+                volume.remove()
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 
@@ -173,6 +183,10 @@ class StepRunner:
         cm.upload(self._step.caches)
 
     def _clone_repository(self):
+        image = Image("alpine/git")
+        runner = ContainerRunner(image, f"{self._container_name}-clone", self._data_volume_name)
+        runner.start()
+
         # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
         # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
         # $BUILD_DIR
@@ -180,28 +194,42 @@ class StepRunner:
             logger.info("Clone disabled: skipping")
             return
 
-        cmd = []
+        commands = []
+        origin = f"file://{config.remote_workspace_dir}"
+
+        git_clone_cmd = []
 
         if not self._should_clone_lfs():
-            cmd += ["GIT_LFS_SKIP_SMUDGE=1"]
+            git_clone_cmd += ["GIT_LFS_SKIP_SMUDGE=1"]
 
-        cmd += ["git", "clone", "--branch", utils.get_git_current_branch()]
+        git_clone_cmd += ["git", "clone", f"--branch='{utils.get_git_current_branch()}'"]
 
         clone_depth = self._get_clone_depth()
         if clone_depth:
-            cmd += ["--depth", str(clone_depth)]
+            git_clone_cmd += ["--depth", str(clone_depth)]
 
-        cmd += [f"file://{config.remote_workspace_dir}", "$BUILD_DIR"]
+        git_clone_cmd += [origin, "$BUILD_DIR"]
 
-        exit_code = self._container_runner.run_command(cmd)
+        commands.append(" ".join(git_clone_cmd))
 
-        if exit_code:
-            raise Exception("Error cloning repository")
+        commands += [
+            "git reset --hard $BITBUCKET_COMMIT",
+            "git config user.name bitbucket-pipelines",
+            "git config user.email commits-noreply@bitbucket.org",
+            "git config push.default current",
+            # "git config http.${BITBUCKET_GIT_HTTP_ORIGIN}.proxy http://localhost:29418/",
+            f"git remote set-url origin {origin}",
+            "git reflog expire --expire=all --all",
+            "echo '.bitbucket/pipelines/generated' >> .git/info/exclude",
+        ]
 
-        exit_code = self._container_runner.run_command(["git", "reset", "--hard", "$BITBUCKET_COMMIT"])
+        try:
+            exit_code = runner.run_script(commands)
 
-        if exit_code:
-            raise Exception("Error resetting to HEAD commit")
+            if exit_code:
+                raise Exception("Error setting up repository")
+        finally:
+            runner.stop()
 
     def _should_clone(self) -> bool:
         for v in (
