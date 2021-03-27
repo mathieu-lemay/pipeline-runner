@@ -53,7 +53,7 @@ class ServicesManager:
             except Exception as e:
                 logger.exception("Error removing service '%s': %s", s, e)
 
-    def get_container_links(self):
+    def get_services_names(self):
         return {c.name: s for s, c in self._containers.items()}
 
     def _start_service(self, service: Service):

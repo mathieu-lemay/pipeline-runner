@@ -110,9 +110,9 @@ class StepRunner:
             )
             self._services_manager.start_services()
 
-            links = self._services_manager.get_container_links()
+            services_names = self._services_manager.get_services_names()
 
-            self._container_runner = ContainerRunner(image, container_name, mem_limit, links, data_volume_name)
+            self._container_runner = ContainerRunner(image, container_name, mem_limit, services_names, data_volume_name)
             self._container_runner.start()
 
             self._build_setup()

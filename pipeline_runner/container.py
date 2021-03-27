@@ -27,11 +27,11 @@ output_logger.setLevel("INFO")
 
 
 class ContainerRunner:
-    def __init__(self, image: Image, name: str, mem_limit: int, service_names: List[str], data_volume_name):
+    def __init__(self, image: Image, name: str, mem_limit: int, services_names: List[str], data_volume_name):
         self._image = image
         self._name = name
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
-        self._service_names = service_names
+        self._services_names = services_names
         self._data_volume_name = data_volume_name
 
         self._client = docker.from_env()
