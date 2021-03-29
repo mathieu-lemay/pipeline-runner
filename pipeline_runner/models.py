@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from .utils import DebugMixin
+from .utils import DebugMixin, generate_id
 
 
 class Cache(DebugMixin):
@@ -87,10 +87,14 @@ class Step(DebugMixin):
         self.size = size
         self.clone_settings = clone_settings or CloneSettings()
 
+        self.uuid = generate_id()
+
 
 class ParallelStep(DebugMixin):
     def __init__(self, steps: List[Step]):
         self.steps = steps
+
+        self.uuid = generate_id()
 
 
 class Pipeline(DebugMixin):
@@ -98,6 +102,8 @@ class Pipeline(DebugMixin):
         self.path = path
         self.name = name
         self.steps = steps
+
+        self.uuid = generate_id()
 
 
 class Pipelines(DebugMixin):

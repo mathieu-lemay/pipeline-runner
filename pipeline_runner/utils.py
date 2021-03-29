@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from typing import List, Optional, Union
 
 from git import Repo
@@ -87,6 +88,10 @@ def wrap_in_shell(command: Union[str, List[str]], shell: Optional[str] = "bash",
     wrapped += ["-c", command]
 
     return wrapped
+
+
+def generate_id():
+    return str(uuid.uuid4())
 
 
 def dumps(*args, **kwargs):

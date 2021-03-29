@@ -109,7 +109,7 @@ def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
     try:
         runner.run()
     except Exception as e:
-        logger.error(str(e))
+        logger.exception(str(e))
         sys.exit(1)
 
 

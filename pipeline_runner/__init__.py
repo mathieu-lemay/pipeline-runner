@@ -1,6 +1,5 @@
 import logging
 import os
-import uuid
 from time import time as ts
 from typing import Optional, Union
 
@@ -21,9 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineRunner:
-    def __init__(self, pipeline: str):
-        self._pipeline = pipeline
-        self._uuid = str(uuid.uuid4())
+    def __init__(self, pipeline_name: str):
+        self._pipeline_name = pipeline_name
 
     def run(self):
         self._load_env_files()
@@ -31,7 +29,7 @@ class PipelineRunner:
         pipeline, pipelines_definition = self._load_pipeline()
 
         logger.info("Running pipeline: %s", pipeline.name)
-        logger.debug("Pipeline ID: %s", self._uuid)
+        logger.debug("Pipeline ID: %s", pipeline.uuid)
 
         s = ts()
         exit_code = self._execute_pipeline(pipeline, pipelines_definition)
@@ -57,10 +55,10 @@ class PipelineRunner:
     def _load_pipeline(self):
         pipelines_definition = PipelinesFileParser(config.pipeline_file).parse()
 
-        pipeline_to_run = pipelines_definition.get_pipeline(self._pipeline)
+        pipeline_to_run = pipelines_definition.get_pipeline(self._pipeline_name)
 
         if not pipeline_to_run:
-            msg = f"Invalid pipeline: {self._pipeline}"
+            msg = f"Invalid pipeline: {self._pipeline_name}"
             logger.error(msg)
             logger.info(
                 "Available pipelines:\n\t%s", "\n\t".join(sorted(pipelines_definition.get_available_pipelines()))
@@ -69,10 +67,10 @@ class PipelineRunner:
 
         return pipeline_to_run, pipelines_definition
 
-    def _execute_pipeline(self, pipeline, definitions):
+    @staticmethod
+    def _execute_pipeline(pipeline, definitions):
         for step in pipeline.steps:
-            step_uuid = str(uuid.uuid4())
-            runner = StepRunnerFactory.get(step, self._uuid, step_uuid, definitions)
+            runner = StepRunnerFactory.get(step, pipeline.uuid, definitions)
 
             exit_code = runner.run()
 
@@ -81,10 +79,9 @@ class PipelineRunner:
 
 
 class StepRunner:
-    def __init__(self, step: Union[Step, ParallelStep], pipeline_uuid: str, step_uuid: str, definitions: Pipelines):
+    def __init__(self, step: Step, pipeline_uuid: str, definitions: Pipelines):
         self._step = step
         self._pipeline_uuid = pipeline_uuid
-        self._step_uuid = step_uuid
         self._definitions = definitions
 
         self._docker_client = docker.from_env()
@@ -100,7 +97,7 @@ class StepRunner:
             return
 
         logger.info("Running step: %s", self._step.name)
-        logger.debug("Step ID: %s", self._step_uuid)
+        logger.debug("Step ID: %s", self._step.uuid)
 
         s = ts()
 
@@ -175,7 +172,7 @@ class StepRunner:
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
     def _upload_artifacts(self):
-        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
+        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step.uuid)
         am.upload()
 
     def _upload_caches(self):
@@ -276,21 +273,23 @@ class StepRunner:
             logger.warning("Skipping caches for failed step")
 
     def _download_artifacts(self):
-        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step_uuid)
+        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step.uuid)
         am.download(self._step.artifacts)
 
     def _stop_services(self):
         pass
 
 
-class ParallelStepRunner(StepRunner):
-    def __init__(self, step: Union[Step, ParallelStep], pipeline_uuid: str, step_uuid: str, definitions: Pipelines):
-        super().__init__(step, pipeline_uuid, step_uuid, definitions)
+class ParallelStepRunner:
+    def __init__(self, step: ParallelStep, pipeline_uuid: str, definitions: Pipelines):
+        self._step = step
+        self._pipeline_uuid = pipeline_uuid
+        self._definitions = definitions
 
     def run(self) -> Optional[int]:
         return_code = 0
         for s in self._step.steps:
-            runner = StepRunnerFactory.get(s, self._pipeline_uuid, self._step_uuid, self._definitions)
+            runner = StepRunnerFactory.get(s, self._pipeline_uuid, self._definitions)
             rc = runner.run()
             if rc:
                 return_code = rc
@@ -300,8 +299,8 @@ class ParallelStepRunner(StepRunner):
 
 class StepRunnerFactory:
     @staticmethod
-    def get(step: Union[Step, ParallelStep], pipeline_uuid: str, step_uuid: str, definitions: Pipelines):
+    def get(step: Union[Step, ParallelStep], pipeline_uuid: str, definitions: Pipelines):
         if isinstance(step, ParallelStep):
-            return ParallelStepRunner(step, pipeline_uuid, step_uuid, definitions)
+            return ParallelStepRunner(step, pipeline_uuid, definitions)
         else:
-            return StepRunner(step, pipeline_uuid, step_uuid, definitions)
+            return StepRunner(step, pipeline_uuid, definitions)
