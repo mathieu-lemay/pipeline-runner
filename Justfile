@@ -10,6 +10,15 @@ test: _deps
 lint:
 	pre-commit run --all
 
+release version:
+	#!/bin/sh
+	set -eu
+	poetry version "{{ version }}"
+	version="$(poetry version -s)"
+	git add pyproject.toml
+	git commit -m "Bump version to ${version}"
+	git tag -s -a -m "Version ${version}" "${version}"
+
 clean:
 	rm -f .make.* .coverage
 
