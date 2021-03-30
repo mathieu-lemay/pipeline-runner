@@ -2,9 +2,12 @@ import logging
 import os
 import shutil
 import sys
+from typing import Optional
 
 import click
 import pkg_resources
+from plumbum import ProcessExecutionError
+from pyfzf import FzfPrompt
 
 from . import PipelineRunner, PipelinesFileParser
 from . import __name__ as project_name
@@ -36,6 +39,27 @@ def _init_logger():
     docker_logger.setLevel("INFO")
 
 
+def _get_pipelines_list(pipeline_file: str) -> [str]:
+    pipelines_definition = PipelinesFileParser(pipeline_file, expand_vars=False).parse()
+
+    return pipelines_definition.get_available_pipelines()
+
+
+def _prompt_for_pipeline(pipeline_file) -> Optional[str]:
+    pipeline = None
+    pipelines = _get_pipelines_list(pipeline_file)
+
+    try:
+        fzf = FzfPrompt()
+        pipeline = next(iter(fzf.prompt(pipelines)))
+    except SystemError:
+        logger.warning("fzf executable not found, disabling interactive pipeline selection.")
+    except ProcessExecutionError:
+        logger.warning("No pipeline selected")
+
+    return pipeline
+
+
 @click.group("Pipeline Runner", invoke_without_command=True)
 @click.option(
     "-V",
@@ -52,7 +76,7 @@ def main(ctx, show_version):
 
 
 @main.command()
-@click.argument("pipeline")
+@click.argument("pipeline", default="")
 @click.option(
     "-p",
     "--project-directory",
@@ -105,6 +129,13 @@ def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
 
     _init_logger()
 
+    if not pipeline:
+        pipeline = _prompt_for_pipeline(config.pipeline_file)
+
+    if not pipeline:
+        logger.error("pipeline not specified")
+        sys.exit(2)
+
     runner = PipelineRunner(pipeline)
     try:
         runner.run()
@@ -144,9 +175,9 @@ def list_(project_directory, pipeline_file, color):
 
     _init_logger()
 
-    pipelines_definition = PipelinesFileParser(config.pipeline_file, expand_vars=False).parse()
+    pipelines = _get_pipelines_list(config.pipeline_file)
 
-    logger.info("Available pipelines:\n\t%s", "\n\t".join(sorted(pipelines_definition.get_available_pipelines())))
+    logger.info("Available pipelines:\n\t%s", "\n\t".join(sorted(pipelines)))
 
 
 @main.command()
