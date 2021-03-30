@@ -43,7 +43,7 @@ class ContainerRunner:
         pull_image(self._client, self._image)
         self._start_container()
         self._create_pipeline_directories()
-        self._ensure_required_binaries()
+        self._install_docker_client()
 
         return self._container
 
@@ -158,7 +158,10 @@ class ContainerRunner:
             self._data_volume_name: {"bind": config.remote_pipeline_dir},
         }
 
-    def _ensure_required_binaries(self):
+    def _install_docker_client(self):
+        if "docker" not in self._services_names:
+            return
+
         cmd = """
         if type apt-get >/dev/null 2>&1; then
             export DEBIAN_FRONTEND=noninteractive
