@@ -4,8 +4,10 @@ pipelines:
       - step:
           name: Test After Script
           image: alpine
+          services:
+            - docker
           script:
-            - bash --version
+            - cat /etc/os-release
             - docker --version
             - exit 2
           after-script:
