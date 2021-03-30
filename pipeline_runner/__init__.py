@@ -12,10 +12,9 @@ from .artifacts import ArtifactManager
 from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
-from .models import CloneSettings, Image, ParallelStep, Pipelines, Step
+from .models import CloneSettings, Image, ParallelStep, Pipeline, Pipelines, Step
 from .parse import PipelinesFileParser
 from .service import ServicesManager
-from .utils import get_output_logger
 
 logger = logging.getLogger(__name__)
 
@@ -66,23 +65,37 @@ class PipelineRunner:
             )
             raise ValueError(msg)
 
+        pipeline_to_run.number = self._get_build_number()
+
         return pipeline_to_run, pipelines_definition
 
     @staticmethod
     def _execute_pipeline(pipeline, definitions):
         for step in pipeline.steps:
-            runner = StepRunnerFactory.get(step, pipeline.uuid, definitions)
+            runner = StepRunnerFactory.get(step, pipeline, definitions)
 
             exit_code = runner.run()
 
             if exit_code:
                 return exit_code
 
+    @staticmethod
+    def _get_build_number():
+        if config.bitbucket_build_number:
+            return config.bitbucket_build_number
+
+        pi = utils.load_project_pipelines_info()
+        pi.build_number += 1
+
+        utils.save_project_pipelines_info(pi)
+
+        return pi.build_number
+
 
 class StepRunner:
-    def __init__(self, step: Step, pipeline_uuid: str, definitions: Pipelines):
+    def __init__(self, step: Step, pipeline: Pipeline, definitions: Pipelines):
         self._step = step
-        self._pipeline_uuid = pipeline_uuid
+        self._pipeline = pipeline
         self._definitions = definitions
 
         self._docker_client = docker.from_env()
@@ -91,7 +104,7 @@ class StepRunner:
 
         self._container_name = f"{config.project_slug}-step-{slugify(self._step.name)}"
         self._data_volume_name = f"{self._container_name}-data"
-        self._output_logger = get_output_logger(self._pipeline_uuid, f"{self._container_name}")
+        self._output_logger = utils.get_output_logger(self._pipeline, f"{self._container_name}")
 
     def run(self) -> Optional[int]:
         if not self._should_run():
@@ -115,7 +128,13 @@ class StepRunner:
             services_names = self._services_manager.get_services_names()
 
             self._container_runner = ContainerRunner(
-                image, self._container_name, self._data_volume_name, self._output_logger, mem_limit, services_names
+                self._pipeline,
+                image,
+                self._container_name,
+                self._data_volume_name,
+                self._output_logger,
+                mem_limit,
+                services_names,
             )
             self._container_runner.start()
 
@@ -174,7 +193,7 @@ class StepRunner:
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
     def _upload_artifacts(self):
-        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step.uuid)
+        am = ArtifactManager(self._container_runner, self._pipeline, self._step)
         am.upload()
 
     def _upload_caches(self):
@@ -183,7 +202,9 @@ class StepRunner:
 
     def _clone_repository(self):
         image = Image("alpine/git")
-        runner = ContainerRunner(image, f"{self._container_name}-clone", self._data_volume_name, self._output_logger)
+        runner = ContainerRunner(
+            self._pipeline, image, f"{self._container_name}-clone", self._data_volume_name, self._output_logger
+        )
         runner.start()
 
         # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
@@ -275,7 +296,7 @@ class StepRunner:
             logger.warning("Skipping caches for failed step")
 
     def _download_artifacts(self):
-        am = ArtifactManager(self._container_runner, self._pipeline_uuid, self._step.uuid)
+        am = ArtifactManager(self._container_runner, self._pipeline, self._step)
         am.download(self._step.artifacts)
 
     def _stop_services(self):
@@ -283,15 +304,15 @@ class StepRunner:
 
 
 class ParallelStepRunner:
-    def __init__(self, step: ParallelStep, pipeline_uuid: str, definitions: Pipelines):
+    def __init__(self, step: ParallelStep, pipeline: Pipeline, definitions: Pipelines):
         self._step = step
-        self._pipeline_uuid = pipeline_uuid
+        self._pipeline = pipeline
         self._definitions = definitions
 
     def run(self) -> Optional[int]:
         return_code = 0
         for s in self._step.steps:
-            runner = StepRunnerFactory.get(s, self._pipeline_uuid, self._definitions)
+            runner = StepRunnerFactory.get(s, self._pipeline, self._definitions)
             rc = runner.run()
             if rc:
                 return_code = rc
@@ -301,8 +322,8 @@ class ParallelStepRunner:
 
 class StepRunnerFactory:
     @staticmethod
-    def get(step: Union[Step, ParallelStep], pipeline_uuid: str, definitions: Pipelines):
+    def get(step: Union[Step, ParallelStep], pipeline: Pipeline, definitions: Pipelines):
         if isinstance(step, ParallelStep):
-            return ParallelStepRunner(step, pipeline_uuid, definitions)
+            return ParallelStepRunner(step, pipeline, definitions)
         else:
-            return StepRunner(step, pipeline_uuid, definitions)
+            return StepRunner(step, pipeline, definitions)

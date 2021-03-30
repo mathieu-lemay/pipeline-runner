@@ -9,18 +9,19 @@ from typing import List
 from . import utils
 from .config import config
 from .container import ContainerRunner
+from .models import Pipeline, Step
 
 logger = logging.getLogger(__name__)
 
 
 class ArtifactManager:
-    def __init__(self, container: ContainerRunner, pipeline_id: str, step_id: str):
+    def __init__(self, container: ContainerRunner, pipeline: Pipeline, step: Step):
         self._container = container
-        self._pipeline_id = pipeline_id
-        self._step_id = step_id
+        self._pipeline = pipeline
+        self._step = step
 
     def upload(self):
-        artifact_directory = utils.get_artifact_directory(self._pipeline_id)
+        artifact_directory = utils.get_artifact_directory(self._pipeline)
 
         logger.info("Loading artifacts")
 
@@ -55,9 +56,9 @@ class ArtifactManager:
         if not artifacts:
             return
 
-        artifact_file = f"artifacts-{self._step_id}.tar"
+        artifact_file = f"artifacts-{self._step.uuid}.tar"
         artifact_remote_path = os.path.join(config.build_dir, artifact_file)
-        artifact_local_directory = utils.get_artifact_directory(self._pipeline_id)
+        artifact_local_directory = utils.get_artifact_directory(self._pipeline)
 
         logger.info("Collecting artifacts")
 

@@ -16,7 +16,7 @@ from dotenv import dotenv_values
 
 from . import utils
 from .config import config
-from .models import Image
+from .models import Image, Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 class ContainerRunner:
     def __init__(
         self,
+        pipeline: Pipeline,
         image: Image,
         name: str,
         data_volume_name: str,
@@ -31,6 +32,7 @@ class ContainerRunner:
         mem_limit: int = 512,
         services_names: List[str] = None,
     ):
+        self._pipeline = pipeline
         self._image = image
         self._name = name
         self._data_volume_name = data_volume_name
@@ -131,8 +133,7 @@ class ContainerRunner:
 
         return env_vars
 
-    @staticmethod
-    def _get_pipelines_env_vars() -> Dict[str, str]:
+    def _get_pipelines_env_vars(self) -> Dict[str, str]:
         project_slug = config.project_slug
         git_branch = utils.get_git_current_branch()
         git_commit = utils.get_git_current_commit()
@@ -140,7 +141,7 @@ class ContainerRunner:
         return {
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
-            "BITBUCKET_BUILD_NUMBER": config.bitbucket_build_number,
+            "BITBUCKET_BUILD_NUMBER": self._pipeline.number,
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
             "BITBUCKET_PROJECT_KEY": "PR",

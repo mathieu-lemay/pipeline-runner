@@ -1,6 +1,18 @@
+import uuid
 from typing import List, Optional, Union
 
-from .utils import DebugMixin, generate_id
+
+def _generate_id():
+    return str(uuid.uuid4())
+
+
+class DebugMixin:
+    def __repr__(self):
+        values = [f"{k}: {repr(v)}" for k, v in self.__dict__.items() if k[0] != "_"]
+        return f"{type(self).__name__} {{ {', '.join(values)} }}"
+
+    def json(self):
+        return {k: v for k, v in self.__dict__.items() if k[0] != "_"}
 
 
 class Cache(DebugMixin):
@@ -87,14 +99,14 @@ class Step(DebugMixin):
         self.size = size
         self.clone_settings = clone_settings or CloneSettings()
 
-        self.uuid = generate_id()
+        self.uuid = _generate_id()
 
 
 class ParallelStep(DebugMixin):
     def __init__(self, steps: List[Step]):
         self.steps = steps
 
-        self.uuid = generate_id()
+        self.uuid = _generate_id()
 
 
 class Pipeline(DebugMixin):
@@ -103,7 +115,8 @@ class Pipeline(DebugMixin):
         self.name = name
         self.steps = steps
 
-        self.uuid = generate_id()
+        self.uuid = _generate_id()
+        self.number = 0
 
 
 class Pipelines(DebugMixin):
@@ -126,3 +139,16 @@ class Pipelines(DebugMixin):
 
     def get_available_pipelines(self) -> List[str]:
         return self.pipelines.keys()
+
+
+class PipelineInfo:
+    def __init__(self, build_number: int = 0):
+        self.build_number = build_number
+
+    @classmethod
+    def from_json(cls, json_: dict) -> "PipelineInfo":
+        build_number = json_.get("build_number", 0)
+        return cls(build_number=build_number)
+
+    def to_json(self) -> dict:
+        return {"build_number": self.build_number}

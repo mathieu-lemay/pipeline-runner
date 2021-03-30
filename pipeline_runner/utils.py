@@ -2,13 +2,13 @@ import json
 import logging
 import os
 import sys
-import uuid
 from typing import List, Optional, Union
 
 from git import Repo
 from xdg import xdg_cache_home, xdg_data_home
 
 from .config import config
+from .models import DebugMixin, Pipeline, PipelineInfo
 
 _git_repo = None
 
@@ -22,14 +22,14 @@ def _get_git_repo() -> Repo:
     return _git_repo
 
 
-def get_output_logger(pipeline_uuid: str, name: str) -> logging.Logger:
+def get_output_logger(pipeline: Pipeline, name: str) -> logging.Logger:
     formatter = logging.Formatter("%(message)s")
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setFormatter(formatter)
     stream_handler.terminator = ""
 
-    file_handler = logging.FileHandler(os.path.join(get_log_directory(pipeline_uuid), f"{name}.txt"))
+    file_handler = logging.FileHandler(os.path.join(get_log_directory(pipeline), f"{name}.txt"))
     file_handler.setFormatter(formatter)
     file_handler.terminator = ""
 
@@ -59,6 +59,31 @@ def _get_project_cache_directory() -> str:
     return os.path.join(get_user_cache_directory(), config.project_env_name)
 
 
+def get_project_pipelines_info_file() -> str:
+    d = _get_project_cache_directory()
+
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+    return os.path.join(d, "info.json")
+
+
+def load_project_pipelines_info() -> PipelineInfo:
+    fp = get_project_pipelines_info_file()
+    if not os.path.exists(fp):
+        return PipelineInfo()
+
+    with open(fp) as f:
+        return PipelineInfo.from_json(json.load(f))
+
+
+def save_project_pipelines_info(pi: PipelineInfo):
+    fp = get_project_pipelines_info_file()
+
+    with open(fp, "w") as f:
+        json.dump(pi.to_json(), f)
+
+
 def get_local_cache_directory() -> str:
     d = os.path.join(_get_project_cache_directory(), "caches")
 
@@ -68,12 +93,12 @@ def get_local_cache_directory() -> str:
     return d
 
 
-def _get_pipeline_cache_directory(pipeline_uuid: str) -> str:
-    return os.path.join(_get_project_cache_directory(), "pipelines", pipeline_uuid)
+def _get_pipeline_cache_directory(pipeline: Pipeline) -> str:
+    return os.path.join(_get_project_cache_directory(), "pipelines", f"{pipeline.number}-{pipeline.uuid}")
 
 
-def get_log_directory(pipeline_uuid: str) -> str:
-    d = os.path.join(_get_pipeline_cache_directory(pipeline_uuid), "logs")
+def get_log_directory(pipeline: Pipeline) -> str:
+    d = os.path.join(_get_pipeline_cache_directory(pipeline), "logs")
 
     if not os.path.exists(d):
         os.makedirs(d)
@@ -81,8 +106,8 @@ def get_log_directory(pipeline_uuid: str) -> str:
     return d
 
 
-def get_artifact_directory(pipeline_uuid: str) -> str:
-    d = os.path.join(_get_pipeline_cache_directory(pipeline_uuid), "artifacts")
+def get_artifact_directory(pipeline: Pipeline) -> str:
+    d = os.path.join(_get_pipeline_cache_directory(pipeline), "artifacts")
 
     if not os.path.exists(d):
         os.makedirs(d)
@@ -124,10 +149,6 @@ def wrap_in_shell(command: Union[str, List[str]], shell: Optional[str] = "bash",
     return wrapped
 
 
-def generate_id():
-    return str(uuid.uuid4())
-
-
 def dumps(*args, **kwargs):
     def _handler(obj):
         if isinstance(obj, DebugMixin):
@@ -136,15 +157,6 @@ def dumps(*args, **kwargs):
             return None
 
     return json.dumps(*args, default=_handler, **kwargs)
-
-
-class DebugMixin:
-    def __repr__(self):
-        values = [f"{k}: {repr(v)}" for k, v in self.__dict__.items() if k[0] != "_"]
-        return f"{type(self).__name__} {{ {', '.join(values)} }}"
-
-    def json(self):
-        return {k: v for k, v in self.__dict__.items() if k[0] != "_"}
 
 
 class FileStreamer:
