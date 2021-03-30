@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import sys
 import uuid
 from typing import List, Optional, Union
 
@@ -18,6 +20,25 @@ def _get_git_repo() -> Repo:
         _git_repo = Repo(config.project_directory)
 
     return _git_repo
+
+
+def get_output_logger(pipeline_uuid: str, name: str) -> logging.Logger:
+    formatter = logging.Formatter("%(message)s")
+
+    stream_handler = logging.StreamHandler(stream=sys.stdout)
+    stream_handler.setFormatter(formatter)
+    stream_handler.terminator = ""
+
+    file_handler = logging.FileHandler(os.path.join(get_log_directory(pipeline_uuid), f"{name}.txt"))
+    file_handler.setFormatter(formatter)
+    file_handler.terminator = ""
+
+    output_logger = logging.getLogger(f"pipeline_runner_output.{name}")
+    output_logger.handlers.append(stream_handler)
+    output_logger.handlers.append(file_handler)
+    output_logger.setLevel("DEBUG")
+
+    return output_logger
 
 
 def get_git_current_branch() -> str:
@@ -47,8 +68,21 @@ def get_local_cache_directory() -> str:
     return d
 
 
+def _get_pipeline_cache_directory(pipeline_uuid: str) -> str:
+    return os.path.join(_get_project_cache_directory(), "pipelines", pipeline_uuid)
+
+
+def get_log_directory(pipeline_uuid: str) -> str:
+    d = os.path.join(_get_pipeline_cache_directory(pipeline_uuid), "logs")
+
+    if not os.path.exists(d):
+        os.makedirs(d)
+
+    return d
+
+
 def get_artifact_directory(pipeline_uuid: str) -> str:
-    d = os.path.join(_get_project_cache_directory(), "artifacts", pipeline_uuid)
+    d = os.path.join(_get_pipeline_cache_directory(pipeline_uuid), "artifacts")
 
     if not os.path.exists(d):
         os.makedirs(d)

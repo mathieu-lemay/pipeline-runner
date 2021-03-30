@@ -15,6 +15,7 @@ from .container import ContainerRunner
 from .models import CloneSettings, Image, ParallelStep, Pipelines, Step
 from .parse import PipelinesFileParser
 from .service import ServicesManager
+from .utils import get_output_logger
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ class StepRunner:
 
         self._container_name = f"{config.project_slug}-step-{slugify(self._step.name)}"
         self._data_volume_name = f"{self._container_name}-data"
+        self._output_logger = get_output_logger(self._pipeline_uuid, f"{self._container_name}")
 
     def run(self) -> Optional[int]:
         if not self._should_run():
@@ -113,7 +115,7 @@ class StepRunner:
             services_names = self._services_manager.get_services_names()
 
             self._container_runner = ContainerRunner(
-                image, self._container_name, self._data_volume_name, mem_limit, services_names
+                image, self._container_name, self._data_volume_name, self._output_logger, mem_limit, services_names
             )
             self._container_runner.start()
 
@@ -181,7 +183,7 @@ class StepRunner:
 
     def _clone_repository(self):
         image = Image("alpine/git")
-        runner = ContainerRunner(image, f"{self._container_name}-clone", self._data_volume_name)
+        runner = ContainerRunner(image, f"{self._container_name}-clone", self._data_volume_name, self._output_logger)
         runner.start()
 
         # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"

@@ -6,6 +6,7 @@ import posixpath
 import sys
 import tarfile
 import uuid
+from logging import Logger
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import boto3
@@ -19,22 +20,23 @@ from .models import Image
 
 logger = logging.getLogger(__name__)
 
-handler = logging.StreamHandler(stream=sys.stdout)
-handler.setFormatter(logging.Formatter("%(message)s"))
-output_logger = logging.getLogger("output")
-output_logger.handlers.append(handler)
-output_logger.setLevel("INFO")
-
 
 class ContainerRunner:
     def __init__(
-        self, image: Image, name: str, data_volume_name: str, mem_limit: int = 512, services_names: List[str] = None
+        self,
+        image: Image,
+        name: str,
+        data_volume_name: str,
+        output_logger: Logger,
+        mem_limit: int = 512,
+        services_names: List[str] = None,
     ):
         self._image = image
         self._name = name
+        self._data_volume_name = data_volume_name
+        self._logger = output_logger
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
         self._services_names = services_names or []
-        self._data_volume_name = data_volume_name
 
         self._client = docker.from_env()
         self._container = None
@@ -65,7 +67,7 @@ class ContainerRunner:
         self, command: Union[str, List[str]], user: Union[int, str] = 0, env: Optional[Dict[str, Any]] = None
     ) -> int:
         command = utils.stringify(command)
-        csr = ContainerScriptRunner(self._container, command, user, env)
+        csr = ContainerScriptRunner(self._container, command, self._logger, user, env)
 
         return csr.run()
 
@@ -180,12 +182,37 @@ class ContainerRunner:
 
 class ContainerScriptRunner:
     def __init__(
-        self, container: Container, script: str, user: Union[str, int] = 0, env: Optional[Dict[str, Any]] = None
+        self,
+        container: Container,
+        script: str,
+        output_logger: Optional[Logger] = None,
+        user: Union[str, int] = 0,
+        env: Optional[Dict[str, Any]] = None,
     ):
         self._container = container
         self._script = script
+        self._logger = output_logger
         self._user = str(user)
         self._env = env or {}
+
+        if self._logger:
+
+            def stdout_print(msg):
+                self._logger.info(msg)
+
+            def stderr_print(msg):
+                self._logger.error(msg)
+
+        else:
+
+            def stdout_print(msg):
+                print(msg, end="")
+
+            def stderr_print(msg):
+                print(msg, end="", file=sys.stderr)
+
+        self._stdout_print = stdout_print
+        self._stderr_print = stderr_print
 
     def run(self) -> int:
         entrypoint, exit_code_file_path = self._prepare_script_for_remote_execution()
@@ -226,9 +253,11 @@ class ContainerScriptRunner:
 
         for stdout, stderr in output_stream:
             if stdout:
-                print(stdout.decode(), end="")
+                self._stdout_print(stdout.decode())
             if stderr:
-                print(stderr.decode(), end="", file=sys.stderr)
+                self._stderr_print(stderr.decode())
+
+        self._stdout_print("\n")
 
     def _get_exit_code_of_command(self, exit_code_file_path: str) -> int:
         meta_exit_code, output = self._container.exec_run(["/bin/cat", exit_code_file_path], tty=True)
