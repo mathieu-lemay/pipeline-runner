@@ -27,16 +27,22 @@ def _init_logger():
         )
     )
 
-    logger = logging.getLogger(project_name)
-    logger.handlers.append(handler)
-    logger.setLevel("INFO")
+    cli_logger = logging.getLogger(project_name)
+    cli_logger.handlers.append(handler)
+    cli_logger.setLevel(config.log_level)
 
     if config.color:
-        coloredlogs.install(level="DEBUG", logger=logger, fmt="%(asctime)s.%(msecs)03d %(name)s: %(message)s")
+        coloredlogs.install(
+            level=config.log_level, logger=cli_logger, fmt="%(asctime)s.%(msecs)03d %(name)s: %(message)s"
+        )
 
     docker_logger = logging.getLogger("docker")
     docker_logger.handlers.append(handler)
     docker_logger.setLevel("INFO")
+
+
+def _init():
+    _init_logger()
 
 
 def _get_pipelines_list(pipeline_file: str) -> [str]:

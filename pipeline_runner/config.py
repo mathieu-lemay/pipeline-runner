@@ -1,6 +1,7 @@
 import base64
 import getpass
 import hashlib
+import logging
 import os
 import posixpath
 import re
@@ -62,6 +63,8 @@ class Config:
         self.repo_uuid = "8e6a16f2-c4cb-4973-a7c6-595626b29ceb"
 
         self.bitbucket_build_number = int(os.getenv("BITBUCKET_BUILD_NUMBER", 1))
+
+        self.log_level = logging.getLevelName(os.getenv("PIPELINE_LOG_LEVEL", "DEBUG").upper())
 
     @property
     def project_directory(self):
