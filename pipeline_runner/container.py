@@ -81,7 +81,7 @@ class ContainerRunner:
         if shell:
             command = utils.wrap_in_shell(command, shell)
 
-        return self._container.exec_run(command, user=str(user), tty=True)
+        return self._container.exec_run(command, user=str(user))
 
     def get_archive(self, *args, **kwargs):
         return self._container.get_archive(*args, **kwargs)
@@ -261,7 +261,7 @@ class ContainerScriptRunner:
         self._stdout_print("\n")
 
     def _get_exit_code_of_command(self, exit_code_file_path: str) -> int:
-        meta_exit_code, output = self._container.exec_run(["/bin/cat", exit_code_file_path], tty=True)
+        meta_exit_code, output = self._container.exec_run(["/bin/cat", exit_code_file_path])
         if meta_exit_code != 0:
             raise Exception(f"Error getting command exit code: {output.decode()}")
 
