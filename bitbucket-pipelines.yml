@@ -1,15 +1,72 @@
+definitions:
+  caches:
+    service1: $HOME/.cache/service1
+    invalid_cache: $HOME/.cache/non-existing-folder
+
 pipelines:
   custom:
     test_after_script:
       - step:
           name: Test After Script
           image: alpine
-          services:
-            - docker
           script:
             - cat /etc/os-release
-            - docker --version
             - exit 2
           after-script:
             - echo "Doing cleanup"
             - echo "Exit Code was ${BITBUCKET_EXIT_CODE}"
+
+    test_cache_alpine:
+      - step:
+          name: Create Cache
+          image: alpine
+          caches:
+            - service1
+          script:
+            - export CACHE_DIR=$HOME/.cache/service1
+            - sh -c 'if [ -d "${CACHE_DIR}" ]; then rm -rf "${CACHE_DIR}"; fi'
+            - mkdir -p "${CACHE_DIR}"
+            - dd if=/dev/random of=${CACHE_DIR}/a bs=2048 count=1
+            - dd if=/dev/random of=${CACHE_DIR}/b bs=2048 count=1
+            - md5sum ${CACHE_DIR}/* > MD5SUM
+            - mv MD5SUM ${CACHE_DIR}/
+      - step:
+          name: Ensure Cache Exists
+          image: alpine
+          caches:
+            - service1
+          script:
+            - export CACHE_DIR=$HOME/.cache/service1
+            - md5sum -c ${CACHE_DIR}/MD5SUM
+
+    test_cache_debian:
+      - step:
+          name: Create Cache
+          image: debian:buster
+          caches:
+            - service1
+          script:
+            - export CACHE_DIR=$HOME/.cache/service1
+            - sh -c 'if [ -d "${CACHE_DIR}" ]; then rm -rf "${CACHE_DIR}"; fi'
+            - mkdir -p "${CACHE_DIR}"
+            - dd if=/dev/random of=${CACHE_DIR}/a bs=2048 count=1
+            - dd if=/dev/random of=${CACHE_DIR}/b bs=2048 count=1
+            - md5sum ${CACHE_DIR}/* > MD5SUM
+            - mv MD5SUM ${CACHE_DIR}/
+      - step:
+          name: Ensure Cache Exists
+          image: debian:buster
+          caches:
+            - service1
+          script:
+            - export CACHE_DIR=$HOME/.cache/service1
+            - md5sum -c ${CACHE_DIR}/MD5SUM
+
+    test_invalid_cache:
+      - step:
+          name: Test Invalid Cache
+          image: alpine
+          caches:
+            - invalid_cache
+          script:
+            - exit 0
