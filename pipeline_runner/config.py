@@ -50,6 +50,7 @@ class Config:
         self.build_dir = posixpath.join(self.remote_pipeline_dir, "build")
         self.scripts_dir = posixpath.join(self.remote_pipeline_dir, "scripts")
         self.temp_dir = posixpath.join(self.remote_pipeline_dir, "temp")
+        self.caches_dir = posixpath.join(self.remote_pipeline_dir, "caches")
 
         self.username = getpass.getuser()
 

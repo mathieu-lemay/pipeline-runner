@@ -77,21 +77,15 @@ class ContainerRunner:
 
         return self._container.exec_run(command, user=str(user))
 
+    def path_exists(self, path) -> bool:
+        ret, _ = self.run_command(f'[ -e "$(realpath "{path}")" ]')
+        return ret == 0
+
     def get_archive(self, *args, **kwargs):
         return self._container.get_archive(*args, **kwargs)
 
     def put_archive(self, *args, **kwargs):
         return self._container.put_archive(*args, **kwargs)
-
-    def expand_path(self, path) -> str:
-        expand_cmd = f"if type readlink >/dev/null; then readlink -n -m {path}; else echo -n {path}; fi"
-        cmd = utils.wrap_in_shell(expand_cmd)
-        exit_code, output = self._container.exec_run(cmd, tty=True)
-        if exit_code != 0:
-            logger.error("Remote command failed: %s", output.decode())
-            raise Exception(f"Error expanding path: {path}")
-
-        return output.decode().strip()
 
     def _start_container(self):
         logger.info("Creating container: %s", self._name)
@@ -113,8 +107,10 @@ class ContainerRunner:
         logger.debug("Image Used: %s", self._image.name)
 
     def _create_pipeline_directories(self):
-        mkdir_cmd = " ".join(["/bin/mkdir", "-p", config.build_dir, config.scripts_dir, config.temp_dir])
-        exit_code, output = self._container.exec_run(["sh", "-c", mkdir_cmd], tty=True)
+        mkdir_cmd = " ".join(
+            ["/bin/mkdir", "-p", config.build_dir, config.scripts_dir, config.temp_dir, config.caches_dir]
+        )
+        exit_code, output = self.run_command(mkdir_cmd)
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
 
