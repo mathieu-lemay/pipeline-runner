@@ -21,8 +21,7 @@ class ServicesManager:
         memory_multiplier: int,
         data_volume_name: str,
     ):
-        self._service_names = service_names
-        self._service_definitions = service_definitions
+        self._services = self._get_services(service_names, service_definitions)
         self._memory_multiplier = memory_multiplier
         self._data_volume_name = data_volume_name
 
@@ -33,10 +32,9 @@ class ServicesManager:
         self._containers = {}
 
     def start_services(self):
-        requested_services = [self._get_service_definition(s) for s in self._service_names]
-        self._ensure_memory_for_services(requested_services)
+        self._ensure_memory_for_services()
 
-        for service in requested_services:
+        for service in self._services:
             self._start_service(service)
 
     def stop_services(self):
@@ -55,6 +53,9 @@ class ServicesManager:
 
     def get_services_names(self) -> List[str]:
         return list(self._containers.keys())
+
+    def get_memory_usage(self) -> int:
+        return sum(s.memory for s in self._services)
 
     def _start_service(self, service: Service):
         logger.info("Starting service: %s", service.name)
@@ -79,14 +80,19 @@ class ServicesManager:
 
         self._containers[service_name_slug] = container
 
-    def _get_service_definition(self, service_name):
-        if service_name not in self._service_definitions:
-            raise ValueError(f"Invalid service: {service_name}")
+    @staticmethod
+    def _get_services(service_names, service_definitions) -> [Service]:
+        services = []
+        for service_name in service_names:
+            if service_name not in service_definitions:
+                raise ValueError(f"Invalid service: {service_name}")
 
-        return self._service_definitions[service_name]
+            services.append(service_definitions[service_name])
 
-    def _ensure_memory_for_services(self, services):
-        requested_mem = sum(s.memory for s in services)
+        return services
+
+    def _ensure_memory_for_services(self):
+        requested_mem = self.get_memory_usage()
         available_mem = self._get_service_containers_memory_limit()
         if requested_mem > available_mem:
             raise ValueError(
@@ -94,7 +100,7 @@ class ServicesManager:
             )
 
     def _get_service_containers_memory_limit(self) -> int:
-        return config.service_containers_base_memory_limit * self._memory_multiplier
+        return config.total_memory_limit * self._memory_multiplier - config.build_container_minimum_memory
 
     def _is_privileged(self, name):
         return name in self._privileged_services

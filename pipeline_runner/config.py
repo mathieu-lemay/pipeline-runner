@@ -54,8 +54,8 @@ class Config:
 
         self.username = getpass.getuser()
 
-        self.build_container_base_memory_limit = 1024
-        self.service_containers_base_memory_limit = 3072
+        self.total_memory_limit = 4096
+        self.build_container_minimum_memory = 1024
         self.service_container_default_memory_limit = 1024
 
         # Randomly Generated
