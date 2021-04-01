@@ -49,7 +49,7 @@ class CacheManager:
             f'[ -d "{remote_cache_directory}" ] && rm -rf "{remote_cache_directory}"; '
             f'mkdir -p "{remote_cache_parent_directory}"'
         )
-        res, output = self._container.execute_in_container(prepare_cache_dir_cmd)
+        res, output = self._container.run_command(prepare_cache_dir_cmd)
         if res != 0:
             logger.error("Remote command failed: %s", output.decode())
             raise Exception(f"Error uploading cache: {cache_name}")

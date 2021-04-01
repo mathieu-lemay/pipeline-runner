@@ -63,23 +63,17 @@ class ContainerRunner:
     ) -> int:
         command = utils.stringify(script, sep="\n")
 
-        return self.run_command(command, user, env)
-
-    def run_command(
-        self, command: Union[str, List[str]], user: Union[int, str] = 0, env: Optional[Dict[str, Any]] = None
-    ) -> int:
-        command = utils.stringify(command)
         csr = ContainerScriptRunner(self._container, command, self._logger, user, env)
 
         return csr.run()
 
-    def execute_in_container(
-        self, command: Union[str, List[str]], shell: Optional[str] = "bash", user: Union[int, str] = 0
-    ):
+    def run_command(
+        self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Union[int, str] = 0
+    ) -> Tuple[int, bytes]:
         command = utils.stringify(command)
 
-        if shell:
-            command = utils.wrap_in_shell(command, shell)
+        if wrap_in_shell:
+            command = utils.wrap_in_shell(command)
 
         return self._container.exec_run(command, user=str(user))
 
@@ -177,7 +171,7 @@ class ContainerRunner:
         fi
         """
 
-        if self.run_command(cmd, user=0) != 0:
+        if self.run_script(cmd, user=0) != 0:
             raise Exception("Error installing necessary binaries")
 
 
