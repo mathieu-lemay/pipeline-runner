@@ -89,6 +89,11 @@ class CacheManager:
 
         temp_dir = self._get_remote_temp_directory(cache_name)
         target_dir = self._cache_definitions[cache_name].path
+
+        # TODO: Escape remote dir in a better way
+        if target_dir.startswith("~"):
+            target_dir = target_dir.replace("~", "$HOME", 1)
+
         restore_cache_script.append(f'if [ -e "{target_dir}" ]; then rm -rf "{target_dir}"; fi')
         restore_cache_script.append(f'mkdir -p "$(dirname "{target_dir}")"')
         restore_cache_script.append(f'mv "{temp_dir}" "{target_dir}"')
