@@ -126,6 +126,13 @@ def stringify(value: Union[str, List[str]], sep: str = " "):
     return value
 
 
+def escape_shell_string(value: str) -> str:
+    for c in "\\$%{}\"'":
+        value = value.replace(c, fr"\x{ord(c):02x}")
+
+    return value
+
+
 def get_human_readable_size(num):
     for unit in ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB"]:
 

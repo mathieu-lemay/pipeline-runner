@@ -278,8 +278,7 @@ class ContainerScriptRunner:
 
     @staticmethod
     def _add_group_separator(value):
-        for c in '"${}':
-            value = value.replace(c, f"\\x{ord(c):02x}")
+        value = utils.escape_shell_string(value)
 
         return f'printf "\\x1d+ {value}\\n"'
 
