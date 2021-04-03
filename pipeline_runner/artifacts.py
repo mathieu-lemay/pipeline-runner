@@ -64,7 +64,11 @@ class ArtifactManager:
 
         t = ts()
 
-        self._container.run_command(["tar", "cf", artifact_file, "-C", config.build_dir] + artifacts)
+        path_filters = " -o ".join(f"-path './{a}'" for a in artifacts)
+        prepare_artifacts_cmd = ["find", "-type", "f", r"\(", path_filters, r"\)"]
+        prepare_artifacts_cmd += ["|", "tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
+
+        self._container.run_command(prepare_artifacts_cmd)
         data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
         logger.debug("artifacts stats: %s", stats)
 

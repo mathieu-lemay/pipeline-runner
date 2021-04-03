@@ -3,6 +3,8 @@ definitions:
     service1: $HOME/.cache/service1
     invalid_cache: $HOME/.cache/non-existing-folder
 
+image: debian:stable-slim
+
 pipelines:
   custom:
     test_after_script:
@@ -69,4 +71,35 @@ pipelines:
           caches:
             - invalid_cache
           script:
+            - exit 0
+
+    test_artifacts:
+      - step:
+          name: Create Artifacts
+          artifacts:
+            - ~/artifact-in-home
+            - valid-folder/**
+            - invalid-folder/**
+            - folder-name
+            - file-name
+          script:
+            - echo foo > ~/artifact-in-home
+            - mkdir -p valid-folder/sub/sub/sub folder-name
+            - touch valid-folder/a valid-folder/b valid-folder/sub/c
+            - touch folder-name/a folder-name/b
+            - touch file-name
+      - step:
+          name: Validate Artifacts
+          script:
+            - ls -R
+            - "[ -e valid-folder/a ] || exit 1"
+            - "[ -e valid-folder/b ] || exit 1"
+            - "[ -e valid-folder/sub/c ] || exit 1"
+            - "[ -e file-name ] || exit 1"
+
+            - "[ -e ~/artifact-in-home ] && exit 1"
+            - "[ -d valid-folder/sub/sub ] && exit 1"
+            - "[ -d invalid-folder ] && exit 1"
+            - "[ -d folder-name ] && exit 1"
+            - "[ -d root ] && exit 1"
             - exit 0
