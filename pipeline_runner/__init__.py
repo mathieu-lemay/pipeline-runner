@@ -12,8 +12,9 @@ from .artifacts import ArtifactManager
 from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
-from .models import CloneSettings, Image, ParallelStep, Pipeline, Pipelines, Step
+from .models import Image, ParallelStep, Pipeline, Pipelines, Step
 from .parse import PipelinesFileParser
+from .repository import RepositoryCloner
 from .service import ServicesManager
 
 logger = logging.getLogger(__name__)
@@ -203,82 +204,15 @@ class StepRunner:
         cm.upload(self._step.caches)
 
     def _clone_repository(self):
-        image = Image("alpine/git")
-        runner = ContainerRunner(
-            self._pipeline, image, f"{self._container_name}-clone", self._data_volume_name, self._output_logger
+        rc = RepositoryCloner(
+            self._pipeline,
+            self._step,
+            self._definitions,
+            self._container_name,
+            self._data_volume_name,
+            self._output_logger,
         )
-        runner.start()
-
-        # GIT_LFS_SKIP_SMUDGE=1 retry 6 git clone --branch="tbd/DRCT-455-enable-build-on-commits-to-trun"
-        # --depth 50 https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
-        # $BUILD_DIR
-        if not self._should_clone():
-            logger.info("Clone disabled: skipping")
-            return
-
-        commands = []
-        origin = f"file://{config.remote_workspace_dir}"
-
-        git_clone_cmd = []
-
-        if not self._should_clone_lfs():
-            git_clone_cmd += ["GIT_LFS_SKIP_SMUDGE=1"]
-
-        git_clone_cmd += ["git", "clone", f"--branch='{utils.get_git_current_branch()}'"]
-
-        clone_depth = self._get_clone_depth()
-        if clone_depth:
-            git_clone_cmd += ["--depth", str(clone_depth)]
-
-        git_clone_cmd += [origin, "$BUILD_DIR"]
-
-        commands.append(" ".join(git_clone_cmd))
-
-        commands += [
-            "git reset --hard $BITBUCKET_COMMIT",
-            "git config user.name bitbucket-pipelines",
-            "git config user.email commits-noreply@bitbucket.org",
-            "git config push.default current",
-            # "git config http.${BITBUCKET_GIT_HTTP_ORIGIN}.proxy http://localhost:29418/",
-            f"git remote set-url origin {origin}",
-            "git reflog expire --expire=all --all",
-            "echo '.bitbucket/pipelines/generated' >> .git/info/exclude",
-        ]
-
-        try:
-            exit_code = runner.run_script(commands)
-
-            if exit_code:
-                raise Exception("Error setting up repository")
-        finally:
-            runner.stop()
-
-    def _should_clone(self) -> bool:
-        for v in (
-            self._step.clone_settings.enabled,
-            self._definitions.clone_settings.enabled,
-            CloneSettings.default().enabled,
-        ):
-            if v is not None:
-                return v
-
-    def _should_clone_lfs(self) -> bool:
-        for v in (
-            self._step.clone_settings.lfs,
-            self._definitions.clone_settings.lfs,
-            CloneSettings.default().lfs,
-        ):
-            if v is not None:
-                return v
-
-    def _get_clone_depth(self) -> Optional[int]:
-        for v in (
-            self._step.clone_settings.depth,
-            self._definitions.clone_settings.depth,
-            CloneSettings.default().depth,
-        ):
-            if v is not None:
-                return v
+        rc.clone()
 
     def _build_teardown(self, exit_code):
         logger.info("Build teardown: '%s'", self._step.name)
