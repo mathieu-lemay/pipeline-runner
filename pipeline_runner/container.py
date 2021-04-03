@@ -7,6 +7,7 @@ import sys
 import tarfile
 import uuid
 from logging import Logger
+from time import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import boto3
@@ -59,11 +60,15 @@ class ContainerRunner:
         self._container.remove(v=True, force=True)
 
     def run_script(
-        self, script: Union[str, List[str]], user: Union[int, str] = 0, env: Optional[Dict[str, Any]] = None
+        self,
+        script: Union[str, List[str]],
+        user: Union[int, str] = 0,
+        env: Optional[Dict[str, Any]] = None,
+        exec_time: bool = False,
     ) -> int:
         command = utils.stringify(script, sep="\n")
 
-        csr = ContainerScriptRunner(self._container, command, self._logger, user, env)
+        csr = ContainerScriptRunnerFactory.get(self._container, command, self._logger, user, env, exec_time)
 
         return csr.run()
 
@@ -242,6 +247,9 @@ class ContainerScriptRunner:
             ["/bin/sh", entrypoint], user=self._user, tty=True, stream=True, demux=True, environment=self._env
         )
 
+        self._print_execution_log(output_stream)
+
+    def _print_execution_log(self, output_stream):
         for stdout, stderr in output_stream:
             if stdout:
                 self._stdout_print(stdout.decode())
@@ -322,6 +330,57 @@ class ContainerScriptRunner:
         res = self._container.put_archive(config.scripts_dir, tar_data.getvalue())
         if not res:
             raise Exception("Error uploading scripts to container")
+
+
+class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
+    def __init__(
+        self,
+        container: Container,
+        script: str,
+        output_logger: Optional[Logger] = None,
+        user: Union[str, int] = 0,
+        env: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(container, script, output_logger, user, env)
+        self._timestamp = None
+
+    def _print_execution_log(self, output_stream):
+        for stdout, stderr in output_stream:
+            if stdout:
+                lines = stdout.split(b"\r\n")
+                for line in lines:
+                    if line.startswith(b"\x1d"):
+                        self._print_timing()
+                    self._stdout_print(line.decode() + "\n")
+            if stderr:
+                self._stderr_print(stderr.decode())
+
+        self._print_timing()
+
+    def _print_timing(self):
+        now = time()
+        if self._timestamp:
+            self._stdout_print(f"Execution time: {now - self._timestamp:.3f}s\n\n")
+
+        self._timestamp = now
+
+
+class ContainerScriptRunnerFactory:
+    @staticmethod
+    def get(
+        container: Container,
+        script: str,
+        output_logger: Optional[Logger] = None,
+        user: Union[str, int] = 0,
+        env: Optional[Dict[str, Any]] = None,
+        exec_time: bool = False,
+    ):
+        if exec_time:
+            cls = ContainerScriptRunnerWithExecTime
+        else:
+            cls = ContainerScriptRunner
+
+        return cls(container, script, output_logger, user, env)
 
 
 _pulled_images = set()

@@ -140,9 +140,11 @@ class StepRunner:
 
             self._build_setup()
 
-            exit_code = self._container_runner.run_script(self._step.script)
+            exit_code = self._container_runner.run_script(self._step.script, exec_time=True)
 
-            self._container_runner.run_script(self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code})
+            self._container_runner.run_script(
+                self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True
+            )
 
             if exit_code:
                 logger.error("Step '%s': FAIL", self._step.name)
