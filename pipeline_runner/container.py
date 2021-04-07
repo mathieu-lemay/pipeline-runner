@@ -347,11 +347,13 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
     def _print_execution_log(self, output_stream):
         for stdout, stderr in output_stream:
             if stdout:
-                lines = stdout.split(b"\r\n")
-                for line in lines:
-                    if line.startswith(b"\x1d"):
-                        self._print_timing()
-                    self._stdout_print(line.decode() + "\n")
+                chunks = iter(stdout.decode().split("\x1d"))
+
+                self._stdout_print(next(chunks))
+
+                for c in chunks:
+                    self._print_timing()
+                    self._stdout_print(c)
             if stderr:
                 self._stderr_print(stderr.decode())
 
@@ -360,7 +362,7 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
     def _print_timing(self):
         now = time()
         if self._timestamp:
-            self._stdout_print(f"Execution time: {now - self._timestamp:.3f}s\n\n")
+            self._stdout_print(f"\n>>> Execution time: {now - self._timestamp:.3f}s\n\n")
 
         self._timestamp = now
 
