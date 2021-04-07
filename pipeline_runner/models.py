@@ -88,6 +88,7 @@ class Step(DebugMixin):
         after_script: Optional[List[str]],
         size: int,
         clone_settings: CloneSettings,
+        deployment: str,
     ):
         self.name = name
         self.script = script
@@ -98,6 +99,7 @@ class Step(DebugMixin):
         self.after_script = after_script or []
         self.size = size
         self.clone_settings = clone_settings or CloneSettings()
+        self.deployment = deployment
 
         self.uuid = _generate_id()
 

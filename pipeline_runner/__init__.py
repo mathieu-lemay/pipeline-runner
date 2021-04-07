@@ -130,6 +130,7 @@ class StepRunner:
 
             self._container_runner = ContainerRunner(
                 self._pipeline,
+                self._step,
                 image,
                 self._container_name,
                 self._data_volume_name,

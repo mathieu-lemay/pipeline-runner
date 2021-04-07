@@ -90,15 +90,11 @@ class PipelinesFileParser:
         return Pipeline(path, name, steps)
 
     def _parse_step(self, values):
-        image = values.get("image")
-        if image:
-            image = self._parse_image(image)
+        image = self._parse_image(values.get("image"))
 
         services = values.get("services", [])
         if len(services) > 5:
             raise ValueError("Too many services. Enforcing a limit of 5 services per step.")
-
-        size = self._parse_step_size(values.get("size"))
 
         clone = values.get("clone")
         if clone:
@@ -114,8 +110,9 @@ class PipelinesFileParser:
             services,
             values.get("artifacts"),
             values.get("after-script"),
-            size,
+            self._parse_step_size(values.get("size")),
             clone_settings,
+            values.get("deployment"),
         )
 
         return step
@@ -143,7 +140,10 @@ class PipelinesFileParser:
         else:
             raise ValueError(f"Invalid size: {value}")
 
-    def _parse_image(self, value):
+    def _parse_image(self, value) -> Optional[Image]:
+        if not value:
+            return None
+
         if isinstance(value, str):
             return Image(value)
 

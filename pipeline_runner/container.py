@@ -17,7 +17,7 @@ from dotenv import dotenv_values
 
 from . import utils
 from .config import config
-from .models import Image, Pipeline
+from .models import Image, Pipeline, Step
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ class ContainerRunner:
     def __init__(
         self,
         pipeline: Pipeline,
+        step: Step,
         image: Image,
         name: str,
         data_volume_name: str,
@@ -34,6 +35,7 @@ class ContainerRunner:
         services_names: List[str] = None,
     ):
         self._pipeline = pipeline
+        self._step = step
         self._image = image
         self._name = name
         self._data_volume_name = data_volume_name
@@ -133,7 +135,7 @@ class ContainerRunner:
         git_branch = utils.get_git_current_branch()
         git_commit = utils.get_git_current_commit()
 
-        return {
+        env_vars = {
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
             "BITBUCKET_BUILD_NUMBER": self._pipeline.number,
@@ -147,8 +149,15 @@ class ContainerRunner:
             "BITBUCKET_REPO_SLUG": project_slug,
             "BITBUCKET_REPO_UUID": config.repo_uuid,
             "BITBUCKET_WORKSPACE": project_slug,
-            "DOCKER_HOST": "tcp://localhost:2375",
         }
+
+        if self._step.deployment:
+            env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
+
+        if "docker" in self._services_names:
+            env_vars["DOCKER_HOST"] = "tcp://localhost:2375"
+
+        return env_vars
 
     def _get_volumes(self):
         return {

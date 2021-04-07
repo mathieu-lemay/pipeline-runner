@@ -34,7 +34,9 @@ class RepositoryCloner:
             return
 
         image = Image("alpine/git")
-        runner = ContainerRunner(self._pipeline, image, self._name, self._data_volume_name, self._output_logger)
+        runner = ContainerRunner(
+            self._pipeline, self._step, image, self._name, self._data_volume_name, self._output_logger
+        )
         runner.start()
 
         try:
