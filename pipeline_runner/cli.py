@@ -187,6 +187,38 @@ def list_(project_directory, pipeline_file, color):
 
 
 @main.command()
+@click.argument("pipeline", default="")
+@click.option(
+    "-p",
+    "--project-directory",
+    help="Root directory of the project. Defaults to current directory.",
+)
+@click.option(
+    "-f",
+    "--pipeline-file",
+    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
+)
+def parse(pipeline, project_directory, pipeline_file):
+    """
+    Parse the pipeline file.
+    """
+    if project_directory:
+        config.project_directory = project_directory
+
+    if pipeline_file:
+        config.pipeline_file = pipeline_file
+
+    pipelines_definition = PipelinesFileParser(config.pipeline_file, expand_vars=False).parse()
+
+    if pipeline:
+        parsed = pipelines_definition.get_pipeline(pipeline)
+    else:
+        parsed = pipelines_definition
+
+    print(utils.dumps(parsed))
+
+
+@main.command()
 @click.argument("action", type=click.Choice(["clear", "list"]))
 def cache(action):
     cache_dir = utils.get_user_cache_directory()
