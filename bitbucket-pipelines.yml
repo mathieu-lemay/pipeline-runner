@@ -7,6 +7,14 @@ image: debian:stable-slim
 
 pipelines:
   custom:
+    test:
+      - step:
+          name: Basic Test
+          image: alpine
+          script:
+            - cat /etc/os-release
+            - id
+
     test_after_script:
       - step:
           name: Test After Script
@@ -103,3 +111,39 @@ pipelines:
             - "[ -d folder-name ] && exit 1"
             - "[ -d root ] && exit 1"
             - exit 0
+
+    test_deployment:
+      - step:
+          name: Basic Test
+          image: alpine
+          deployment: Foo
+          script:
+            - 'echo "Deployment Environment: ${BITBUCKET_DEPLOYMENT_ENVIRONMENT}"'
+            - if [ -z "${BITBUCKET_DEPLOYMENT_ENVIRONMENT}" ]; then
+            -   exit 1
+            - fi
+
+    test_docker_in_docker:
+      - step:
+          name: DinD Wut?
+          image: alpine
+          script:
+            - ./gather.sh | tee alpine.log
+            - apk add --no-cache iproute2 git
+            - git status
+            - docker pull "postgis/postgis:9.6-2.5"
+            - docker run -d --name postgres -p 1337:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgis/postgis:9.6-2.5
+            - sleep 5
+            - docker ps
+            - env | sort
+            - ss -ltpn
+          after-script:
+            - echo "Exit code is $BITBUCKET_EXIT_CODE"
+            - "sh -c 'exit 1'"
+            - echo "Exit code is $BITBUCKET_EXIT_CODE"
+          services:
+            - docker
+          caches:
+            - docker
+          artifacts:
+            - "scripts/**"
