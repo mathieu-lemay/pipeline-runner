@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches: ["master"]
+
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install Python 3.9
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+
+      - name: Lint
+        uses: pre-commit/action@v2.0.2
+
+      - name: Install Poetry
+        uses: Gr1N/setup-poetry@v4
+
+      - name: Setup poetry cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+
+      - name: Install Dependencies
+        run: |
+          poetry install
+
+      - name: Tests
+        run: |
+          poetry run pytest -v tests
