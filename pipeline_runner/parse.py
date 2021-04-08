@@ -151,10 +151,10 @@ class PipelinesFileParser:
         username = self._expandvars(value.get("username"))
         password = self._expandvars(value.get("password"))
         email = self._expandvars(value.get("email"))
-        user = self._expandvars(value.get("run-as-user"))
+        run_as_user = int(value["run-as-user"]) if "run-as-user" in value else None
         aws = self._parse_aws_credentials(value)
 
-        return Image(name, username, password, email, user, aws)
+        return Image(name, username, password, email, run_as_user, aws)
 
     def _parse_aws_credentials(self, value):
         if "aws" not in value:

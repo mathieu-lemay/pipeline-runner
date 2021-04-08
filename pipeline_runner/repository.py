@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 from . import Pipelines, utils
 from .config import config
@@ -15,6 +15,7 @@ class RepositoryCloner:
         pipeline: Pipeline,
         step: Step,
         definitions: Pipelines,
+        user: Optional[Union[int, str]],
         parent_container_name: str,
         data_volume_name: str,
         output_logger: logging.Logger,
@@ -22,6 +23,7 @@ class RepositoryCloner:
         self._pipeline = pipeline
         self._step = step
         self._definitions = definitions
+        self._user = str(user) if user is not None else None
         self._name = f"{parent_container_name}-clone"
         self._data_volume_name = data_volume_name
         self._output_logger = output_logger
@@ -33,7 +35,7 @@ class RepositoryCloner:
             logger.info("Clone disabled: skipping")
             return
 
-        image = Image("alpine/git")
+        image = Image("alpine/git", run_as_user=self._user)
         runner = ContainerRunner(
             self._pipeline, self._step, image, self._name, self._data_volume_name, self._output_logger
         )

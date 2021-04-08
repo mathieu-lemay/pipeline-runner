@@ -3,14 +3,13 @@ definitions:
     service1: $HOME/.cache/service1
     invalid_cache: $HOME/.cache/non-existing-folder
 
-image: debian:stable-slim
+image: alpine
 
 pipelines:
   custom:
     test:
       - step:
           name: Basic Test
-          image: alpine
           script:
             - cat /etc/os-release
             - id
@@ -18,7 +17,6 @@ pipelines:
     test_after_script:
       - step:
           name: Test After Script
-          image: alpine
           script:
             - cat /etc/os-release
             - exit 2
@@ -29,7 +27,6 @@ pipelines:
     test_cache_alpine:
       - step:
           name: Create Cache
-          image: alpine
           caches:
             - service1
           script:
@@ -42,7 +39,6 @@ pipelines:
             - mv MD5SUM ${CACHE_DIR}/
       - step:
           name: Ensure Cache Exists
-          image: alpine
           caches:
             - service1
           script:
@@ -75,7 +71,6 @@ pipelines:
     test_invalid_cache:
       - step:
           name: Test Invalid Cache
-          image: alpine
           caches:
             - invalid_cache
           script:
@@ -115,7 +110,6 @@ pipelines:
     test_deployment:
       - step:
           name: Basic Test
-          image: alpine
           deployment: Foo
           script:
             - 'echo "Deployment Environment: ${BITBUCKET_DEPLOYMENT_ENVIRONMENT}"'
@@ -126,7 +120,6 @@ pipelines:
     test_docker_in_docker:
       - step:
           name: DinD Wut?
-          image: alpine
           script:
             - ./gather.sh | tee alpine.log
             - apk add --no-cache iproute2 git
@@ -147,3 +140,34 @@ pipelines:
             - docker
           artifacts:
             - "scripts/**"
+
+    test_run_as_user:
+      - step:
+          name: Test Default User
+          script:
+            - 'if [ "$(id -u)" != "0" ]; then'
+            -   'echo "User is $(id)"'
+            -    exit 1
+            - fi
+
+            - touch foo
+            - 'if [ "$(stat -c "%u" foo)" != "0" ]; then'
+            -   'echo "File is $(stat foo)"'
+            -    exit 1
+            - fi
+      - step:
+          name: Test Custom User
+          image:
+            name: alpine
+            run-as-user: 1000
+          script:
+            - 'if [ "$(id -u)" != "1000" ]; then'
+            -   'echo "User is $(id)"'
+            -    exit 1
+            - fi
+
+            - touch foo
+            - 'if [ "$(stat -c "%u" foo)" != "1000" ]; then'
+            -   'echo "File is $(stat foo)"'
+            -    exit 1
+            - fi

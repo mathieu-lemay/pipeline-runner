@@ -64,7 +64,7 @@ class ContainerRunner:
     def run_script(
         self,
         script: Union[str, List[str]],
-        user: Union[int, str] = 0,
+        user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
         exec_time: bool = False,
     ) -> int:
@@ -75,14 +75,17 @@ class ContainerRunner:
         return csr.run()
 
     def run_command(
-        self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Union[int, str] = 0
+        self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Optional[Union[int, str]] = None
     ) -> Tuple[int, bytes]:
         command = utils.stringify(command)
 
         if wrap_in_shell:
             command = utils.wrap_in_shell(command)
 
-        return self._container.exec_run(command, user=str(user))
+        if user is not None:
+            user = str(user)
+
+        return self._container.exec_run(command, user=user)
 
     def path_exists(self, path) -> bool:
         ret, _ = self.run_command(f'[ -e "$(realpath "{path}")" ]')
@@ -101,6 +104,7 @@ class ContainerRunner:
             self._image.name,
             name=self._name,
             entrypoint="sh",
+            user=self._image.run_as_user,
             working_dir=config.build_dir,
             environment=self._get_env_vars(),
             volumes=self._get_volumes(),
@@ -115,9 +119,18 @@ class ContainerRunner:
 
     def _create_pipeline_directories(self):
         mkdir_cmd = " ".join(
-            ["/bin/mkdir", "-p", config.build_dir, config.scripts_dir, config.temp_dir, config.caches_dir]
+            [
+                "install",
+                "-dD",
+                "-o",
+                str(self._image.run_as_user or 0),
+                config.build_dir,
+                config.scripts_dir,
+                config.temp_dir,
+                config.caches_dir,
+            ]
         )
-        exit_code, output = self.run_command(mkdir_cmd)
+        exit_code, output = self.run_command(mkdir_cmd, user=0)
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
 
@@ -191,13 +204,13 @@ class ContainerScriptRunner:
         container: Container,
         script: str,
         output_logger: Optional[Logger] = None,
-        user: Union[str, int] = 0,
+        user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
     ):
         self._container = container
         self._script = script
         self._logger = output_logger
-        self._user = str(user)
+        self._user = str(user) if user is not None else None
         self._env = env or {}
 
         if self._logger:
@@ -347,7 +360,7 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
         container: Container,
         script: str,
         output_logger: Optional[Logger] = None,
-        user: Union[str, int] = 0,
+        user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(container, script, output_logger, user, env)
@@ -382,7 +395,7 @@ class ContainerScriptRunnerFactory:
         container: Container,
         script: str,
         output_logger: Optional[Logger] = None,
-        user: Union[str, int] = 0,
+        user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
         exec_time: bool = False,
     ):

@@ -205,10 +205,13 @@ class StepRunner:
         cm.upload(self._step.caches)
 
     def _clone_repository(self):
+        image = self._get_image()
+
         rc = RepositoryCloner(
             self._pipeline,
             self._step,
             self._definitions,
+            image.run_as_user,
             self._container_name,
             self._data_volume_name,
             self._output_logger,

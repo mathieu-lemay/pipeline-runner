@@ -28,13 +28,14 @@ class Image(DebugMixin):
         username: Optional[str] = None,
         password: Optional[str] = None,
         email: Optional[str] = None,
-        user: Optional[str] = None,
+        run_as_user: Optional[int] = None,
         aws: Optional[dict] = None,
     ):
         self.name = name
         self.username = username
         self.password = password
         self.email = email
+        self.run_as_user = run_as_user
         self.aws = aws
 
 
