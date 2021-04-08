@@ -12,7 +12,7 @@ from .artifacts import ArtifactManager
 from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
-from .models import Image, ParallelStep, Pipeline, Pipelines, Step
+from .models import Image, ParallelStep, Pipeline, PipelineResult, Pipelines, Step
 from .parse import PipelinesFileParser
 from .repository import RepositoryCloner
 from .service import ServicesManager
@@ -24,7 +24,7 @@ class PipelineRunner:
     def __init__(self, pipeline_name: str):
         self._pipeline_name = pipeline_name
 
-    def run(self):
+    def run(self) -> PipelineResult:
         self._load_env_files()
 
         pipeline, pipelines_definition = self._load_pipeline()
@@ -40,6 +40,8 @@ class PipelineRunner:
             logger.error("Pipeline '%s': Failed", pipeline.name)
         else:
             logger.info("Pipeline '%s': Successful", pipeline.name)
+
+        return PipelineResult(exit_code)
 
     @staticmethod
     def _load_env_files():
@@ -79,6 +81,8 @@ class PipelineRunner:
 
             if exit_code:
                 return exit_code
+
+        return 0
 
     @staticmethod
     def _get_build_number():

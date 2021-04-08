@@ -155,3 +155,12 @@ class PipelineInfo:
 
     def to_json(self) -> dict:
         return {"build_number": self.build_number}
+
+
+class PipelineResult:
+    def __init__(self, exit_code: int):
+        self.exit_code = exit_code
+
+    @property
+    def ok(self) -> bool:
+        return self.exit_code == 0

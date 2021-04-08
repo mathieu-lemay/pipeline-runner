@@ -5,6 +5,9 @@ run *args: _deps
 		poetry run python -m {{ app }} run {{ args }}
 
 test: _deps
+	poetry run pytest -v tests -m "not integration"
+
+integration-tests: _deps
 	poetry run pytest -v tests
 
 lint:

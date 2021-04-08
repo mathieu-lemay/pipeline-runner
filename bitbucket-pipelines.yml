@@ -7,12 +7,20 @@ image: alpine
 
 pipelines:
   custom:
-    test:
+    test_success:
       - step:
-          name: Basic Test
+          name: Test Success
           script:
             - cat /etc/os-release
             - id
+
+    test_failure:
+      - step:
+          name: Test Failure
+          script:
+            - cat /etc/os-release
+            - id
+            - exit 69
 
     test_after_script:
       - step:
