@@ -7,7 +7,7 @@ def test_pipeline_result_ok_returns_true_if_exit_code_is_zero():
     assert res.ok
 
 
-def test_pipeline_result_ok_returns_true_if_exit_code_is_not_zero():
+def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero():
     for i in range(1, 256):
         res = PipelineResult(i)
 
