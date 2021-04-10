@@ -41,7 +41,7 @@ class PipelineRunner:
         else:
             logger.info("Pipeline '%s': Successful", pipeline.name)
 
-        return PipelineResult(exit_code)
+        return PipelineResult(exit_code, pipeline.number, pipeline.uuid)
 
     @staticmethod
     def _load_env_files():

@@ -1,7 +1,7 @@
 definitions:
   caches:
     service1: $HOME/.cache/service1
-    invalid_cache: $HOME/.cache/non-existing-folder
+    invalid: $HOME/.cache/non-existing-folder
 
 image: alpine
 
@@ -80,7 +80,7 @@ pipelines:
       - step:
           name: Test Invalid Cache
           caches:
-            - invalid_cache
+            - invalid
           script:
             - exit 0
 
@@ -115,9 +115,9 @@ pipelines:
             - "[ -d root ] && exit 1"
             - exit 0
 
-    test_deployment:
+    test_deployment_environment:
       - step:
-          name: Basic Test
+          name: Test Bitbucket Deployment Environment
           deployment: Foo
           script:
             - 'echo "Deployment Environment: ${BITBUCKET_DEPLOYMENT_ENVIRONMENT}"'
@@ -127,27 +127,16 @@ pipelines:
 
     test_docker_in_docker:
       - step:
-          name: DinD Wut?
+          name: Test docker in docker
           script:
-            - ./gather.sh | tee alpine.log
-            - apk add --no-cache iproute2 git
-            - git status
-            - docker pull "postgis/postgis:9.6-2.5"
-            - docker run -d --name postgres -p 1337:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgis/postgis:9.6-2.5
-            - sleep 5
-            - docker ps
-            - env | sort
-            - ss -ltpn
-          after-script:
-            - echo "Exit code is $BITBUCKET_EXIT_CODE"
-            - "sh -c 'exit 1'"
-            - echo "Exit code is $BITBUCKET_EXIT_CODE"
+            - apk --no-cache add curl
+            - docker run -d --name nginx -p 8080:80 nginx:alpine
+            - sleep 2
+            - curl --fail 127.0.0.1:8080
           services:
             - docker
           caches:
             - docker
-          artifacts:
-            - "scripts/**"
 
     test_run_as_user:
       - step:

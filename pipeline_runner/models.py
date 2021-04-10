@@ -158,8 +158,10 @@ class PipelineInfo:
 
 
 class PipelineResult:
-    def __init__(self, exit_code: int):
+    def __init__(self, exit_code: int, build_number: int, pipeline_uuid: str):
         self.exit_code = exit_code
+        self.build_number = build_number
+        self.pipeline_uuid = pipeline_uuid
 
     @property
     def ok(self) -> bool:
