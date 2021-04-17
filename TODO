@@ -1,10 +1,8 @@
-- Proper docker cache (save / restore images)
 - Use static docker binary (only if docker service)
-- Figure out git binary
 - Support for pipeline specific variables
 - Read pipeline variables from some file (with support for hidden)
 - Retry pipeline from step
-- Clone the real thing (with depth config)
+- Clone the real thing
 - pipes
 - Execution report
 - Isolated network
