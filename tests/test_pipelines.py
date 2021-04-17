@@ -1,7 +1,6 @@
 import os
 import tarfile
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 import pytest
 
@@ -11,10 +10,9 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-def cache_directory():
+def cache_directory(mocker):
     with TemporaryDirectory() as tempdir:
-        p = patch("pipeline_runner.utils.get_user_cache_directory")
-        m = p.start()
+        m = mocker.patch("pipeline_runner.utils.get_user_cache_directory")
 
         m.return_value = tempdir
 
@@ -27,8 +25,6 @@ def cache_directory():
 
             cmd = f"sudo rm -rf {docker_cache_dir}"
             subprocess.run(cmd, shell=True)
-
-        p.stop()
 
 
 def test_success():

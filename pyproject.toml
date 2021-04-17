@@ -20,6 +20,7 @@ pyfzf = "^0.2.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
+pytest-mock = "^3.5.1"
 
 [tool.poetry.scripts]
 pipeline-runner = 'pipeline_runner.cli:main'
