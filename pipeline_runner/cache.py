@@ -11,9 +11,7 @@ from .models import Cache
 
 logger = logging.getLogger(__name__)
 
-
-class CacheNotFound(Exception):
-    pass
+DOCKER_IMAGES_ARCHIVE_FILE_NAME = "images.tar"
 
 
 class CacheManager:
@@ -24,43 +22,46 @@ class CacheManager:
         self._ignored_caches = {"docker"}
 
     def upload(self, cache_names: List[str]):
-        for cache in cache_names:
-            if self._should_ignore(cache):
-                logger.info("Cache '%s': Ignoring", cache)
-                continue
-
-            try:
-                self._upload_cache(cache)
-            except CacheNotFound:
-                logger.info("Cache '%s': Not found: Skipping", cache)
-            else:
-                self._restore_cache(cache)
+        for name in cache_names:
+            cu = CacheUploadFactory.get(self._container, name, self._cache_definitions)
+            cu.upload()
 
     def download(self, cache_names: List[str]):
-        for cache in cache_names:
-            if self._should_ignore(cache):
-                logger.info("Cache '%s': Ignoring", cache)
-                continue
+        for name in cache_names:
+            cd = CacheDownloadFactory.get(self._container, name, self._cache_definitions)
+            cd.download()
 
-            self._prepare_cache_for_download(cache)
-            self._download_cache(cache)
 
-    def _upload_cache(self, cache_name: str):
-        if self._should_ignore(cache_name):
-            logger.info("Cache '%s': Ignoring", cache_name)
+class CacheUpload:
+    def __init__(self, container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]):
+        self._container = container
+        self._cache_name = cache_name
+        self._cache_definitions = cache_definitions
+
+    def upload(self):
+        cache_file = self._get_local_cache_file()
+
+        if not cache_file:
+            logger.info("Cache '%s': Not found: Skipping", self._cache_name)
             return
 
-        local_cache_archive_path = self._get_local_cache_archive_path(cache_name)
+        self._upload_cache(cache_file)
+        self._restore_cache()
 
+    def _get_local_cache_file(self):
+        local_cache_archive_path = get_local_cache_archive_path(self._cache_name)
         if not os.path.exists(local_cache_archive_path):
-            raise CacheNotFound()
+            return None
 
-        remote_cache_directory = self._get_remote_temp_directory(cache_name)
+        return local_cache_archive_path
+
+    def _upload_cache(self, cache_file):
+        remote_cache_directory = get_remote_temp_directory(self._cache_name)
         remote_cache_parent_directory = os.path.dirname(remote_cache_directory)
 
-        cache_archive_size = os.path.getsize(local_cache_archive_path)
+        cache_archive_size = os.path.getsize(cache_file)
 
-        logger.info("Cache '%s': Uploading", cache_name)
+        logger.info("Cache '%s': Uploading", self._cache_name)
 
         t = ts()
 
@@ -71,88 +72,155 @@ class CacheManager:
         res, output = self._container.run_command(prepare_cache_dir_cmd)
         if res != 0:
             logger.error("Remote command failed: %s", output.decode())
-            raise Exception(f"Error uploading cache: {cache_name}")
+            raise Exception(f"Error uploading cache: {self._cache_name}")
 
-        with open(local_cache_archive_path, "rb") as f:
+        with open(cache_file, "rb") as f:
             success = self._container.put_archive(remote_cache_parent_directory, f)
             if not success:
-                raise Exception(f"Error uploading cache: {cache_name}")
+                raise Exception(f"Error uploading cache: {self._cache_name}")
 
         t = ts() - t
 
         logger.info(
-            "Cache '%s': Uploaded %s in %.3fs", cache_name, utils.get_human_readable_size(cache_archive_size), t
+            "Cache '%s': Uploaded %s in %.3fs", self._cache_name, utils.get_human_readable_size(cache_archive_size), t
         )
 
-    def _restore_cache(self, cache_name):
-        restore_cache_script = []
+    def _restore_cache(self):
+        temp_dir = get_remote_temp_directory(self._cache_name)
+        target_dir = sanitize_remote_path(self._cache_definitions[self._cache_name].path)
 
-        temp_dir = self._get_remote_temp_directory(cache_name)
-        target_dir = self._cache_definitions[cache_name].path
-
-        # TODO: Escape remote dir in a better way
-        if target_dir.startswith("~"):
-            target_dir = target_dir.replace("~", "$HOME", 1)
-
-        restore_cache_script.append(f'if [ -e "{target_dir}" ]; then rm -rf "{target_dir}"; fi')
-        restore_cache_script.append(f'mkdir -p "$(dirname "{target_dir}")"')
-        restore_cache_script.append(f'mv "{temp_dir}" "{target_dir}"')
+        restore_cache_script = [
+            f'if [ -e "{target_dir}" ]; then rm -rf "{target_dir}"; fi',
+            f'mkdir -p "$(dirname "{target_dir}")"',
+            f'mv "{temp_dir}" "{target_dir}"',
+        ]
 
         exit_code, output = self._container.run_command("\n".join(restore_cache_script))
         if exit_code != 0:
-            raise Exception(f"Error restoring cache: {cache_name}: {output.decode()}")
+            raise Exception(f"Error restoring cache: {self._cache_name}: {output.decode()}")
 
-    def _prepare_cache_for_download(self, cache_name):
-        remote_dir = self._cache_definitions[cache_name].path
-        target_dir = self._get_remote_temp_directory(cache_name)
 
-        # TODO: Escape remote dir in a better way
-        if remote_dir.startswith("~"):
-            remote_dir = remote_dir.replace("~", "$HOME", 1)
+class DockerCacheUpload(CacheUpload):
+    def _restore_cache(self):
+        image_archive = os.path.join(config.caches_dir, DOCKER_IMAGES_ARCHIVE_FILE_NAME)
+
+        restore_cache_script = [
+            f'docker image load < "{image_archive}"',
+            f'rm "{image_archive}"',
+        ]
+
+        exit_code, output = self._container.run_command("\n".join(restore_cache_script))
+        if exit_code != 0:
+            raise Exception(f"Error restoring cache: {self._cache_name}: {output.decode()}")
+
+
+class CacheUploadFactory:
+    @staticmethod
+    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheUpload:
+        if cache_name == "docker":
+            cls = DockerCacheUpload
+        else:
+            cls = CacheUpload
+
+        return cls(container, cache_name, cache_definitions)
+
+
+class CacheDownload:
+    def __init__(self, container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]):
+        self._container = container
+        self._cache_name = cache_name
+        self._cache_definitions = cache_definitions
+
+    def download(self):
+        remote_cache_directory = self._prepare()
+
+        local_cache_archive_path = get_local_cache_archive_path(self._cache_name)
+        self._download(remote_cache_directory, local_cache_archive_path)
+
+    def _prepare(self) -> str:
+        remote_dir = sanitize_remote_path(self._cache_definitions[self._cache_name].path)
+        target_dir = get_remote_temp_directory(self._cache_name)
 
         prepare_cache_cmd = f'if [ -e "{remote_dir}" ]; then mv "{remote_dir}" "{target_dir}"; fi'
 
         exit_code, output = self._container.run_command(prepare_cache_cmd)
         if exit_code != 0:
-            raise Exception(f"Error preparing cache: {cache_name}: {output.decode()}")
+            raise Exception(f"Error preparing cache: {self._cache_name}: {output.decode()}")
 
-    def _download_cache(self, cache_name: str):
-        remote_cache_directory = self._get_remote_temp_directory(cache_name)
+        return target_dir
 
-        if not self._container.path_exists(remote_cache_directory):
-            logger.info("Cache '%s': Not found", cache_name)
+    def _download(self, src: str, dst: str):
+        if not self._container.path_exists(src):
+            logger.info("Cache '%s': Not found", self._cache_name)
             return
 
-        logger.info("Cache '%s': Downloading", cache_name)
+        logger.info("Cache '%s': Downloading", self._cache_name)
 
         t = ts()
 
         with NamedTemporaryFile(dir=utils.get_local_cache_directory(), delete=False) as f:
             try:
-                data, _ = self._container.get_archive(remote_cache_directory)
+                logger.debug(f"Downloading cache folder '{src}' to '{f}'")
+                data, _ = self._container.get_archive(src)
                 size = 0
                 for chunk in data:
                     size += len(chunk)
                     f.write(chunk)
             except Exception as e:
-                logger.error(f"Error getting cache from container: {cache_name}: {e}")
+                logger.error(f"Error getting cache from container: {self._cache_name}: {e}")
                 os.unlink(f.name)
                 return
             else:
-                local_cache_archive_path = self._get_local_cache_archive_path(cache_name)
-                os.rename(f.name, local_cache_archive_path)
+                logger.debug(f"Moving temp cache archive {f.name} to {dst}")
+                os.rename(f.name, dst)
 
         t = ts() - t
 
-        logger.info("Cache '%s': Downloaded %s in %.3fs", cache_name, utils.get_human_readable_size(size), t)
+        logger.info("Cache '%s': Downloaded %s in %.3fs", self._cache_name, utils.get_human_readable_size(size), t)
 
-    def _should_ignore(self, cache_name: str) -> bool:
-        return cache_name in self._ignored_caches
 
+class DockerCacheDownload(CacheDownload):
+    def _prepare(self):
+        cache_dir = get_remote_temp_directory(self._cache_name)
+        img_archive = os.path.join(cache_dir, DOCKER_IMAGES_ARCHIVE_FILE_NAME)
+
+        prepare_cache_cmd = [
+            "image_ids=$(docker image ls -a -q)",
+            'image_repos=$(docker image ls --format "{{.Repository}}" | sort -u | grep -v "<none>")',
+            'images="${image_ids} ${image_repos}"',
+            'if [ -z "${images}" ]; then exit 0; fi',
+            f'mkdir -p "{cache_dir}"',
+            f"docker image save ${{images}} -o {img_archive}",  # No quotes around ${images} as we want it expanded
+        ]
+
+        exit_code, output = self._container.run_command("\n".join(prepare_cache_cmd))
+        if exit_code != 0:
+            raise Exception(f"Error preparing cache: {self._cache_name}: {output.decode()}")
+
+        return img_archive
+
+
+class CacheDownloadFactory:
     @staticmethod
-    def _get_local_cache_archive_path(cache_name: str) -> str:
-        return os.path.join(utils.get_local_cache_directory(), f"{cache_name}.tar")
+    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheDownload:
+        if cache_name == "docker":
+            cls = DockerCacheDownload
+        else:
+            cls = CacheDownload
 
-    @staticmethod
-    def _get_remote_temp_directory(cache_name: str) -> str:
-        return os.path.join(config.caches_dir, cache_name)
+        return cls(container, cache_name, cache_definitions)
+
+
+def get_local_cache_archive_path(cache_name: str) -> str:
+    return os.path.join(utils.get_local_cache_directory(), f"{cache_name}.tar")
+
+
+def get_remote_temp_directory(cache_name: str) -> str:
+    return os.path.join(config.caches_dir, cache_name)
+
+
+def sanitize_remote_path(path: str) -> str:
+    if path.startswith("~"):
+        path = path.replace("~", "$HOME", 1)
+
+    return path

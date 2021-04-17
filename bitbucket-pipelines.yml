@@ -1,6 +1,6 @@
 definitions:
   caches:
-    service1: $HOME/.cache/service1
+    service1: ~/.cache/service1
     invalid: $HOME/.cache/non-existing-folder
 
 image: alpine
@@ -133,6 +133,14 @@ pipelines:
             - docker run -d --name nginx -p 8080:80 nginx:alpine
             - sleep 2
             - curl --fail 127.0.0.1:8080
+          services:
+            - docker
+          caches:
+            - docker
+      - step:
+          name: Ensure docker cache
+          script:
+            - docker image inspect nginx:alpine -f "{{.RepoTags}}"
           services:
             - docker
           caches:

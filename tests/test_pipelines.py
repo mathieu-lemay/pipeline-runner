@@ -16,15 +16,7 @@ def cache_directory(mocker):
 
         m.return_value = tempdir
 
-        yield tempdir
-
-        # FIXME: Remove when using proper docker cache
-        docker_cache_dir = os.path.join(tempdir, config.project_env_name, "caches", "docker")
-        if os.path.exists(docker_cache_dir):
-            import subprocess
-
-            cmd = f"sudo rm -rf {docker_cache_dir}"
-            subprocess.run(cmd, shell=True)
+        return tempdir
 
 
 def test_success():
@@ -54,11 +46,11 @@ def test_cache_alpine(cache_directory):
     runner = PipelineRunner("custom.test_cache_alpine")
     result = runner.run()
 
-    assert result.ok
+    assert result.ok, "Pipeline failed"
 
     cache_file = os.path.join(cache_directory, config.project_env_name, "caches", "service1.tar")
 
-    assert os.path.isfile(cache_file)
+    assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
     with tarfile.open(cache_file) as f:
         files_in_tar = [i.path for i in f.getmembers() if i.isfile()]
@@ -71,11 +63,11 @@ def test_cache_debian(cache_directory):
     runner = PipelineRunner("custom.test_cache_debian")
     result = runner.run()
 
-    assert result.ok
+    assert result.ok, "Pipeline failed"
 
     cache_file = os.path.join(cache_directory, config.project_env_name, "caches", "service1.tar")
 
-    assert os.path.isfile(cache_file)
+    assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
     with tarfile.open(cache_file) as f:
         files_in_tar = [i.path for i in f.getmembers() if i.isfile()]

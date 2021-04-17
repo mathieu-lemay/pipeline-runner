@@ -1,13 +1,11 @@
 import logging
-import os
 from typing import Dict, List
 
 import docker
 from slugify import slugify
 
-from . import utils
 from .config import config
-from .container import ContainerScriptRunner, pull_image
+from .container import pull_image
 from .models import Service
 
 logger = logging.getLogger(__name__)
@@ -27,7 +25,6 @@ class ServicesManager:
 
         self._client = docker.from_env()
         self._privileged_services = ("docker",)
-        self._teardowns = {"docker": self._teardown_docker}
 
         self._containers = {}
 
@@ -41,11 +38,6 @@ class ServicesManager:
         for s, c in self._containers.items():
             try:
                 logger.info("Removing service: %s", s)
-
-                teardown = self._teardowns.get(s)
-                if teardown:
-                    logger.info("Executing teardown for service: %s", s)
-                    teardown(c)
 
                 c.remove(v=True, force=True)
             except Exception as e:
@@ -108,23 +100,7 @@ class ServicesManager:
     def _get_volumes(self, name):
         if name == "docker":
             return {
-                os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
                 self._data_volume_name: {"bind": config.remote_pipeline_dir},
             }
 
         return None
-
-    @staticmethod
-    def _teardown_docker(container):
-        script = "\n".join(
-            [
-                'containers="$(docker ps -q)"',
-                'if [ -n "${containers}" ]; then',
-                "    docker kill ${containers}",
-                "fi",
-                "docker container prune -f",
-                "docker volume prune -f",
-            ]
-        )
-        csr = ContainerScriptRunner(container, script)
-        csr.run()
