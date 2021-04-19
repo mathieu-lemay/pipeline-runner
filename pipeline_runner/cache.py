@@ -160,7 +160,7 @@ class CacheDownload:
 
         with NamedTemporaryFile(dir=utils.get_local_cache_directory(), delete=False) as f:
             try:
-                logger.debug(f"Downloading cache folder '{src}' to '{f}'")
+                logger.debug(f"Downloading cache folder '{src}' to '{f.name}'")
                 data, _ = self._container.get_archive(src)
                 size = 0
                 for chunk in data:
@@ -188,7 +188,9 @@ class DockerCacheDownload(CacheDownload):
             "image_ids=$(docker image ls -a -q)",
             'image_repos=$(docker image ls --format "{{.Repository}}" | sort -u | grep -v "<none>")',
             'images="${image_ids} ${image_repos}"',
-            'if [ -z "${images}" ]; then exit 0; fi',
+            'if [ -z "${images}" ]; then echo "No images to save"; exit 0; fi',
+            'echo "Creating docker cache with the following images:"',
+            "docker image ls",
             f'mkdir -p "{cache_dir}"',
             f"docker image save ${{images}} -o {img_archive}",  # No quotes around ${images} as we want it expanded
         ]
