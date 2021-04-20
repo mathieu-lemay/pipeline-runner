@@ -89,6 +89,10 @@ class CacheUpload:
         temp_dir = get_remote_temp_directory(self._cache_name)
         target_dir = sanitize_remote_path(self._cache_definitions[self._cache_name].path)
 
+        logger.info("Cache '%s': Restoring", self._cache_name)
+
+        t = ts()
+
         restore_cache_script = [
             f'if [ -e "{target_dir}" ]; then rm -rf "{target_dir}"; fi',
             f'mkdir -p "$(dirname "{target_dir}")"',
@@ -99,10 +103,18 @@ class CacheUpload:
         if exit_code != 0:
             raise Exception(f"Error restoring cache: {self._cache_name}: {output.decode()}")
 
+        t = ts() - t
+
+        logger.info("Cache '%s': Restored in %.3fs", self._cache_name, t)
+
 
 class DockerCacheUpload(CacheUpload):
     def _restore_cache(self):
         image_archive = os.path.join(config.caches_dir, DOCKER_IMAGES_ARCHIVE_FILE_NAME)
+
+        logger.info("Cache '%s': Restoring", self._cache_name)
+
+        t = ts()
 
         restore_cache_script = [
             f'docker image load < "{image_archive}"',
@@ -112,6 +124,10 @@ class DockerCacheUpload(CacheUpload):
         exit_code, output = self._container.run_command("\n".join(restore_cache_script))
         if exit_code != 0:
             raise Exception(f"Error restoring cache: {self._cache_name}: {output.decode()}")
+
+        t = ts() - t
+
+        logger.info("Cache '%s': Restored in %.3fs", self._cache_name, t)
 
 
 class CacheUploadFactory:
@@ -141,11 +157,19 @@ class CacheDownload:
         remote_dir = sanitize_remote_path(self._cache_definitions[self._cache_name].path)
         target_dir = get_remote_temp_directory(self._cache_name)
 
+        logger.info("Cache '%s': Preparing", self._cache_name)
+
+        t = ts()
+
         prepare_cache_cmd = f'if [ -e "{remote_dir}" ]; then mv "{remote_dir}" "{target_dir}"; fi'
 
         exit_code, output = self._container.run_command(prepare_cache_cmd)
         if exit_code != 0:
             raise Exception(f"Error preparing cache: {self._cache_name}: {output.decode()}")
+
+        t = ts() - t
+
+        logger.info("Cache '%s': Prepared in %.3fs", self._cache_name, t)
 
         return target_dir
 
@@ -184,6 +208,10 @@ class DockerCacheDownload(CacheDownload):
         cache_dir = get_remote_temp_directory(self._cache_name)
         img_archive = os.path.join(cache_dir, DOCKER_IMAGES_ARCHIVE_FILE_NAME)
 
+        logger.info("Cache '%s': Preparing", self._cache_name)
+
+        t = ts()
+
         prepare_cache_cmd = [
             "image_ids=$(docker image ls -a -q)",
             'image_repos=$(docker image ls --format "{{.Repository}}" | sort -u | grep -v "<none>")',
@@ -198,6 +226,10 @@ class DockerCacheDownload(CacheDownload):
         exit_code, output = self._container.run_command("\n".join(prepare_cache_cmd))
         if exit_code != 0:
             raise Exception(f"Error preparing cache: {self._cache_name}: {output.decode()}")
+
+        t = ts() - t
+
+        logger.info("Cache '%s': Prepared in %.3fs", self._cache_name, t)
 
         return img_archive
 
