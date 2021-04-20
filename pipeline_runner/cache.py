@@ -4,6 +4,10 @@ from tempfile import NamedTemporaryFile
 from time import time as ts
 from typing import Dict, List
 
+from docker import DockerClient
+from docker.models.images import Image
+from slugify import slugify
+
 from . import utils
 from .config import config
 from .container import ContainerRunner
@@ -23,22 +27,22 @@ class CacheManager:
 
     def upload(self, cache_names: List[str]):
         for name in cache_names:
-            cu = CacheUploadFactory.get(self._container, name, self._cache_definitions)
-            cu.upload()
+            cu = CacheRestoreFactory.get(self._container, name, self._cache_definitions)
+            cu.restore()
 
     def download(self, cache_names: List[str]):
         for name in cache_names:
-            cd = CacheDownloadFactory.get(self._container, name, self._cache_definitions)
-            cd.download()
+            cd = CacheSaveFactory.get(self._container, name, self._cache_definitions)
+            cd.save()
 
 
-class CacheUpload:
+class CacheRestore:
     def __init__(self, container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]):
         self._container = container
         self._cache_name = cache_name
         self._cache_definitions = cache_definitions
 
-    def upload(self):
+    def restore(self):
         cache_file = self._get_local_cache_file()
 
         if not cache_file:
@@ -108,46 +112,59 @@ class CacheUpload:
         logger.info("Cache '%s': Restored in %.3fs", self._cache_name, t)
 
 
-class DockerCacheUpload(CacheUpload):
-    def _restore_cache(self):
-        image_archive = os.path.join(config.caches_dir, DOCKER_IMAGES_ARCHIVE_FILE_NAME)
+class DockerCacheRestore(CacheRestore):
+    def restore(self):
+        client = DockerClient(base_url="tcp://localhost:2375")
+
+        cache_dir = os.path.join(utils.get_local_cache_directory(), "docker")
+        if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
+            logger.info("Cache '%s': Not found: Skipping", self._cache_name)
+            return
 
         logger.info("Cache '%s': Restoring", self._cache_name)
 
         t = ts()
 
-        restore_cache_script = [
-            f'docker image load < "{image_archive}"',
-            f'rm "{image_archive}"',
-        ]
-
-        exit_code, output = self._container.run_command("\n".join(restore_cache_script))
-        if exit_code != 0:
-            raise Exception(f"Error restoring cache: {self._cache_name}: {output.decode()}")
+        images = os.listdir(cache_dir)
+        for img in images:
+            self._restore_image(client, os.path.join(cache_dir, img))
 
         t = ts() - t
 
-        logger.info("Cache '%s': Restored in %.3fs", self._cache_name, t)
+        logger.info(
+            "Cache '%s': Restored %d image%s in %.3fs",
+            self._cache_name,
+            len(images),
+            "s" if len(images) != 1 else "",
+            t,
+        )
 
-
-class CacheUploadFactory:
     @staticmethod
-    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheUpload:
+    def _restore_image(client: DockerClient, img_path: str):
+        logger.debug(f"Restoring docker image archive '{img_path}'")
+
+        with open(img_path, "rb") as f:
+            client.images.load(f)
+
+
+class CacheRestoreFactory:
+    @staticmethod
+    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheRestore:
         if cache_name == "docker":
-            cls = DockerCacheUpload
+            cls = DockerCacheRestore
         else:
-            cls = CacheUpload
+            cls = CacheRestore
 
         return cls(container, cache_name, cache_definitions)
 
 
-class CacheDownload:
+class CacheSave:
     def __init__(self, container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]):
         self._container = container
         self._cache_name = cache_name
         self._cache_definitions = cache_definitions
 
-    def download(self):
+    def save(self):
         remote_cache_directory = self._prepare()
 
         local_cache_archive_path = get_local_cache_archive_path(self._cache_name)
@@ -203,44 +220,56 @@ class CacheDownload:
         logger.info("Cache '%s': Downloaded %s in %.3fs", self._cache_name, utils.get_human_readable_size(size), t)
 
 
-class DockerCacheDownload(CacheDownload):
-    def _prepare(self):
-        cache_dir = get_remote_temp_directory(self._cache_name)
-        img_archive = os.path.join(cache_dir, DOCKER_IMAGES_ARCHIVE_FILE_NAME)
+class DockerCacheSave(CacheSave):
+    def save(self):
+        client = DockerClient(base_url="tcp://localhost:2375")
 
-        logger.info("Cache '%s': Preparing", self._cache_name)
+        cache_dir = os.path.join(utils.get_local_cache_directory(), "docker")
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+
+        logger.info("Cache '%s': Saving", self._cache_name)
 
         t = ts()
 
-        prepare_cache_cmd = [
-            "image_ids=$(docker image ls -a -q)",
-            'image_repos=$(docker image ls --format "{{.Repository}}" | sort -u | grep -v "<none>")',
-            'images="${image_ids} ${image_repos}"',
-            'if [ -z "${images}" ]; then echo "No images to save"; exit 0; fi',
-            'echo "Creating docker cache with the following images:"',
-            "docker image ls",
-            f'mkdir -p "{cache_dir}"',
-            f"docker image save ${{images}} -o {img_archive}",  # No quotes around ${images} as we want it expanded
-        ]
-
-        exit_code, output = self._container.run_command("\n".join(prepare_cache_cmd))
-        if exit_code != 0:
-            raise Exception(f"Error preparing cache: {self._cache_name}: {output.decode()}")
+        images = client.images.list()
+        for img in images:
+            name = slugify(img.tags[0]) if img.tags else img.short_id.split(":")[1]
+            dst = os.path.join(cache_dir, f"{name}.tar")
+            self._save_image(img, dst)
 
         t = ts() - t
 
-        logger.info("Cache '%s': Prepared in %.3fs", self._cache_name, t)
+        logger.info(
+            "Cache '%s': Saved %d image%s in %.3fs", self._cache_name, len(images), "s" if len(images) != 1 else "", t
+        )
 
-        return img_archive
-
-
-class CacheDownloadFactory:
     @staticmethod
-    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheDownload:
+    def _save_image(image: Image, dst: str):
+        with NamedTemporaryFile(dir=utils.get_local_cache_directory(), delete=False) as f:
+            try:
+                logger.debug(f"Saving docker image '{image}' to '{f.name}'")
+
+                size = 0
+                for chunk in image.save(named=True):
+                    size += len(chunk)
+                    f.write(chunk)
+            except Exception as e:
+                logger.error(f"Error saving image: {image}: {e}")
+                os.unlink(f.name)
+                return
+            else:
+                logger.debug(f"Moving temp cache archive {f.name} to {dst}")
+                os.rename(f.name, dst)
+
+
+class CacheSaveFactory:
+    @staticmethod
+    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheSave:
         if cache_name == "docker":
-            cls = DockerCacheDownload
+            cls = DockerCacheSave
         else:
-            cls = CacheDownload
+            cls = CacheSave
 
         return cls(container, cache_name, cache_definitions)
 
