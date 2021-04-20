@@ -16,7 +16,7 @@ def cache_directory(mocker):
 
         m.return_value = tempdir
 
-        return tempdir
+        yield tempdir
 
 
 def test_success():
