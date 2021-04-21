@@ -1,8 +1,10 @@
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import docker
+from docker import DockerClient
+from docker.models.containers import Container
 from slugify import slugify
 
 from . import utils
@@ -19,15 +21,13 @@ class ServicesManager:
         service_names: List[str],
         service_definitions: Dict[str, Service],
         memory_multiplier: int,
-        data_volume_name: str,
+        shared_data_volume_name: str,
     ):
         self._services = self._get_services(service_names, service_definitions)
         self._memory_multiplier = memory_multiplier
-        self._data_volume_name = data_volume_name
+        self._shared_data_volume_name = shared_data_volume_name
 
         self._client = docker.from_env()
-        self._privileged_services = ("docker",)
-        self._teardowns = {"docker": self._teardown_docker}
 
         self._containers = {}
 
@@ -35,19 +35,14 @@ class ServicesManager:
         self._ensure_memory_for_services()
 
         for service in self._services:
-            self._start_service(service)
+            sr = ServiceRunnerFactory.get(self._client, service, self._shared_data_volume_name)
+            sr.start()
+            self._containers[sr.slug] = sr
 
     def stop_services(self):
-        for s, c in self._containers.items():
+        for s, sr in self._containers.items():
             try:
-                logger.info("Removing service: %s", s)
-
-                teardown = self._teardowns.get(s)
-                if teardown:
-                    logger.info("Executing teardown for service: %s", s)
-                    teardown(c)
-
-                c.remove(v=True, force=True)
+                sr.stop()
             except Exception as e:
                 logger.exception("Error removing service '%s': %s", s, e)
 
@@ -56,29 +51,6 @@ class ServicesManager:
 
     def get_memory_usage(self) -> int:
         return sum(s.memory for s in self._services)
-
-    def _start_service(self, service: Service):
-        logger.info("Starting service: %s", service.name)
-        pull_image(self._client, service.image)
-
-        service_name_slug = slugify(service.name)
-
-        name = f"{config.project_slug}-service-{service_name_slug}"
-
-        container = self._client.containers.run(
-            service.image.name,
-            name=name,
-            command=service.command,
-            environment=service.environment,
-            hostname=service_name_slug,
-            network_mode="host",
-            privileged=self._is_privileged(service.name),
-            volumes=self._get_volumes(service.name),
-            mem_limit=service.memory * 2 ** 20,
-            detach=True,
-        )
-
-        self._containers[service_name_slug] = container
 
     @staticmethod
     def _get_services(service_names, service_definitions) -> [Service]:
@@ -102,20 +74,87 @@ class ServicesManager:
     def _get_service_containers_memory_limit(self) -> int:
         return config.total_memory_limit * self._memory_multiplier - config.build_container_minimum_memory
 
-    def _is_privileged(self, name):
-        return name in self._privileged_services
 
-    def _get_volumes(self, name):
-        if name == "docker":
-            return {
-                os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
-                self._data_volume_name: {"bind": config.remote_pipeline_dir},
-            }
+class ServiceRunner:
+    def __init__(self, docker_client: DockerClient, service: Service, shared_data_volume_name: str):
+        self._client = docker_client
+        self._service = service
+        self._shared_data_volume_name = shared_data_volume_name
+        self._container = None
 
-        return None
+        self._slug = slugify(self._service.name)
 
-    @staticmethod
-    def _teardown_docker(container):
+    @property
+    def slug(self):
+        return self._slug
+
+    def start(self):
+        logger.info("Starting service: %s", self._service.name)
+        pull_image(self._client, self._service.image)
+
+        self._container = self._start_container()
+
+    def _start_container(self) -> Container:
+        name = self._get_container_name()
+
+        container = self._client.containers.run(
+            self._service.image.name,
+            name=name,
+            command=self._service.command,
+            environment=self._service.environment,
+            hostname=self._slug,
+            network_mode="host",
+            mem_limit=self._get_mem_limit(),
+            detach=True,
+        )
+
+        return container
+
+    def _get_container_name(self):
+        return f"{config.project_slug}-service-{self._slug}"
+
+    def stop(self):
+        logger.info("Removing service: %s", self._service.name)
+
+        self._teardown()
+
+        self._container.remove(v=True, force=True)
+
+    def _get_mem_limit(self) -> int:
+        return self._service.memory * 2 ** 20
+
+    def _teardown(self):
+        pass
+
+
+class DockerServiceRunner(ServiceRunner):
+    def _start_container(self) -> Container:
+        name = self._get_container_name()
+
+        container = self._client.containers.run(
+            self._service.image.name,
+            name=name,
+            command=self._service.command,
+            environment=self._service.environment,
+            hostname=self._slug,
+            network_mode="host",
+            privileged=True,
+            volumes=self._get_volumes(),
+            mem_limit=self._get_mem_limit(),
+            detach=True,
+        )
+
+        return container
+
+    def _get_volumes(self) -> Optional[Dict[str, Dict[str, str]]]:
+        return {
+            os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
+            self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
+        }
+
+    def _teardown(self):
+        logger.info("Executing teardown for service: %s", self._service.name)
+
         script = "\n".join(
             [
                 'containers="$(docker ps -q)"',
@@ -126,5 +165,16 @@ class ServicesManager:
                 "docker volume prune -f",
             ]
         )
-        csr = ContainerScriptRunner(container, script)
+        csr = ContainerScriptRunner(self._container, script)
         csr.run()
+
+
+class ServiceRunnerFactory:
+    @staticmethod
+    def get(docker_client: DockerClient, service: Service, shared_data_volume_name: str) -> ServiceRunner:
+        if service.name == "docker":
+            cls = DockerServiceRunner
+        else:
+            cls = ServiceRunner
+
+        return cls(docker_client, service, shared_data_volume_name)
