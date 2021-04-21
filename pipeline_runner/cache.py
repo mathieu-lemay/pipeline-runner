@@ -147,11 +147,16 @@ class DockerCacheRestore(CacheRestore):
             client.images.load(f)
 
 
+class NullCacheRestore(CacheRestore):
+    def restore(self):
+        logger.info("Cache '%s': Ignoring", self._cache_name)
+
+
 class CacheRestoreFactory:
     @staticmethod
     def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheRestore:
         if cache_name == "docker":
-            cls = DockerCacheRestore
+            cls = NullCacheRestore
         else:
             cls = CacheRestore
 
@@ -263,11 +268,16 @@ class DockerCacheSave(CacheSave):
                 os.rename(f.name, dst)
 
 
+class NullCacheSave(CacheSave):
+    def save(self):
+        logger.info("Cache '%s': Ignoring", self._cache_name)
+
+
 class CacheSaveFactory:
     @staticmethod
     def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheSave:
         if cache_name == "docker":
-            cls = DockerCacheSave
+            cls = NullCacheSave
         else:
             cls = CacheSave
 

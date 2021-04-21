@@ -18,6 +18,14 @@ def cache_directory(mocker):
 
         yield tempdir
 
+        # FIXME: Remove when using proper docker cache
+        docker_cache_dir = os.path.join(tempdir, config.project_env_name, "caches", "docker")
+        if os.path.exists(docker_cache_dir):
+            import subprocess
+
+            cmd = f"sudo rm -rf {docker_cache_dir}"
+            subprocess.run(cmd, shell=True)
+
 
 def test_success():
     runner = PipelineRunner("custom.test_success")
