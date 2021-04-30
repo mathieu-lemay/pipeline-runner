@@ -69,6 +69,10 @@ class ArtifactManager:
         prepare_artifacts_cmd += ["|", "tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
 
         self._container.run_command(prepare_artifacts_cmd)
+        if not self._container.path_exists(artifact_remote_path):
+            logger.info("No artifacts found. Skipping")
+            return
+
         data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
         logger.debug("artifacts stats: %s", stats)
 

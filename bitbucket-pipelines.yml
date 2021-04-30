@@ -114,6 +114,12 @@ pipelines:
             - "[ -d folder-name ] && exit 1"
             - "[ -d root ] && exit 1"
             - exit 0
+      - step:
+          name: Test no artifacts to save
+          artifacts:
+            - foobar/**
+          script:
+            - exit 0
 
     test_deployment_environment:
       - step:
