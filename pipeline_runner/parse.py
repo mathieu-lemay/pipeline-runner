@@ -1,5 +1,5 @@
 import os.path
-from typing import Optional
+from typing import Dict, Optional
 
 import yaml
 
@@ -73,8 +73,7 @@ class PipelinesFileParser:
             raise ValueError(f"Invalid elements for step: {name}")
 
         steps = []
-
-        # TODO: Variables
+        variables = {}
 
         for element in elements:
             if "step" in element:
@@ -82,12 +81,11 @@ class PipelinesFileParser:
             elif "parallel" in element:
                 steps.append(self._parse_parallel_step(element["parallel"]))
             elif "variables" in element:
-                # variables.append(self._parse_variables(element['variables']))
-                pass
+                variables.update(self._parse_variables(element["variables"]))
             else:
                 raise ValueError(f"Invalid element for pipeline: {element}")
 
-        return Pipeline(path, name, steps)
+        return Pipeline(path, name, steps, variables)
 
     def _parse_step(self, values):
         image = self._parse_image(values.get("image"))
@@ -130,6 +128,13 @@ class PipelinesFileParser:
             steps.append(self._parse_step(item["step"]))
 
         return ParallelStep(steps)
+
+    @staticmethod
+    def _parse_variables(items) -> Dict[str, str]:
+        if not isinstance(items, list):
+            raise ValueError(f"Invalid elements for variables: {items}")
+
+        return {i["name"]: None for i in items}
 
     @staticmethod
     def _parse_step_size(value):

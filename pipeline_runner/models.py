@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 
 def _generate_id():
@@ -113,10 +113,13 @@ class ParallelStep(DebugMixin):
 
 
 class Pipeline(DebugMixin):
-    def __init__(self, path: str, name: str, steps: [Union[Step, ParallelStep]], *_, **_kwargs):
+    def __init__(
+        self, path: str, name: str, steps: [Union[Step, ParallelStep]], variables: Dict[str, str], *_, **_kwargs
+    ):
         self.path = path
         self.name = name
         self.steps = steps
+        self.variables = variables
 
         self.uuid = _generate_id()
         self.number = 0

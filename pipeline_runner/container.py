@@ -141,6 +141,8 @@ class ContainerRunner:
         for env_file in config.env_files:
             env_vars.update(dotenv_values(env_file))
 
+        env_vars.update(self._pipeline.variables)
+
         return env_vars
 
     def _get_pipelines_env_vars(self) -> Dict[str, str]:

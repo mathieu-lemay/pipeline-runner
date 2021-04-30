@@ -182,3 +182,17 @@ pipelines:
             -   'echo "File is $(stat foo)"'
             -    exit 1
             - fi
+
+    test_pipeline_variables:
+      - variables:
+          - name: FILENAME
+          - name: MESSAGE
+      - step:
+          name: Test Pipeline Variables
+          artifacts:
+            - output/**
+          script:
+            - 'echo "FILENAME: ${FILENAME:?}"'
+            - 'echo "MESSAGE: ${MESSAGE:?}"'
+            - mkdir output
+            - 'echo "${MESSAGE}" > "output/${FILENAME}"'

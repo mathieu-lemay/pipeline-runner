@@ -32,6 +32,8 @@ class PipelineRunner:
         logger.info("Running pipeline: %s", pipeline.name)
         logger.debug("Pipeline ID: %s", pipeline.uuid)
 
+        self._ask_for_variables(pipeline)
+
         s = ts()
         exit_code = self._execute_pipeline(pipeline, pipelines_definition)
         logger.info("Pipeline '%s' executed in %.3fs.", pipeline.name, ts() - s)
@@ -71,6 +73,16 @@ class PipelineRunner:
         pipeline_to_run.number = self._get_build_number()
 
         return pipeline_to_run, pipelines_definition
+
+    @staticmethod
+    def _ask_for_variables(pipeline: Pipeline):
+        for varname in pipeline.variables:
+            value = None
+
+            while not value:
+                value = input(f"Enter value for {varname}: ")
+
+            pipeline.variables[varname] = value
 
     @staticmethod
     def _execute_pipeline(pipeline, definitions):

@@ -1,3 +1,4 @@
+import io
 import os
 import tarfile
 from tempfile import TemporaryDirectory
@@ -140,6 +141,33 @@ def test_run_as_user():
     result = runner.run()
 
     assert result.ok
+
+
+def test_pipeline_variables(cache_directory, monkeypatch):
+    filename = "some-file"
+    message = "Hello World!"
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n"))
+
+    runner = PipelineRunner("custom.test_pipeline_variables")
+    result = runner.run()
+
+    assert result.ok
+
+    output_file = os.path.join(
+        cache_directory,
+        config.project_env_name,
+        "pipelines",
+        f"{result.build_number}-{result.pipeline_uuid}",
+        "artifacts",
+        "output",
+        filename,
+    )
+
+    assert os.path.exists(output_file)
+
+    with open(output_file) as f:
+        assert f.read() == f"{message}\n"
 
 
 # def test_environment_variables():
