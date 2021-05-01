@@ -5,6 +5,7 @@ import logging
 import os
 import posixpath
 import re
+from typing import Dict
 
 from slugify import slugify
 
@@ -70,38 +71,38 @@ class Config:
         self.log_level = logging.getLevelName(os.getenv("PIPELINE_LOG_LEVEL", "DEBUG").upper())
 
     @property
-    def project_directory(self):
+    def project_directory(self) -> str:
         return self._project_directory
 
     @project_directory.setter
-    def project_directory(self, value):
+    def project_directory(self, value: str):
         self._project_directory = os.path.abspath(value)
 
     @property
-    def pipeline_file(self):
+    def pipeline_file(self) -> str:
         return os.path.join(self.project_directory, self._pipeline_file)
 
     @pipeline_file.setter
-    def pipeline_file(self, value):
+    def pipeline_file(self, value: str):
         self._pipeline_file = value
 
     @property
-    def project_name(self):
+    def project_name(self) -> str:
         return os.path.basename(self.project_directory)
 
     @property
-    def project_slug(self):
+    def project_slug(self) -> str:
         return slugify(self.project_name)
 
     @property
-    def project_env_name(self):
+    def project_env_name(self) -> str:
         h = hashlib.sha256(self.project_directory.encode()).digest()
         h = base64.urlsafe_b64encode(h).decode()[:8]
 
         return "{}-{}".format(self.project_slug, h)
 
     @property
-    def log_config(self):
+    def log_config(self) -> Dict:
         log_handler_name = "colored" if self.color else "default"
         return {
             "version": 1,
