@@ -8,6 +8,8 @@ import re
 
 from slugify import slugify
 
+from . import __name__ as __project_name__
+
 
 class Config:
     def __init__(self):
@@ -97,6 +99,32 @@ class Config:
         h = base64.urlsafe_b64encode(h).decode()[:8]
 
         return "{}-{}".format(self.project_slug, h)
+
+    @property
+    def log_config(self):
+        log_handler_name = "colored" if self.color else "default"
+        return {
+            "version": 1,
+            "loggers": {
+                __project_name__: {"handlers": [log_handler_name], "level": config.log_level},
+                "docker": {"handlers": ["default"], "level": "INFO"},
+            },
+            "handlers": {
+                "default": {"formatter": "default", "class": "logging.StreamHandler", "stream": "ext://sys.stderr"},
+                "colored": {"formatter": "colored", "class": "logging.StreamHandler", "stream": "ext://sys.stderr"},
+            },
+            "formatters": {
+                "default": {
+                    "format": "%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s",
+                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                },
+                "colored": {
+                    "()": "coloredlogs.ColoredFormatter",
+                    "format": "%(asctime)s.%(msecs)03d %(name)s: %(message)s",
+                    "datefmt": "%Y-%m-%d %H:%M:%S",
+                },
+            },
+        }
 
 
 config = Config()

@@ -1,8 +1,9 @@
 import logging
+import logging.config
 import os
 import shutil
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import click
 import pkg_resources
@@ -18,34 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 def _init_logger():
-    import coloredlogs
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter(
-            fmt="%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-        )
-    )
-
-    cli_logger = logging.getLogger(project_name)
-    cli_logger.handlers.append(handler)
-    cli_logger.setLevel(config.log_level)
-
-    if config.color:
-        coloredlogs.install(
-            level=config.log_level, logger=cli_logger, fmt="%(asctime)s.%(msecs)03d %(name)s: %(message)s"
-        )
-
-    docker_logger = logging.getLogger("docker")
-    docker_logger.handlers.append(handler)
-    docker_logger.setLevel("INFO")
+    logging.config.dictConfig(config.log_config)
 
 
-def _init():
-    _init_logger()
-
-
-def _get_pipelines_list(pipeline_file: str) -> [str]:
+def _get_pipelines_list(pipeline_file: str) -> List[str]:
     pipelines_definition = PipelinesFileParser(pipeline_file, expand_vars=False).parse()
 
     return pipelines_definition.get_available_pipelines()
