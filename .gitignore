@@ -142,6 +142,7 @@ poetry.toml
 
 # PyCharm
 .idea
+.run
 
 # Local CI
 .ci
