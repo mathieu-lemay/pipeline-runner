@@ -196,3 +196,16 @@ pipelines:
             - 'echo "MESSAGE: ${MESSAGE:?}"'
             - mkdir output
             - 'echo "${MESSAGE}" > "output/${FILENAME}"'
+
+    test_manual_trigger:
+      - step:
+          name: Setup
+          artifacts:
+            - setup_done
+          script:
+            - touch setup_done
+      - step:
+          name: Manual Step
+          trigger: manual
+          script:
+            - echo "This is the manual step"

@@ -12,7 +12,7 @@ from .artifacts import ArtifactManager
 from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
-from .models import Image, ParallelStep, Pipeline, PipelineResult, Pipelines, Step
+from .models import Image, ParallelStep, Pipeline, PipelineResult, Pipelines, Step, Trigger
 from .parse import PipelinesFileParser
 from .repository import RepositoryCloner
 from .service import ServicesManager
@@ -130,6 +130,9 @@ class StepRunner:
 
         logger.info("Running step: %s", self._step.name)
         logger.debug("Step ID: %s", self._step.uuid)
+
+        if self._step.trigger == Trigger.Manual:
+            input("Press enter to run step ")
 
         s = ts()
 

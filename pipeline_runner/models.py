@@ -1,9 +1,15 @@
 import uuid
+from enum import Enum
 from typing import Dict, List, Optional, Union
 
 
 def _generate_id():
     return str(uuid.uuid4())
+
+
+class Trigger(str, Enum):
+    Automatic = "Automatic"
+    Manual = "Manual"
 
 
 class DebugMixin:
@@ -90,6 +96,7 @@ class Step(DebugMixin):
         size: int,
         clone_settings: CloneSettings,
         deployment: str,
+        trigger: Trigger,
     ):
         self.name = name
         self.script = script
@@ -101,6 +108,7 @@ class Step(DebugMixin):
         self.size = size
         self.clone_settings = clone_settings or CloneSettings()
         self.deployment = deployment
+        self.trigger = trigger
 
         self.uuid = _generate_id()
 

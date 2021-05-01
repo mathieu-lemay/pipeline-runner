@@ -1,9 +1,12 @@
+import concurrent.futures
 import io
 import os
 import tarfile
+import time
 from tempfile import TemporaryDirectory
 
 import pytest
+from tenacity import retry, stop_after_delay, wait_fixed
 
 from pipeline_runner import PipelineRunner, config
 
@@ -168,6 +171,61 @@ def test_pipeline_variables(cache_directory, monkeypatch):
 
     with open(output_file) as f:
         assert f.read() == f"{message}\n"
+
+
+@pytest.fixture
+def artifacts_directory(cache_directory, mocker):
+    build_number = 1
+    pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"
+
+    mocker.patch("pipeline_runner.PipelineRunner._get_build_number", return_value=build_number)
+    mocker.patch("pipeline_runner.models._generate_id", return_value=pipeline_uuid)
+
+    return os.path.join(
+        cache_directory,
+        config.project_env_name,
+        "pipelines",
+        f"{build_number}-{pipeline_uuid}",
+        "artifacts",
+    )
+
+
+def test_manual_trigger(artifacts_directory, monkeypatch):
+    r, w = os.pipe()
+
+    read_buffer = os.fdopen(r, "r")
+    monkeypatch.setattr("sys.stdin", read_buffer)
+
+    setup_done_file = os.path.join(artifacts_directory, "setup_done")
+
+    def _run_pipeline():
+        runner = PipelineRunner("custom.test_manual_trigger")
+        result = runner.run()
+
+        return result.ok, result.exit_code
+
+    @retry(wait=wait_fixed(0.05), stop=stop_after_delay(5))
+    def _wait_for_setup_done():
+        assert os.path.exists(setup_done_file)
+
+    def _ensure_still_running(future_, max_wait=5):
+        end = time.time() + max_wait
+        while time.time() < end:
+            assert not future_.done()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(_run_pipeline)
+
+        _wait_for_setup_done()
+
+        _ensure_still_running(future)
+
+        with open(w, "w") as write_buffer:
+            write_buffer.write("\n")
+
+        res = future.result(timeout=10)
+
+    assert res == (True, 0)
 
 
 # def test_environment_variables():

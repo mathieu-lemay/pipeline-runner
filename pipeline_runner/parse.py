@@ -4,7 +4,7 @@ from typing import Dict, Optional
 import yaml
 
 from .config import config
-from .models import Cache, CloneSettings, Image, ParallelStep, Pipeline, Pipelines, Service, Step
+from .models import Cache, CloneSettings, Image, ParallelStep, Pipeline, Pipelines, Service, Step, Trigger
 
 try:
     from yaml import CLoader as YamlLoader
@@ -111,6 +111,7 @@ class PipelinesFileParser:
             self._parse_step_size(values.get("size")),
             clone_settings,
             values.get("deployment"),
+            self._parse_trigger(values.get("trigger")),
         )
 
         return step
@@ -144,6 +145,15 @@ class PipelinesFileParser:
             return 2
         else:
             raise ValueError(f"Invalid size: {value}")
+
+    @staticmethod
+    def _parse_trigger(value) -> Trigger:
+        if value in (None, "automatic"):
+            return Trigger.Automatic
+        elif value == "manual":
+            return Trigger.Manual
+        else:
+            raise ValueError(f"Invalid trigger: {value}")
 
     def _parse_image(self, value) -> Optional[Image]:
         if not value:
