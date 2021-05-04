@@ -127,7 +127,7 @@ pipelines:
           deployment: Foo
           script:
             - 'echo "Deployment Environment: ${BITBUCKET_DEPLOYMENT_ENVIRONMENT}"'
-            - if [ -z "${BITBUCKET_DEPLOYMENT_ENVIRONMENT}" ]; then
+            - if [ "${BITBUCKET_DEPLOYMENT_ENVIRONMENT:-}" != "Foo" ]; then
             -   exit 1
             - fi
 
