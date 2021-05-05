@@ -11,7 +11,7 @@ from time import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import boto3
-import docker
+import docker.errors
 from docker.models.containers import Container
 from dotenv import dotenv_values
 
@@ -422,7 +422,13 @@ def pull_image(client, image):
     logger.info("Pulling image: %s", image.name)
 
     auth_config = get_image_authentication(image)
-    client.images.pull(image.name, auth_config=auth_config)
+    try:
+        client.images.pull(image.name, auth_config=auth_config)
+    except docker.errors.NotFound:
+        if client.images.get(image.name):
+            logger.warning(f"Image not found on remote, but exists locally: {image.name}")
+        else:
+            raise
 
     _pulled_images.add(image.name)
 
