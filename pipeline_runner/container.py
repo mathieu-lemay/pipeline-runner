@@ -151,12 +151,12 @@ class ContainerRunner:
         git_commit = utils.get_git_current_commit()
 
         env_vars = {
+            "CI": "true",
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
             "BITBUCKET_BUILD_NUMBER": self._pipeline.number,
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
-            "BITBUCKET_PROJECT_KEY": "PR",
             "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
             "BITBUCKET_REPO_OWNER": config.username,
