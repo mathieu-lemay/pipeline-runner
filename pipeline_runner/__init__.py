@@ -77,12 +77,7 @@ class PipelineRunner:
     @staticmethod
     def _ask_for_variables(pipeline: Pipeline):
         for varname in pipeline.variables:
-            value = None
-
-            while not value:
-                value = input(f"Enter value for {varname}: ")
-
-            pipeline.variables[varname] = value
+            pipeline.variables[varname] = input(f"Enter value for {varname}: ")
 
     @staticmethod
     def _execute_pipeline(pipeline, definitions):

@@ -187,11 +187,13 @@ pipelines:
       - variables:
           - name: FILENAME
           - name: MESSAGE
+          - name: EMPTY
       - step:
           name: Test Pipeline Variables
           artifacts:
             - output/**
           script:
+            - 'if [ -n "${EMPTY}" ]; then exit 1; fi'
             - 'echo "FILENAME: ${FILENAME:?}"'
             - 'echo "MESSAGE: ${MESSAGE:?}"'
             - mkdir output

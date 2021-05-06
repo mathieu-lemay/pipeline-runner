@@ -132,7 +132,7 @@ def test_deployment():
     assert result.ok
 
 
-def test_docker_in_docker(cache_directory):
+def test_docker_in_docker():
     runner = PipelineRunner("custom.test_docker_in_docker")
     result = runner.run()
 
@@ -150,7 +150,7 @@ def test_pipeline_variables(cache_directory, monkeypatch):
     filename = "some-file"
     message = "Hello World!"
 
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n\n"))
 
     runner = PipelineRunner("custom.test_pipeline_variables")
     result = runner.run()
