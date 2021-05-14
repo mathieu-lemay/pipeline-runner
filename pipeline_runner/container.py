@@ -104,7 +104,7 @@ class ContainerRunner:
             self._image.name,
             name=self._name,
             entrypoint="sh",
-            user=self._image.run_as_user,
+            user=self._image.run_as_user or 0,
             working_dir=config.build_dir,
             environment=self._get_env_vars(),
             volumes=self._get_volumes(),
