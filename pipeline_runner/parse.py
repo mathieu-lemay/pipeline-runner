@@ -55,16 +55,19 @@ class PipelinesFileParser:
         if not group_names:
             raise ParseError("No pipeline groups")
 
-        invalid_groups = group_names - {"branches", "custom", "pull-requests"}
+        invalid_groups = group_names - {"default", "branches", "custom", "pull-requests"}
         if invalid_groups:
             raise ParseError(f"Invalid groups: {invalid_groups}")
 
         pipelines = {}
 
         for g in group_names:
-            for name, values in pipeline_groups[g].items():
-                path = f"{g}.{name}"
-                pipelines[path] = self._parse_pipeline(path, name, values)
+            if g == "default":
+                pipelines[g] = self._parse_pipeline(g, "default", pipeline_groups[g])
+            else:
+                for name, values in pipeline_groups[g].items():
+                    path = f"{g}.{name}"
+                    pipelines[path] = self._parse_pipeline(path, name, values)
 
         return pipelines
 
