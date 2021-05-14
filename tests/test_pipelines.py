@@ -132,11 +132,13 @@ def test_deployment():
     assert result.ok
 
 
-def test_docker_in_docker():
+def test_docker_in_docker(cache_directory):
     runner = PipelineRunner("custom.test_docker_in_docker")
     result = runner.run()
 
     assert result.exit_code == 0
+
+    assert os.path.exists(os.path.join(cache_directory, "docker.bin"))
 
 
 def test_run_as_user():

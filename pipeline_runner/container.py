@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import boto3
 import docker.errors
-from docker.models.containers import Container
+from docker.models.containers import Container, ExecResult
 from dotenv import dotenv_values
 
 from . import utils
@@ -76,7 +76,7 @@ class ContainerRunner:
 
     def run_command(
         self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Optional[Union[int, str]] = None
-    ) -> Tuple[int, bytes]:
+    ) -> ExecResult:
         command = utils.stringify(command)
 
         if wrap_in_shell:
@@ -183,6 +183,39 @@ class ContainerRunner:
     def _install_docker_client(self):
         if "docker" not in self._services_names:
             return
+
+        res = self.run_command("type docker")
+        if res.exit_code == 0:
+            logger.debug("`docker` binary is already present in container.")
+            return
+
+        try:
+            local_docker_binary = utils.get_docker_binary()
+            self._inject_docker_binary(local_docker_binary)
+        except Exception as e:
+            logger.error("Unable inject docker binary: %s", str(e))
+            self._install_docker_client_with_package_manager()
+
+    def _inject_docker_binary(self, binary_path):
+        logger.info("Injecting docker binary")
+
+        tar_data = io.BytesIO()
+        with tarfile.open(fileobj=tar_data, mode="w|") as tar:
+            stat = os.stat(binary_path)
+
+            ti = tarfile.TarInfo("/usr/local/bin/docker")
+            ti.size = stat.st_size
+            ti.mode = 0o100755
+
+            with open(binary_path, "rb") as f:
+                tar.addfile(ti, f)
+
+        tar_data.seek(0, os.SEEK_SET)
+
+        self.put_archive("/", tar_data)
+
+    def _install_docker_client_with_package_manager(self):
+        logger.info("Installing docker with package manager")
 
         cmd = """
         if type apt-get >/dev/null 2>&1; then

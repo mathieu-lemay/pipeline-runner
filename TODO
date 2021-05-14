@@ -1,5 +1,3 @@
-- Use static docker binary (only if docker service)
-- Support for pipeline specific variables
 - Read pipeline variables from some file (with support for hidden)
 - Retry pipeline from step
 - Clone the real thing
