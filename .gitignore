@@ -140,9 +140,10 @@ cython_debug/
 # Poetry
 poetry.toml
 
-# PyCharm
+# IDE
 .idea
 .run
+.vim
 
 # Local CI
 .ci
