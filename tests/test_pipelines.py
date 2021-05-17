@@ -3,43 +3,61 @@ import io
 import os
 import tarfile
 import time
-from tempfile import TemporaryDirectory
 
 import pytest
 from tenacity import retry, stop_after_delay, wait_fixed
 
-from pipeline_runner import PipelineRunner, config
+from pipeline_runner import PipelineRunner, PipelineRunRequest
 
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture
+def pipeline_data_directory(user_data_directory):
+    build_number = 1
+    pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"
+
+    pipeline_data_directory = os.path.join(user_data_directory, "pipelines", f"{build_number}-{pipeline_uuid}")
+
+    return pipeline_data_directory
+
+
 @pytest.fixture(autouse=True)
-def cache_directory(mocker):
-    with TemporaryDirectory() as tempdir:
-        m = mocker.patch("pipeline_runner.utils.get_user_cache_directory")
+def artifacts_directory(pipeline_data_directory, mocker):
+    artifacts_directory = os.path.join(pipeline_data_directory, "artifacts")
+    os.makedirs(artifacts_directory)
 
-        m.return_value = tempdir
+    mocker.patch("pipeline_runner.context.PipelineRunContext.get_artifact_directory", return_value=artifacts_directory)
 
-        yield tempdir
+    return artifacts_directory
 
-        # FIXME: Remove when using proper docker cache
-        docker_cache_dir = os.path.join(tempdir, config.project_env_name, "caches", "docker")
-        if os.path.exists(docker_cache_dir):
-            import subprocess
 
-            cmd = f"sudo rm -rf {docker_cache_dir}"
-            subprocess.run(cmd, shell=True)
+@pytest.fixture(autouse=True)
+def pipeline_cache_directory(user_cache_directory, mocker):
+    pipeline_cache = os.path.join(user_cache_directory, "caches")
+    os.makedirs(pipeline_cache)
+
+    mocker.patch("pipeline_runner.context.PipelineRunContext.get_pipeline_cache_directory", return_value=pipeline_cache)
+
+    yield pipeline_cache
+
+    docker_cache_dir = os.path.join(pipeline_cache, "docker")
+    if os.path.exists(docker_cache_dir):
+        import subprocess
+
+        cmd = f"sudo rm -rf {docker_cache_dir}"
+        subprocess.run(cmd, shell=True)
 
 
 def test_success():
-    runner = PipelineRunner("custom.test_success")
+    runner = PipelineRunner(PipelineRunRequest("custom.test_success"))
     result = runner.run()
 
     assert result.ok
 
 
 def test_failure():
-    runner = PipelineRunner("custom.test_failure")
+    runner = PipelineRunner(PipelineRunRequest("custom.test_failure"))
     result = runner.run()
 
     assert result.ok is False
@@ -47,20 +65,20 @@ def test_failure():
 
 
 def test_after_script():
-    runner = PipelineRunner("custom.test_after_script")
+    runner = PipelineRunner(PipelineRunRequest("custom.test_after_script"))
     result = runner.run()
 
     assert result.ok is False
     assert result.exit_code == 2
 
 
-def test_cache_alpine(cache_directory):
-    runner = PipelineRunner("custom.test_cache_alpine")
+def test_cache_alpine(pipeline_cache_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_cache_alpine"))
     result = runner.run()
 
     assert result.ok, "Pipeline failed"
 
-    cache_file = os.path.join(cache_directory, config.project_env_name, "caches", "service1.tar")
+    cache_file = os.path.join(pipeline_cache_directory, "service1.tar")
 
     assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
@@ -71,13 +89,13 @@ def test_cache_alpine(cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_cache_debian(cache_directory):
-    runner = PipelineRunner("custom.test_cache_debian")
+def test_cache_debian(pipeline_cache_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_cache_debian"))
     result = runner.run()
 
     assert result.ok, "Pipeline failed"
 
-    cache_file = os.path.join(cache_directory, config.project_env_name, "caches", "service1.tar")
+    cache_file = os.path.join(pipeline_cache_directory, "service1.tar")
 
     assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
@@ -88,83 +106,71 @@ def test_cache_debian(cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_invalid_cache(cache_directory):
-    runner = PipelineRunner("custom.test_invalid_cache")
+def test_invalid_cache(pipeline_cache_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_invalid_cache"))
     result = runner.run()
 
     assert result.ok
 
-    project_cache_dir = os.path.join(cache_directory, config.project_env_name, "caches")
-    assert len(os.listdir(project_cache_dir)) == 0
+    assert len(os.listdir(pipeline_cache_directory)) == 0
 
 
-def test_artifacts(cache_directory):
-    runner = PipelineRunner("custom.test_artifacts")
+def test_artifacts(artifacts_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_artifacts"))
     result = runner.run()
 
     assert result.ok
 
-    artifacts_dir = os.path.join(
-        cache_directory,
-        config.project_env_name,
-        "pipelines",
-        f"{result.build_number}-{result.pipeline_uuid}",
-        "artifacts",
-    )
     directories = []
     files = []
 
-    for root, ds, fs in os.walk(artifacts_dir):
+    for root, ds, fs in os.walk(artifacts_directory):
         for d in ds:
-            directories.append(os.path.relpath(os.path.join(root, d), artifacts_dir))
+            directories.append(os.path.relpath(os.path.join(root, d), artifacts_directory))
 
         for f in fs:
-            files.append(os.path.relpath(os.path.join(root, f), artifacts_dir))
+            files.append(os.path.relpath(os.path.join(root, f), artifacts_directory))
 
     assert sorted(directories) == ["valid-folder", "valid-folder/sub"]
     assert sorted(files) == ["file-name", "valid-folder/a", "valid-folder/b", "valid-folder/sub/c"]
 
 
 def test_deployment():
-    runner = PipelineRunner("custom.test_deployment_environment")
+    runner = PipelineRunner(PipelineRunRequest("custom.test_deployment_environment"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_docker_in_docker(cache_directory):
-    runner = PipelineRunner("custom.test_docker_in_docker")
+def test_docker_in_docker(user_cache_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_docker_in_docker"))
     result = runner.run()
 
     assert result.exit_code == 0
 
-    assert os.path.exists(os.path.join(cache_directory, "docker.bin"))
+    assert os.path.exists(os.path.join(user_cache_directory, "docker.bin"))
 
 
 def test_run_as_user():
-    runner = PipelineRunner("custom.test_run_as_user")
+    runner = PipelineRunner(PipelineRunRequest("custom.test_run_as_user"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_pipeline_variables(cache_directory, monkeypatch):
+def test_pipeline_variables(artifacts_directory, monkeypatch):
     filename = "some-file"
     message = "Hello World!"
 
     monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n\n"))
 
-    runner = PipelineRunner("custom.test_pipeline_variables")
+    runner = PipelineRunner(PipelineRunRequest("custom.test_pipeline_variables"))
     result = runner.run()
 
     assert result.ok
 
     output_file = os.path.join(
-        cache_directory,
-        config.project_env_name,
-        "pipelines",
-        f"{result.build_number}-{result.pipeline_uuid}",
-        "artifacts",
+        artifacts_directory,
         "output",
         filename,
     )
@@ -173,23 +179,6 @@ def test_pipeline_variables(cache_directory, monkeypatch):
 
     with open(output_file) as f:
         assert f.read() == f"{message}\n"
-
-
-@pytest.fixture
-def artifacts_directory(cache_directory, mocker):
-    build_number = 1
-    pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"
-
-    mocker.patch("pipeline_runner.PipelineRunner._get_build_number", return_value=build_number)
-    mocker.patch("pipeline_runner.models._generate_id", return_value=pipeline_uuid)
-
-    return os.path.join(
-        cache_directory,
-        config.project_env_name,
-        "pipelines",
-        f"{build_number}-{pipeline_uuid}",
-        "artifacts",
-    )
 
 
 def test_manual_trigger(artifacts_directory, monkeypatch):
@@ -201,7 +190,7 @@ def test_manual_trigger(artifacts_directory, monkeypatch):
     setup_done_file = os.path.join(artifacts_directory, "setup_done")
 
     def _run_pipeline():
-        runner = PipelineRunner("custom.test_manual_trigger")
+        runner = PipelineRunner(PipelineRunRequest("custom.test_manual_trigger"))
         result = runner.run()
 
         return result.ok, result.exit_code

@@ -5,4 +5,4 @@ ignore =
     # Let `black` take care of these:
     # E203: whitespace before ‘:’
     # E501: line too long
-    E203,E501
+    E203,E501,W503

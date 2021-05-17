@@ -13,11 +13,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 import boto3
 import docker.errors
 from docker.models.containers import Container, ExecResult
-from dotenv import dotenv_values
 
 from . import utils
 from .config import config
-from .models import Image, Pipeline, Step
+from .models import Image
 
 logger = logging.getLogger(__name__)
 
@@ -25,20 +24,20 @@ logger = logging.getLogger(__name__)
 class ContainerRunner:
     def __init__(
         self,
-        pipeline: Pipeline,
-        step: Step,
-        image: Image,
         name: str,
+        image: Image,
+        repository_path: str,
         data_volume_name: str,
+        env_vars: Dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
         services_names: List[str] = None,
     ):
-        self._pipeline = pipeline
-        self._step = step
-        self._image = image
         self._name = name
+        self._image = image
+        self._repository_path = repository_path
         self._data_volume_name = data_volume_name
+        self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
         self._services_names = services_names or []
@@ -106,7 +105,7 @@ class ContainerRunner:
             entrypoint="sh",
             user=self._image.run_as_user or 0,
             working_dir=config.build_dir,
-            environment=self._get_env_vars(),
+            environment=self._environment,
             volumes=self._get_volumes(),
             mem_limit=self._mem_limit,
             network_mode="host",
@@ -134,49 +133,9 @@ class ContainerRunner:
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
 
-    def _get_env_vars(self):
-        env_vars = self._get_pipelines_env_vars()
-
-        env_vars.update(dotenv_values(".env"))
-        for env_file in config.env_files:
-            env_vars.update(dotenv_values(env_file))
-
-        env_vars.update(self._pipeline.variables)
-
-        return env_vars
-
-    def _get_pipelines_env_vars(self) -> Dict[str, str]:
-        project_slug = config.project_slug
-        git_branch = utils.get_git_current_branch()
-        git_commit = utils.get_git_current_commit()
-
-        env_vars = {
-            "CI": "true",
-            "BUILD_DIR": config.build_dir,
-            "BITBUCKET_BRANCH": git_branch,
-            "BITBUCKET_BUILD_NUMBER": self._pipeline.number,
-            "BITBUCKET_CLONE_DIR": config.build_dir,
-            "BITBUCKET_COMMIT": git_commit,
-            "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
-            "BITBUCKET_REPO_IS_PRIVATE": "true",
-            "BITBUCKET_REPO_OWNER": config.username,
-            "BITBUCKET_REPO_OWNER_UUID": config.owner_uuid,
-            "BITBUCKET_REPO_SLUG": project_slug,
-            "BITBUCKET_REPO_UUID": config.repo_uuid,
-            "BITBUCKET_WORKSPACE": project_slug,
-        }
-
-        if self._step.deployment:
-            env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
-
-        if "docker" in self._services_names:
-            env_vars["DOCKER_HOST"] = "tcp://localhost:2375"
-
-        return env_vars
-
     def _get_volumes(self):
         return {
-            config.project_directory: {"bind": config.remote_workspace_dir, "mode": "ro"},
+            self._repository_path: {"bind": config.remote_workspace_dir, "mode": "ro"},
             self._data_volume_name: {"bind": config.remote_pipeline_dir},
         }
 

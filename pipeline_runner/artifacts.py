@@ -5,24 +5,22 @@ import tarfile
 from tarfile import TarInfo
 from time import time as ts
 from typing import List
+from uuid import UUID
 
 from . import utils
 from .config import config
 from .container import ContainerRunner
-from .models import Pipeline, Step
 
 logger = logging.getLogger(__name__)
 
 
 class ArtifactManager:
-    def __init__(self, container: ContainerRunner, pipeline: Pipeline, step: Step):
+    def __init__(self, container: ContainerRunner, artifact_directory: str, step_uuid: UUID):
         self._container = container
-        self._pipeline = pipeline
-        self._step = step
+        self._artifact_directory = artifact_directory
+        self._step_uuid = step_uuid
 
     def upload(self):
-        artifact_directory = utils.get_artifact_directory(self._pipeline)
-
         logger.info("Loading artifacts")
 
         t = ts()
@@ -30,11 +28,11 @@ class ArtifactManager:
         tar_data = io.BytesIO()
 
         with tarfile.open(fileobj=tar_data, mode="w|") as tar:
-            for root, _, files in os.walk(artifact_directory):
+            for root, _, files in os.walk(self._artifact_directory):
                 for af in files:
                     full_path = os.path.join(root, af)
 
-                    relpath = os.path.relpath(full_path, artifact_directory)
+                    relpath = os.path.relpath(full_path, self._artifact_directory)
                     ti = TarInfo(relpath)
 
                     stat = os.stat(full_path)
@@ -56,9 +54,9 @@ class ArtifactManager:
         if not artifacts:
             return
 
-        artifact_file = f"artifacts-{self._step.uuid}.tar"
+        artifact_file = f"artifacts-{self._step_uuid}.tar"
         artifact_remote_path = os.path.join(config.build_dir, artifact_file)
-        artifact_local_directory = utils.get_artifact_directory(self._pipeline)
+        artifact_local_directory = self._artifact_directory
 
         logger.info("Collecting artifacts")
 

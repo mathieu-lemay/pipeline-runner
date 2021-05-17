@@ -7,7 +7,6 @@ from docker import DockerClient
 from docker.models.containers import Container
 from slugify import slugify
 
-from . import utils
 from .config import config
 from .container import ContainerScriptRunner, pull_image
 from .models import Service
@@ -22,10 +21,14 @@ class ServicesManager:
         service_definitions: Dict[str, Service],
         memory_multiplier: int,
         shared_data_volume_name: str,
+        repository_slug: str,
+        pipeline_cache_directory: str,
     ):
         self._services = self._get_services(service_names, service_definitions)
         self._memory_multiplier = memory_multiplier
         self._shared_data_volume_name = shared_data_volume_name
+        self._repository_slug = repository_slug
+        self._pipeline_cache_directory = pipeline_cache_directory
 
         self._client = docker.from_env()
 
@@ -35,7 +38,13 @@ class ServicesManager:
         self._ensure_memory_for_services()
 
         for service in self._services:
-            sr = ServiceRunnerFactory.get(self._client, service, self._shared_data_volume_name)
+            sr = ServiceRunnerFactory.get(
+                self._client,
+                service,
+                self._shared_data_volume_name,
+                self._repository_slug,
+                self._pipeline_cache_directory,
+            )
             sr.start()
             self._containers[sr.slug] = sr
 
@@ -76,10 +85,19 @@ class ServicesManager:
 
 
 class ServiceRunner:
-    def __init__(self, docker_client: DockerClient, service: Service, shared_data_volume_name: str):
+    def __init__(
+        self,
+        docker_client: DockerClient,
+        service: Service,
+        shared_data_volume_name: str,
+        repository_slug: str,
+        pipeline_cache_directory: str,
+    ):
         self._client = docker_client
         self._service = service
         self._shared_data_volume_name = shared_data_volume_name
+        self._repository_slug = repository_slug
+        self._pipeline_cache_directory = pipeline_cache_directory
         self._container = None
 
         self._slug = slugify(self._service.name)
@@ -111,7 +129,7 @@ class ServiceRunner:
         return container
 
     def _get_container_name(self):
-        return f"{config.project_slug}-service-{self._slug}"
+        return f"{self._repository_slug}-service-{self._slug}"
 
     def stop(self):
         logger.info("Removing service: %s", self._service.name)
@@ -148,7 +166,7 @@ class DockerServiceRunner(ServiceRunner):
 
     def _get_volumes(self) -> Optional[Dict[str, Dict[str, str]]]:
         return {
-            os.path.join(utils.get_local_cache_directory(), "docker"): {"bind": "/var/lib/docker"},
+            os.path.join(self._pipeline_cache_directory, "docker"): {"bind": "/var/lib/docker"},
             self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
         }
 
@@ -171,10 +189,16 @@ class DockerServiceRunner(ServiceRunner):
 
 class ServiceRunnerFactory:
     @staticmethod
-    def get(docker_client: DockerClient, service: Service, shared_data_volume_name: str) -> ServiceRunner:
+    def get(
+        docker_client: DockerClient,
+        service: Service,
+        shared_data_volume_name: str,
+        repository_slug: str,
+        pipeline_cache_directory: str,
+    ) -> ServiceRunner:
         if service.name == "docker":
             cls = DockerServiceRunner
         else:
             cls = ServiceRunner
 
-        return cls(docker_client, service, shared_data_volume_name)
+        return cls(docker_client, service, shared_data_volume_name, repository_slug, pipeline_cache_directory)

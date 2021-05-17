@@ -1,28 +1,72 @@
+import base64
+import hashlib
 import logging
-from typing import Optional, Union
+import os.path
+from typing import Dict, Optional, Union
 
-from . import Pipelines, utils
+from git import Repo
+from slugify import slugify
+
 from .config import config
-from .container import ContainerRunner
-from .models import CloneSettings, Image, Pipeline, Step
+from .models import CloneSettings, Image
 
 logger = logging.getLogger(__name__)
+
+
+class Repository:
+    def __init__(self, path: str):
+        self._path = path
+        self._name = os.path.basename(self._path)
+        self._slug = slugify(self._name)
+        self._env_name = self._hashify()
+
+        self._git_repo = Repo(self._path)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def slug(self):
+        return self._slug
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def env_name(self):
+        return self._env_name
+
+    def get_current_branch(self) -> str:
+        return self._git_repo.active_branch.name
+
+    def get_current_commit(self) -> str:
+        return self._git_repo.head.commit.hexsha
+
+    def _hashify(self):
+        h = hashlib.sha256(self._path.encode()).digest()
+        h = base64.urlsafe_b64encode(h).decode()[:8]
+
+        return "{}-{}".format(self._slug, h)
 
 
 class RepositoryCloner:
     def __init__(
         self,
-        pipeline: Pipeline,
-        step: Step,
-        definitions: Pipelines,
+        repository: Repository,
+        step_clone_settings: CloneSettings,
+        global_clone_settings: CloneSettings,
+        environment: Dict[str, str],
         user: Optional[Union[int, str]],
         parent_container_name: str,
         data_volume_name: str,
         output_logger: logging.Logger,
     ):
-        self._pipeline = pipeline
-        self._step = step
-        self._definitions = definitions
+        self._repository = repository
+        self._step_clone_settings = step_clone_settings
+        self._global_clone_settings = global_clone_settings
+        self._environment = environment
         self._user = str(user) if user is not None else None
         self._name = f"{parent_container_name}-clone"
         self._data_volume_name = data_volume_name
@@ -31,13 +75,21 @@ class RepositoryCloner:
         self._container = None
 
     def clone(self):
+        # TODO: Fix cyclic import
+        from .container import ContainerRunner
+
         if not self._should_clone():
             logger.info("Clone disabled: skipping")
             return
 
         image = Image("alpine/git", run_as_user=self._user)
         runner = ContainerRunner(
-            self._pipeline, self._step, image, self._name, self._data_volume_name, self._output_logger
+            self._name,
+            image,
+            self._repository.path,
+            self._data_volume_name,
+            self._environment,
+            self._output_logger,
         )
         runner.start()
 
@@ -78,7 +130,8 @@ class RepositoryCloner:
             git_clone_cmd += ["GIT_LFS_SKIP_SMUDGE=1"]
 
         # TODO: Add `retry n`
-        git_clone_cmd += ["git", "clone", f"--branch='{utils.get_git_current_branch()}'"]
+        branch = self._repository.get_current_branch()
+        git_clone_cmd += ["git", "clone", f"--branch='{branch}'"]
 
         clone_depth = self._get_clone_depth()
         if clone_depth:
@@ -91,8 +144,8 @@ class RepositoryCloner:
     def _should_clone(self) -> bool:
         return bool(
             self._first_non_none_value(
-                self._step.clone_settings.enabled,
-                self._definitions.clone_settings.enabled,
+                self._step_clone_settings.enabled,
+                self._global_clone_settings.enabled,
                 CloneSettings.default().enabled,
             )
         )
@@ -100,16 +153,16 @@ class RepositoryCloner:
     def _should_clone_lfs(self) -> bool:
         return bool(
             self._first_non_none_value(
-                self._step.clone_settings.lfs,
-                self._definitions.clone_settings.lfs,
+                self._step_clone_settings.lfs,
+                self._global_clone_settings.lfs,
                 CloneSettings.default().lfs,
             )
         )
 
     def _get_clone_depth(self) -> Optional[int]:
         return self._first_non_none_value(
-            self._step.clone_settings.depth,
-            self._definitions.clone_settings.depth,
+            self._step_clone_settings.depth,
+            self._global_clone_settings.depth,
             CloneSettings.default().depth,
         )
 

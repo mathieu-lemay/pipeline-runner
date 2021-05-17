@@ -10,10 +10,11 @@ import pkg_resources
 from plumbum import ProcessExecutionError
 from pyfzf import FzfPrompt
 
-from . import PipelineRunner, PipelinesFileParser
+from . import PipelineRunner, PipelineRunRequest
 from . import __name__ as project_name
 from . import utils
 from .config import config
+from .parse import PipelinesFileParser
 
 logger = logging.getLogger(__name__)
 
@@ -61,14 +62,9 @@ def main(ctx, show_version):
 @main.command()
 @click.argument("pipeline", default="")
 @click.option(
-    "-p",
-    "--project-directory",
-    help="Root directory of the project. Defaults to current directory.",
-)
-@click.option(
-    "-f",
-    "--pipeline-file",
-    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
+    "-r",
+    "--repository-path",
+    help="Path to the git repository. Defaults to current directory.",
 )
 @click.option(
     "-s",
@@ -90,24 +86,12 @@ def main(ctx, show_version):
     default=True,
     help="Enable colored output",
 )
-def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
+def run(pipeline, repository_path, steps, env_files, color):
     """
     Runs the pipeline PIPELINE.
 
     PIPELINE is the full path to the pipeline to run. Ex: branches.master
     """
-    if project_directory:
-        config.project_directory = project_directory
-
-    if pipeline_file:
-        config.pipeline_file = pipeline_file
-
-    if steps:
-        config.selected_steps = steps
-
-    if env_files:
-        config.env_files = env_files
-
     config.color = color
 
     _init_logger()
@@ -119,7 +103,9 @@ def run(pipeline, project_directory, pipeline_file, steps, env_files, color):
         logger.error("pipeline not specified")
         sys.exit(2)
 
-    runner = PipelineRunner(pipeline)
+    req = PipelineRunRequest(pipeline, repository_path, steps, env_files)
+
+    runner = PipelineRunner(req)
     try:
         runner.run()
     except Exception as e:

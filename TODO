@@ -6,3 +6,6 @@
 - Isolated network
 - SSH Keys
 - --include / --exclude instead of --step
+- Validate there are no variables in branch / pull-request pipelines
+- Validate only one "variables:" block and it's defined first
+- Use docker volume for docker cache

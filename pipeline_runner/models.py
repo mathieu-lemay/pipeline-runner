@@ -1,10 +1,6 @@
-import uuid
 from enum import Enum
 from typing import Dict, List, Optional, Union
-
-
-def _generate_id():
-    return str(uuid.uuid4())
+from uuid import UUID
 
 
 class Trigger(str, Enum):
@@ -110,14 +106,10 @@ class Step(DebugMixin):
         self.deployment = deployment
         self.trigger = trigger
 
-        self.uuid = _generate_id()
-
 
 class ParallelStep(DebugMixin):
     def __init__(self, steps: List[Step]):
         self.steps = steps
-
-        self.uuid = _generate_id()
 
 
 class Pipeline(DebugMixin):
@@ -128,9 +120,6 @@ class Pipeline(DebugMixin):
         self.name = name
         self.steps = steps
         self.variables = variables
-
-        self.uuid = _generate_id()
-        self.number = 0
 
 
 class Pipelines(DebugMixin):
@@ -169,7 +158,7 @@ class PipelineInfo:
 
 
 class PipelineResult:
-    def __init__(self, exit_code: int, build_number: int, pipeline_uuid: str):
+    def __init__(self, exit_code: int, build_number: int, pipeline_uuid: UUID):
         self.exit_code = exit_code
         self.build_number = build_number
         self.pipeline_uuid = pipeline_uuid

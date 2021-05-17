@@ -19,28 +19,32 @@ DOCKER_IMAGES_ARCHIVE_FILE_NAME = "images.tar"
 
 
 class CacheManager:
-    def __init__(self, container: ContainerRunner, cache_definitions: Dict[str, Cache]):
+    def __init__(self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache]):
         self._container = container
+        self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
 
         self._ignored_caches = {"docker"}
 
     def upload(self, cache_names: List[str]):
         for name in cache_names:
-            cu = CacheRestoreFactory.get(self._container, name, self._cache_definitions)
+            cu = CacheRestoreFactory.get(self._container, self._cache_directory, self._cache_definitions, name)
             cu.restore()
 
     def download(self, cache_names: List[str]):
         for name in cache_names:
-            cd = CacheSaveFactory.get(self._container, name, self._cache_definitions)
+            cd = CacheSaveFactory.get(self._container, self._cache_directory, self._cache_definitions, name)
             cd.save()
 
 
 class CacheRestore:
-    def __init__(self, container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]):
+    def __init__(
+        self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+    ):
         self._container = container
-        self._cache_name = cache_name
+        self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
+        self._cache_name = cache_name
 
     def restore(self):
         cache_file = self._get_local_cache_file()
@@ -53,7 +57,7 @@ class CacheRestore:
         self._restore_cache()
 
     def _get_local_cache_file(self):
-        local_cache_archive_path = get_local_cache_archive_path(self._cache_name)
+        local_cache_archive_path = get_local_cache_archive_path(self._cache_directory, self._cache_name)
         if not os.path.exists(local_cache_archive_path):
             return None
 
@@ -116,7 +120,7 @@ class DockerCacheRestore(CacheRestore):
     def restore(self):
         client = DockerClient(base_url="tcp://localhost:2375")
 
-        cache_dir = os.path.join(utils.get_local_cache_directory(), "docker")
+        cache_dir = os.path.join(self._cache_directory, "docker")
         if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
             logger.info("Cache '%s': Not found: Skipping", self._cache_name)
             return
@@ -154,25 +158,30 @@ class NullCacheRestore(CacheRestore):
 
 class CacheRestoreFactory:
     @staticmethod
-    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheRestore:
+    def get(
+        container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+    ) -> CacheRestore:
         if cache_name == "docker":
             cls = NullCacheRestore
         else:
             cls = CacheRestore
 
-        return cls(container, cache_name, cache_definitions)
+        return cls(container, cache_directory, cache_definitions, cache_name)
 
 
 class CacheSave:
-    def __init__(self, container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]):
+    def __init__(
+        self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+    ):
         self._container = container
-        self._cache_name = cache_name
+        self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
+        self._cache_name = cache_name
 
     def save(self):
         remote_cache_directory = self._prepare()
 
-        local_cache_archive_path = get_local_cache_archive_path(self._cache_name)
+        local_cache_archive_path = get_local_cache_archive_path(self._cache_directory, self._cache_name)
         self._download(remote_cache_directory, local_cache_archive_path)
 
     def _prepare(self) -> str:
@@ -204,7 +213,7 @@ class CacheSave:
 
         t = ts()
 
-        with NamedTemporaryFile(dir=utils.get_local_cache_directory(), delete=False) as f:
+        with NamedTemporaryFile(dir=self._cache_directory, delete=False) as f:
             try:
                 logger.debug(f"Downloading cache folder '{src}' to '{f.name}'")
                 data, _ = self._container.get_archive(src)
@@ -229,7 +238,7 @@ class DockerCacheSave(CacheSave):
     def save(self):
         client = DockerClient(base_url="tcp://localhost:2375")
 
-        cache_dir = os.path.join(utils.get_local_cache_directory(), "docker")
+        cache_dir = os.path.join(self._cache_directory, "docker")
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
 
@@ -249,9 +258,8 @@ class DockerCacheSave(CacheSave):
             "Cache '%s': Saved %d image%s in %.3fs", self._cache_name, len(images), "s" if len(images) != 1 else "", t
         )
 
-    @staticmethod
-    def _save_image(image: Image, dst: str):
-        with NamedTemporaryFile(dir=utils.get_local_cache_directory(), delete=False) as f:
+    def _save_image(self, image: Image, dst: str):
+        with NamedTemporaryFile(dir=self._cache_directory, delete=False) as f:
             try:
                 logger.debug(f"Saving docker image '{image}' to '{f.name}'")
 
@@ -275,17 +283,19 @@ class NullCacheSave(CacheSave):
 
 class CacheSaveFactory:
     @staticmethod
-    def get(container: ContainerRunner, cache_name: str, cache_definitions: Dict[str, Cache]) -> CacheSave:
+    def get(
+        container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+    ) -> CacheSave:
         if cache_name == "docker":
             cls = NullCacheSave
         else:
             cls = CacheSave
 
-        return cls(container, cache_name, cache_definitions)
+        return cls(container, cache_directory, cache_definitions, cache_name)
 
 
-def get_local_cache_archive_path(cache_name: str) -> str:
-    return os.path.join(utils.get_local_cache_directory(), f"{cache_name}.tar")
+def get_local_cache_archive_path(cache_directory: str, cache_name: str) -> str:
+    return os.path.join(cache_directory, f"{cache_name}.tar")
 
 
 def get_remote_temp_directory(cache_name: str) -> str:

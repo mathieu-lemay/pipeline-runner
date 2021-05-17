@@ -13,34 +13,21 @@ from typing import List, Optional, Union
 
 import bs4
 import requests
-from git import Repo
 from xdg import xdg_cache_home, xdg_data_home
 
-from .config import config
-from .models import DebugMixin, Pipeline, PipelineInfo
+from .models import DebugMixin
 
 logger = logging.getLogger(__name__)
 
-_git_repo = None
 
-
-def _get_git_repo() -> Repo:
-    global _git_repo
-
-    if not _git_repo:
-        _git_repo = Repo(config.project_directory)
-
-    return _git_repo
-
-
-def get_output_logger(pipeline: Pipeline, name: str) -> logging.Logger:
+def get_output_logger(output_directory: str, name: str) -> logging.Logger:
     formatter = logging.Formatter("%(message)s")
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setFormatter(formatter)
     stream_handler.terminator = ""
 
-    file_handler = logging.FileHandler(os.path.join(get_log_directory(pipeline), f"{name}.txt"))
+    file_handler = logging.FileHandler(os.path.join(output_directory, f"{name}.txt"))
     file_handler.setFormatter(formatter)
     file_handler.terminator = ""
 
@@ -52,67 +39,15 @@ def get_output_logger(pipeline: Pipeline, name: str) -> logging.Logger:
     return output_logger
 
 
-def get_git_current_branch() -> str:
-    r = _get_git_repo()
-    return r.active_branch.name
-
-
-def get_git_current_commit() -> str:
-    r = _get_git_repo()
-    return r.head.commit.hexsha
-
-
-def get_user_cache_directory() -> str:
+def get_cache_directory() -> str:
     return os.path.join(xdg_cache_home(), "pipeline-runner")
 
 
-def _get_project_cache_directory() -> str:
-    return os.path.join(get_user_cache_directory(), config.project_env_name)
-
-
-def get_project_pipelines_info_file() -> str:
-    d = _ensure_directory(_get_project_cache_directory())
-
-    return os.path.join(d, "info.json")
-
-
-def load_project_pipelines_info() -> PipelineInfo:
-    fp = get_project_pipelines_info_file()
-    if not os.path.exists(fp):
-        return PipelineInfo()
-
-    with open(fp) as f:
-        return PipelineInfo.from_json(json.load(f))
-
-
-def save_project_pipelines_info(pi: PipelineInfo):
-    fp = get_project_pipelines_info_file()
-
-    with open(fp, "w") as f:
-        json.dump(pi.to_json(), f)
-
-
-def get_local_cache_directory() -> str:
-    return _ensure_directory(os.path.join(_get_project_cache_directory(), "caches"))
-
-
-def _get_pipeline_cache_directory(pipeline: Pipeline) -> str:
-    return os.path.join(_get_project_cache_directory(), "pipelines", f"{pipeline.number}-{pipeline.uuid}")
-
-
-def get_log_directory(pipeline: Pipeline) -> str:
-    return _ensure_directory(os.path.join(_get_pipeline_cache_directory(pipeline), "logs"))
-
-
-def get_artifact_directory(pipeline: Pipeline) -> str:
-    return _ensure_directory(os.path.join(_get_pipeline_cache_directory(pipeline), "artifacts"))
-
-
 def get_data_directory() -> str:
-    return _ensure_directory(os.path.join(xdg_data_home(), "pipeline-runner"))
+    return os.path.join(xdg_data_home(), "pipeline-runner")
 
 
-def _ensure_directory(path) -> str:
+def ensure_directory(path) -> str:
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -167,7 +102,7 @@ def dumps(*args, **kwargs):
 
 
 def get_docker_binary() -> str:
-    docker_binary_path = os.path.join(get_user_cache_directory(), "docker.bin")
+    docker_binary_path = os.path.join(get_cache_directory(), "docker.bin")
 
     dbu = DockerBinaryDownloader(docker_binary_path)
     dbu.download()
