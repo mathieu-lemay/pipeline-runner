@@ -4,10 +4,6 @@ from tempfile import NamedTemporaryFile
 from time import time as ts
 from typing import Dict, List
 
-from docker import DockerClient
-from docker.models.images import Image
-from slugify import slugify
-
 from . import utils
 from .config import config
 from .container import ContainerRunner
@@ -116,41 +112,6 @@ class CacheRestore:
         logger.info("Cache '%s': Restored in %.3fs", self._cache_name, t)
 
 
-class DockerCacheRestore(CacheRestore):
-    def restore(self):
-        client = DockerClient(base_url="tcp://localhost:2375")
-
-        cache_dir = os.path.join(self._cache_directory, "docker")
-        if not os.path.exists(cache_dir) or not os.listdir(cache_dir):
-            logger.info("Cache '%s': Not found: Skipping", self._cache_name)
-            return
-
-        logger.info("Cache '%s': Restoring", self._cache_name)
-
-        t = ts()
-
-        images = os.listdir(cache_dir)
-        for img in images:
-            self._restore_image(client, os.path.join(cache_dir, img))
-
-        t = ts() - t
-
-        logger.info(
-            "Cache '%s': Restored %d image%s in %.3fs",
-            self._cache_name,
-            len(images),
-            "s" if len(images) != 1 else "",
-            t,
-        )
-
-    @staticmethod
-    def _restore_image(client: DockerClient, img_path: str):
-        logger.debug(f"Restoring docker image archive '{img_path}'")
-
-        with open(img_path, "rb") as f:
-            client.images.load(f)
-
-
 class NullCacheRestore(CacheRestore):
     def restore(self):
         logger.info("Cache '%s': Ignoring", self._cache_name)
@@ -232,48 +193,6 @@ class CacheSave:
         t = ts() - t
 
         logger.info("Cache '%s': Downloaded %s in %.3fs", self._cache_name, utils.get_human_readable_size(size), t)
-
-
-class DockerCacheSave(CacheSave):
-    def save(self):
-        client = DockerClient(base_url="tcp://localhost:2375")
-
-        cache_dir = os.path.join(self._cache_directory, "docker")
-        if not os.path.exists(cache_dir):
-            os.makedirs(cache_dir)
-
-        logger.info("Cache '%s': Saving", self._cache_name)
-
-        t = ts()
-
-        images = client.images.list()
-        for img in images:
-            name = slugify(img.tags[0]) if img.tags else img.short_id.split(":")[1]
-            dst = os.path.join(cache_dir, f"{name}.tar")
-            self._save_image(img, dst)
-
-        t = ts() - t
-
-        logger.info(
-            "Cache '%s': Saved %d image%s in %.3fs", self._cache_name, len(images), "s" if len(images) != 1 else "", t
-        )
-
-    def _save_image(self, image: Image, dst: str):
-        with NamedTemporaryFile(dir=self._cache_directory, delete=False) as f:
-            try:
-                logger.debug(f"Saving docker image '{image}' to '{f.name}'")
-
-                size = 0
-                for chunk in image.save(named=True):
-                    size += len(chunk)
-                    f.write(chunk)
-            except Exception as e:
-                logger.error(f"Error saving image: {image}: {e}")
-                os.unlink(f.name)
-                return
-            else:
-                logger.debug(f"Moving temp cache archive {f.name} to {dst}")
-                os.rename(f.name, dst)
 
 
 class NullCacheSave(CacheSave):
