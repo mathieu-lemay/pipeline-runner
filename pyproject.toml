@@ -18,6 +18,7 @@ requests = "^2.25.1"
 coloredlogs = "^15.0"
 pyfzf = "^0.2.2"
 beautifulsoup4 = "^4.9.3"
+coverage = "^5.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

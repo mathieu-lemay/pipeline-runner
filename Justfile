@@ -10,6 +10,10 @@ test: _deps
 integration-tests: _deps
 	poetry run pytest -v tests
 
+coverage: _deps
+	poetry run coverage run -m pytest -v tests
+	poetry run coverage report
+
 lint:
 	pre-commit run --all
 
