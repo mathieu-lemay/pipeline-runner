@@ -42,28 +42,31 @@ class PipelineRunner:
         self._pipeline = self._ctx.pipeline
 
     def run(self) -> PipelineResult:
-        logger.info("Running pipeline: %s", self._pipeline.name)
+        logger.info("Running pipeline: %s", self._ctx.pipeline_name)
         logger.debug("Pipeline UUID: %s", self._ctx.pipeline_uuid)
 
-        self._ask_for_variables()
+        self._ctx.pipeline_variables = self._ask_for_variables()
 
         s = ts()
         exit_code = self._execute_pipeline()
-        logger.info("Pipeline '%s' executed in %.3fs.", self._pipeline.name, ts() - s)
+        logger.info("Pipeline '%s' executed in %.3fs.", self._ctx.pipeline_name, ts() - s)
 
         if exit_code:
-            logger.error("Pipeline '%s': Failed", self._pipeline.name)
+            logger.error("Pipeline '%s': Failed", self._ctx.pipeline_name)
         else:
-            logger.info("Pipeline '%s': Successful", self._pipeline.name)
+            logger.info("Pipeline '%s': Successful", self._ctx.pipeline_name)
 
         return PipelineResult(exit_code, self._ctx.build_number, self._ctx.pipeline_uuid)
 
-    def _ask_for_variables(self):
-        for varname in self._pipeline.variables:
-            self._pipeline.variables[varname] = input(f"Enter value for {varname}: ")
+    def _ask_for_variables(self) -> Dict[str, str]:
+        pipeline_variables = {}
+        for var in self._pipeline.get_variables():
+            pipeline_variables[var.name] = input(f"Enter value for {var.name}: ")
+
+        return pipeline_variables
 
     def _execute_pipeline(self):
-        for step in self._pipeline.steps:
+        for step in self._pipeline.get_steps():
             runner = StepRunnerFactory.get(StepRunContext(step, self._ctx))
 
             exit_code = runner.run()
@@ -108,7 +111,7 @@ class StepRunner:
             self._services_manager = ServicesManager(
                 self._step.services,
                 self._ctx.pipeline_ctx.services,
-                self._step.size,
+                self._step.size.as_int(),
                 self._data_volume_name,
                 self._ctx.pipeline_ctx.repository.slug,
                 self._ctx.pipeline_ctx.get_pipeline_cache_directory(),
@@ -172,7 +175,7 @@ class StepRunner:
         if self._ctx.pipeline_ctx.default_image:
             return self._ctx.pipeline_ctx.default_image
 
-        return Image(config.default_image)
+        return Image(name=config.default_image)
 
     def _get_step_env_vars(self) -> Dict[str, str]:
         env_vars = self._get_bitbucket_env_vars()
@@ -181,7 +184,7 @@ class StepRunner:
             env_vars["DOCKER_HOST"] = "tcp://localhost:2375"
 
         env_vars.update(self._ctx.pipeline_ctx.env_vars)
-        env_vars.update(self._ctx.pipeline_ctx.pipeline.variables)
+        env_vars.update(self._ctx.pipeline_ctx.pipeline_variables)
 
         return env_vars
 
@@ -212,7 +215,7 @@ class StepRunner:
         return env_vars
 
     def _get_build_container_memory_limit(self, services_memory_usage: int) -> int:
-        return config.total_memory_limit * self._step.size - services_memory_usage
+        return config.total_memory_limit * self._step.size.as_int() - services_memory_usage
 
     def _build_setup(self):
         logger.info("Build setup: '%s'", self._step.name)

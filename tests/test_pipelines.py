@@ -142,6 +142,13 @@ def test_deployment():
     assert result.ok
 
 
+def test_service():
+    runner = PipelineRunner(PipelineRunRequest("custom.test_service"))
+    result = runner.run()
+
+    assert result.exit_code == 0
+
+
 def test_docker_in_docker(user_cache_directory):
     runner = PipelineRunner(PipelineRunRequest("custom.test_docker_in_docker"))
     result = runner.run()

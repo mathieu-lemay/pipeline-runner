@@ -1,147 +1,246 @@
+import os
 from enum import Enum
+from string import Template
 from typing import Dict, List, Optional, Union
 from uuid import UUID
 
-
-class Trigger(str, Enum):
-    Automatic = "Automatic"
-    Manual = "Manual"
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import Extra, Field, conlist, root_validator, validator
 
 
-class DebugMixin:
-    def __repr__(self):
-        values = [f"{k}: {repr(v)}" for k, v in self.__dict__.items() if k[0] != "_"]
-        return f"{type(self).__name__} {{ {', '.join(values)} }}"
-
-    def json(self):
-        return {k: v for k, v in self.__dict__.items() if k[0] != "_"}
+class BaseModel(PydanticBaseModel):
+    class Config:
+        extra = Extra.forbid
+        allow_population_by_field_name = True
 
 
-class Cache(DebugMixin):
-    def __init__(self, name: str, path: str):
-        self.name = name
-        self.path = path
+# noinspection PyMethodParameters
+class AwsCredentials(BaseModel):
+    access_key_id: str = Field(None, alias="access-key")
+    secret_access_key: str = Field(None, alias="secret-key")
+    oidc_role: str = Field(None, alias="oidc-role")
+
+    @validator("oidc_role")
+    def oidc_role_not_supported(cls, v):
+        if v is not None:
+            raise ValueError("aws oidc-role not supported")
+
+        return v
+
+    @root_validator
+    def expand_env_vars(cls, values):
+        for key, val in values.items():
+            if isinstance(val, str):
+                try:
+                    values[key] = Template(val).substitute(os.environ)
+                except KeyError as e:
+                    raise ValueError(f"environment variable not defined: {e}")
+
+        return values
 
 
-class Image(DebugMixin):
-    def __init__(
-        self,
-        name: str,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        email: Optional[str] = None,
-        run_as_user: Optional[int] = None,
-        aws: Optional[dict] = None,
-    ):
-        self.name = name
-        self.username = username
-        self.password = password
-        self.email = email
-        self.run_as_user = run_as_user
-        self.aws = aws
+# noinspection PyMethodParameters
+class Image(BaseModel):
+    name: str
+    username: Optional[str] = None
+    password: Optional[str] = None
+    email: Optional[str] = None
+    run_as_user: Optional[int] = Field(None, alias="run-as-user")
+    aws: Optional[AwsCredentials] = None
+
+    @root_validator
+    def expand_env_vars(cls, values):
+        for key, val in values.items():
+            if isinstance(val, str):
+                try:
+                    values[key] = Template(val).substitute(os.environ)
+                except KeyError as e:
+                    raise ValueError(f"environment variable not defined: {e}")
+
+        return values
 
 
-class Service(DebugMixin):
-    def __init__(
-        self,
-        name: str,
-        image: Image = None,
-        environment: {str: str} = None,
-        memory: int = None,
-        command: Union[str, List[str]] = None,
-    ):
-        self.name = name
-        self.image = image
-        self.environment = environment
-        self.memory = memory
-        self.command = command
-
-    def update(self, service: "Service"):
-        for attr in ("name", "image", "environment", "memory"):
-            val = getattr(service, attr)
-            if val is not None:
-                setattr(self, attr, val)
+ImageType = Optional[Union[str, Image]]
 
 
-class CloneSettings(DebugMixin):
-    def __init__(
-        self,
-        depth: Optional[int] = None,
-        lfs: Optional[bool] = None,
-        enabled: Optional[bool] = None,
-    ):
-        self.depth = depth
-        self.lfs = lfs
-        self.enabled = enabled
+class Service(BaseModel):
+    image: ImageType = None
+    variables: Dict[str, str] = Field(default_factory=dict)
+    memory: Optional[int] = 1024
+
+    # noinspection PyMethodParameters
+    @validator("image")
+    def convert_str_image_to_object(cls, value):
+        if isinstance(value, str):
+            return Image(name=value)
+
+        return value
+
+
+class Definitions(BaseModel):
+    caches: Dict[str, str] = Field(default_factory=dict)
+    services: Dict[str, Service] = Field(default_factory=dict)
+
+
+class CloneSettings(BaseModel):
+    depth: Optional[int] = 50
+    lfs: Optional[bool] = False
+    enabled: Optional[bool] = True
 
     @classmethod
-    def default(cls):
-        return cls(depth=50, lfs=False, enabled=True)
+    def empty(cls):
+        return CloneSettings(depth=None, lfs=None, enabled=None)
 
 
-class Step(DebugMixin):
-    def __init__(
-        self,
-        name: str,
-        script: [str],
-        image: Optional[Image],
-        caches: Optional[List[str]],
-        services: Optional[List[str]],
-        artifacts: Optional[List[str]],
-        after_script: Optional[List[str]],
-        size: int,
-        clone_settings: CloneSettings,
-        deployment: str,
-        trigger: Trigger,
-    ):
-        self.name = name
-        self.script = script
-        self.image = image
-        self.caches = caches or []
-        self.services = services or []
-        self.artifacts = artifacts or []
-        self.after_script = after_script or []
-        self.size = size
-        self.clone_settings = clone_settings or CloneSettings()
-        self.deployment = deployment
-        self.trigger = trigger
+class Trigger(str, Enum):
+    Automatic = "automatic"
+    Manual = "manual"
 
 
-class ParallelStep(DebugMixin):
-    def __init__(self, steps: List[Step]):
-        self.steps = steps
+class StepSize(str, Enum):
+    Simple = "1x"
+    Double = "2x"
+
+    def as_int(self) -> int:
+        return {self.Simple: 1, self.Double: 2}[self]
 
 
-class Pipeline(DebugMixin):
-    def __init__(
-        self, path: str, name: str, steps: [Union[Step, ParallelStep]], variables: Dict[str, str], *_, **_kwargs
-    ):
-        self.path = path
-        self.name = name
-        self.steps = steps
-        self.variables = variables
+class Step(BaseModel):
+    name: Optional[str] = "<unnamed>"
+    script: List[str]
+    image: ImageType = None
+    caches: Optional[List[str]] = Field(default_factory=list)
+    services: Optional[List[str]] = Field(default_factory=list)
+    artifacts: Optional[List[str]] = Field(default_factory=list)
+    after_script: Optional[List[str]] = Field(default_factory=list, alias="after-script")
+    size: Optional[StepSize] = StepSize.Simple
+    clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty)
+    deployment: Optional[str] = None
+    trigger: Trigger = Trigger.Automatic
+
+    # noinspection PyMethodParameters
+    @validator("image")
+    def convert_str_image_to_object(cls, value):
+        if isinstance(value, str):
+            return Image(name=value)
+
+        return value
 
 
-class Pipelines(DebugMixin):
-    def __init__(
-        self,
-        image=None,
-        pipelines: [Pipeline] = None,
-        caches: [Cache] = None,
-        services: [Service] = None,
-        clone_settings: CloneSettings = None,
-    ):
-        self.image = image
-        self.pipelines = pipelines
-        self.caches = caches
-        self.services = services
-        self.clone_settings = clone_settings or CloneSettings()
+# noinspection PyUnresolvedReferences
+class WrapperModel(BaseModel):
+    wrapped: BaseModel
 
-    def get_pipeline(self, path) -> Optional[Pipeline]:
-        return self.pipelines.get(path)
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        else:
+            return getattr(self.wrapped, item)
+
+    def __iter__(self):
+        return iter(self.wrapped)
+
+    def __getitem__(self, item):
+        return self.wrapped[item]
+
+
+class StepWrapper(WrapperModel):
+    wrapped: Step = Field(alias="step")
+
+
+class ParallelStep(WrapperModel):
+    wrapped: conlist(StepWrapper, min_items=2) = Field(alias="parallel")
+
+
+class Variable(BaseModel):
+    name: str
+
+
+class Variables(WrapperModel):
+    wrapped: List[Variable] = Field(alias="variables")
+
+
+class Pipeline(BaseModel):
+    __root__: conlist(Union[StepWrapper, ParallelStep, Variables], min_items=1)
+
+    # noinspection PyMethodParameters
+    @validator("__root__")
+    def validate_variables_must_be_first_element_of_list_if_present(cls, pipeline_items):
+        if any(i for i in pipeline_items[1:] if isinstance(i, Variables)):
+            raise ValueError("'variables' can only be the first element of the list")
+
+        return pipeline_items
+
+    def get_variables(self) -> Optional[Variables]:
+        if isinstance(self.__root__[0], Variables):
+            return self.__root__[0]
+
+        return Variables(variables=[])
+
+    def get_steps(self) -> List[Union[StepWrapper, ParallelStep]]:
+        return [i for i in self.__root__ if not isinstance(i, Variables)]
+
+    def __iter__(self):
+        return iter(self.__root__)
+
+    def __getitem__(self, item):
+        return self.__root__[item]
+
+
+class Pipelines(BaseModel):
+    default: Optional[Pipeline] = None
+    branches: Optional[Dict[str, Pipeline]] = Field(default_factory=list)
+    pull_requests: Optional[Dict[str, Pipeline]] = Field(default_factory=list, alias="pull-requests")
+    custom: Optional[Dict[str, Pipeline]] = Field(default_factory=list)
+
+    def get_all(self) -> Dict[str, Pipeline]:
+        pipelines = {}
+        for attr in self.__annotations__.keys():
+            value = getattr(self, attr)
+            if isinstance(value, Pipeline):
+                pipelines[attr] = value
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    pipelines[f"{attr}.{k}"] = v
+
+        return pipelines
+
+    # noinspection PyMethodParameters
+    @root_validator
+    def ensure_at_least_one_pipeline(cls, values: dict):
+        if not any(bool(v) for v in values.values()):
+            raise ValueError("There must be at least one pipeline")
+
+        return values
+
+
+class PipelineSpec(BaseModel):
+    image: ImageType = None
+    definitions: Optional[Definitions] = Field(default_factory=Definitions.construct)
+    clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty)
+    pipelines: Pipelines
+
+    @property
+    def caches(self):
+        return self.definitions.caches
+
+    @property
+    def services(self):
+        return self.definitions.services
+
+    def get_pipeline(self, name: str) -> Optional[Pipeline]:
+        return self.pipelines.get_all().get(name)
 
     def get_available_pipelines(self) -> List[str]:
-        return self.pipelines.keys()
+        return list(self.pipelines.get_all().keys())
+
+    # noinspection PyMethodParameters
+    @validator("image")
+    def convert_str_image_to_object(cls, value):
+        if isinstance(value, str):
+            return Image(name=value)
+
+        return value
 
 
 class PipelineInfo:

@@ -4,11 +4,11 @@ from unittest.mock import Mock
 import pytest
 
 from pipeline_runner import PipelineRunContext
-from pipeline_runner.models import CloneSettings, Pipeline, PipelineInfo
+from pipeline_runner.models import CloneSettings, Image, Pipeline, PipelineInfo, Service
 from pipeline_runner.repository import Repository
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def repo_metadata(mocker):
     repo_metadata = PipelineInfo(build_number=42)
 
@@ -23,14 +23,13 @@ def test_get_log_directory_returns_the_right_directory(user_data_directory, repo
     repository = Mock(spec=Repository, env_name="my-repo-with-hash")
 
     prc = PipelineRunContext(
+        pipeline_name="custom.test",
         pipeline=pipeline,
         caches={},
         services={},
-        clone_settings=CloneSettings.default(),
+        clone_settings=CloneSettings.empty(),
         default_image=None,
         repository=repository,
-        env_files=[],
-        selected_steps=[],
     )
 
     log_directory = os.path.join(
@@ -48,14 +47,13 @@ def test_get_artifact_directory_returns_the_right_directory(user_data_directory,
     repository = Mock(spec=Repository, env_name="my-repo-with-hash")
 
     prc = PipelineRunContext(
+        pipeline_name="custom.test",
         pipeline=pipeline,
         caches={},
         services={},
-        clone_settings=CloneSettings.default(),
+        clone_settings=CloneSettings.empty(),
         default_image=None,
         repository=repository,
-        env_files=[],
-        selected_steps=[],
     )
 
     artifact_directory = os.path.join(
@@ -68,20 +66,55 @@ def test_get_artifact_directory_returns_the_right_directory(user_data_directory,
     assert prc.get_artifact_directory() == artifact_directory
 
 
-def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_directory, repo_metadata):
+def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_directory):
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository, env_name="my-repo-with-hash")
 
     prc = PipelineRunContext(
+        pipeline_name="custom.test",
         pipeline=pipeline,
         caches={},
         services={},
-        clone_settings=CloneSettings.default(),
+        clone_settings=CloneSettings.empty(),
         default_image=None,
         repository=repository,
-        env_files=[],
-        selected_steps=[],
     )
 
     cache_directory = os.path.join(user_cache_directory, repository.env_name, "caches")
     assert prc.get_pipeline_cache_directory() == cache_directory
+
+
+def test_docker_is_added_to_services_if_not_present():
+    pipeline = Mock(spec=Pipeline)
+    repository = Mock(spec=Repository, env_name="some-env")
+
+    prc = PipelineRunContext(
+        pipeline_name="custom.test",
+        pipeline=pipeline,
+        caches={},
+        services={},
+        clone_settings=CloneSettings.empty(),
+        default_image=None,
+        repository=repository,
+    )
+
+    docker_service = Service(image=Image(name="docker:dind"), variables={}, memory=1024)
+    assert prc.services == {"docker": docker_service}
+
+
+def test_docker_service_uses_fallback_values():
+    pipeline = Mock(spec=Pipeline)
+    repository = Mock(spec=Repository, env_name="some-env")
+
+    prc = PipelineRunContext(
+        pipeline_name="custom.test",
+        pipeline=pipeline,
+        caches={},
+        services={"docker": Service(memory=2048, variables={"FOO": "bar"})},
+        clone_settings=CloneSettings.empty(),
+        default_image=None,
+        repository=repository,
+    )
+
+    docker_service = Service(image=Image(name="docker:dind"), variables={"FOO": "bar"}, memory=2048)
+    assert prc.services == {"docker": docker_service}

@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import re
@@ -14,8 +13,6 @@ from typing import List, Optional, Union
 import bs4
 import requests
 from xdg import xdg_cache_home, xdg_data_home
-
-from .models import DebugMixin
 
 logger = logging.getLogger(__name__)
 
@@ -89,16 +86,6 @@ def wrap_in_shell(command: Union[str, List[str]], stop_on_error=True):
     wrapped += ["-c", command]
 
     return wrapped
-
-
-def dumps(*args, **kwargs):
-    def _handler(obj):
-        if isinstance(obj, DebugMixin):
-            return obj.json()
-        else:
-            return None
-
-    return json.dumps(*args, default=_handler, **kwargs)
 
 
 def get_docker_binary() -> str:

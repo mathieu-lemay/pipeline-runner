@@ -2,6 +2,11 @@ definitions:
   caches:
     service1: ~/.cache/service1
     invalid: $HOME/.cache/non-existing-folder
+  services:
+    postgres:
+      image: postgres:alpine
+      variables:
+        POSTGRES_HOST_AUTH_METHOD: trust
 
 image: alpine
 
@@ -130,6 +135,16 @@ pipelines:
             - if [ "${BITBUCKET_DEPLOYMENT_ENVIRONMENT:-}" != "Foo" ]; then
             -   exit 1
             - fi
+
+    test_service:
+      - step:
+          name: Test postgres service
+          script:
+            - apk --no-cache add postgresql-client
+            - sleep 2
+            - psql -h localhost -U postgres -c 'SELECT 1;'
+          services:
+            - postgres
 
     test_docker_in_docker:
       - step:

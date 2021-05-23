@@ -14,7 +14,7 @@ from . import PipelineRunner, PipelineRunRequest
 from . import __name__ as project_name
 from . import utils
 from .config import config
-from .parse import PipelinesFileParser
+from .parse import parse_pipeline_file
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def _init_logger():
 
 
 def _get_pipelines_list(pipeline_file: str) -> List[str]:
-    pipelines_definition = PipelinesFileParser(pipeline_file, expand_vars=False).parse()
+    pipelines_definition = parse_pipeline_file(pipeline_file)
 
     return pipelines_definition.get_available_pipelines()
 
@@ -151,7 +151,7 @@ def parse(pipeline, repository_path):
     """
     pipeline_file = os.path.join(repository_path or ".", "bitbucket-pipelines.yml")
 
-    pipelines_definition = PipelinesFileParser(pipeline_file, expand_vars=False).parse()
+    pipelines_definition = parse_pipeline_file(pipeline_file)
 
     if pipeline:
         parsed = pipelines_definition.get_pipeline(pipeline)
@@ -160,7 +160,7 @@ def parse(pipeline, repository_path):
     else:
         parsed = pipelines_definition
 
-    print(utils.dumps(parsed, indent=2))
+    print(parsed.json(indent=2))
 
 
 @main.command()

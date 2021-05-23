@@ -24,7 +24,7 @@ class ServicesManager:
         repository_slug: str,
         pipeline_cache_directory: str,
     ):
-        self._services = self._get_services(service_names, service_definitions)
+        self._services_by_name = self._get_services(service_names, service_definitions)
         self._memory_multiplier = memory_multiplier
         self._shared_data_volume_name = shared_data_volume_name
         self._repository_slug = repository_slug
@@ -37,9 +37,10 @@ class ServicesManager:
     def start_services(self):
         self._ensure_memory_for_services()
 
-        for service in self._services:
+        for service_name, service in self._services_by_name.items():
             sr = ServiceRunnerFactory.get(
                 self._client,
+                service_name,
                 service,
                 self._shared_data_volume_name,
                 self._repository_slug,
@@ -59,16 +60,16 @@ class ServicesManager:
         return list(self._containers.keys())
 
     def get_memory_usage(self) -> int:
-        return sum(s.memory for s in self._services)
+        return sum(s.memory for s in self._services_by_name.values())
 
     @staticmethod
-    def _get_services(service_names, service_definitions) -> [Service]:
-        services = []
+    def _get_services(service_names, service_definitions) -> Dict[str, Service]:
+        services = {}
         for service_name in service_names:
             if service_name not in service_definitions:
                 raise ValueError(f"Invalid service: {service_name}")
 
-            services.append(service_definitions[service_name])
+            services[service_name] = service_definitions[service_name]
 
         return services
 
@@ -88,26 +89,28 @@ class ServiceRunner:
     def __init__(
         self,
         docker_client: DockerClient,
+        service_name: str,
         service: Service,
         shared_data_volume_name: str,
         repository_slug: str,
         pipeline_cache_directory: str,
     ):
         self._client = docker_client
+        self._service_name = service_name
         self._service = service
         self._shared_data_volume_name = shared_data_volume_name
         self._repository_slug = repository_slug
         self._pipeline_cache_directory = pipeline_cache_directory
         self._container = None
 
-        self._slug = slugify(self._service.name)
+        self._slug = slugify(self._service_name)
 
     @property
     def slug(self):
         return self._slug
 
     def start(self):
-        logger.info("Starting service: %s", self._service.name)
+        logger.info("Starting service: %s", self._service_name)
         pull_image(self._client, self._service.image)
 
         self._container = self._start_container()
@@ -118,8 +121,7 @@ class ServiceRunner:
         container = self._client.containers.run(
             self._service.image.name,
             name=name,
-            command=self._service.command,
-            environment=self._service.environment,
+            environment=self._service.variables,
             hostname=self._slug,
             network_mode="host",
             mem_limit=self._get_mem_limit(),
@@ -132,7 +134,7 @@ class ServiceRunner:
         return f"{self._repository_slug}-service-{self._slug}"
 
     def stop(self):
-        logger.info("Removing service: %s", self._service.name)
+        logger.info("Removing service: %s", self._service_name)
 
         self._teardown()
 
@@ -149,11 +151,14 @@ class DockerServiceRunner(ServiceRunner):
     def _start_container(self) -> Container:
         name = self._get_container_name()
 
+        environment = self._service.variables
+        environment["DOCKER_TLS_CERTDIR"] = ""
+
         container = self._client.containers.run(
             self._service.image.name,
             name=name,
-            command=self._service.command,
-            environment=self._service.environment,
+            command="--tls=false",
+            environment=environment,
             hostname=self._slug,
             network_mode="host",
             privileged=True,
@@ -171,7 +176,7 @@ class DockerServiceRunner(ServiceRunner):
         }
 
     def _teardown(self):
-        logger.info("Executing teardown for service: %s", self._service.name)
+        logger.info("Executing teardown for service: %s", self._service_name)
 
         script = "\n".join(
             [
@@ -191,14 +196,17 @@ class ServiceRunnerFactory:
     @staticmethod
     def get(
         docker_client: DockerClient,
-        service: Service,
+        service_name: str,
+        service_def: Service,
         shared_data_volume_name: str,
         repository_slug: str,
         pipeline_cache_directory: str,
     ) -> ServiceRunner:
-        if service.name == "docker":
+        if service_name == "docker":
             cls = DockerServiceRunner
         else:
             cls = ServiceRunner
 
-        return cls(docker_client, service, shared_data_volume_name, repository_slug, pipeline_cache_directory)
+        return cls(
+            docker_client, service_name, service_def, shared_data_volume_name, repository_slug, pipeline_cache_directory
+        )

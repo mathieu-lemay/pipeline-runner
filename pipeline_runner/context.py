@@ -2,15 +2,15 @@ import json
 import logging
 import os
 import uuid
-from typing import Dict, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from dotenv import dotenv_values
 from slugify import slugify
 
 from . import utils
 from .config import config
-from .models import Cache, CloneSettings, Image, ParallelStep, Pipeline, PipelineInfo, Service, Step
-from .parse import PipelinesFileParser
+from .models import CloneSettings, Image, ParallelStep, Pipeline, PipelineInfo, Service, Step
+from .parse import parse_pipeline_file
 from .repository import Repository
 
 logger = logging.getLogger(__name__)
@@ -19,33 +19,39 @@ logger = logging.getLogger(__name__)
 class PipelineRunContext:
     def __init__(
         self,
+        pipeline_name: str,
         pipeline: Pipeline,
-        caches: Dict[str, Cache],
+        caches: Dict[str, str],
         services: Dict[str, Service],
         clone_settings: CloneSettings,
         default_image: Optional[Image],
         repository: Repository,
-        env_files: [str],
-        selected_steps: [str],
+        env_vars: Optional[Dict[str, str]] = None,
+        selected_steps: Optional[List[str]] = None,
     ):
+        self.pipeline_name = pipeline_name
         self.pipeline = pipeline
         self.caches = caches
         self.services = services
         self.clone_settings = clone_settings
         self.default_image = default_image
         self.repository = repository
-        self.env_vars = self._load_env_vars(env_files)
-        self.selected_steps = selected_steps
+        self.env_vars = env_vars or {}
+        self.selected_steps = selected_steps or []
 
         self.pipeline_uuid = uuid.uuid4()
         self.build_number = self._get_build_number()
+        self.pipeline_variables = {}
 
         self._data_directory = self._get_pipeline_data_directory()
         self._cache_directory = self._get_repo_cache_directory()
 
+        self._ensure_default_service()
+
     @classmethod
     def from_run_request(cls, req) -> "PipelineRunContext":
-        spec = PipelinesFileParser(req.pipeline_file_path).parse()
+        env_vars = cls._load_env_vars(req.env_files)
+        spec = parse_pipeline_file(req.pipeline_file_path)
 
         pipeline_name = req.pipeline_name
         pipeline_to_run = spec.get_pipeline(pipeline_name)
@@ -59,18 +65,19 @@ class PipelineRunContext:
         repository = Repository(req.repository_path)
 
         return PipelineRunContext(
+            pipeline_name,
             pipeline_to_run,
             spec.caches,
             spec.services,
             spec.clone_settings,
             spec.image,
             repository,
-            req.env_files,
+            env_vars,
             req.selected_steps,
         )
 
     @staticmethod
-    def _load_env_vars(env_files: [str]) -> Dict[str, str]:
+    def _load_env_vars(env_files: List[str]) -> Dict[str, str]:
         envvars = {}
         # TODO: Load env file in the repo if exists
         logger.debug("Loading .env file (if exists)")
@@ -95,6 +102,21 @@ class PipelineRunContext:
         self.save_repository_metadata(pi)
 
         return pi.build_number
+
+    def _ensure_default_service(self):
+        for name, definition in config.default_services.items():
+            default_service = Service.parse_obj(definition)
+
+            if name in self.services:
+                service = self.services[name]
+                service.image = default_service.image
+
+                if not service.variables:
+                    service.variables = default_service.variables
+                if not service.memory:
+                    service.memory = default_service.memory
+            else:
+                self.services[name] = default_service
 
     def load_repository_metadata(self) -> PipelineInfo:
         fp = os.path.join(self._get_repo_data_directory(), "meta.json")

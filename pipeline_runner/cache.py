@@ -7,7 +7,6 @@ from typing import Dict, List
 from . import utils
 from .config import config
 from .container import ContainerRunner
-from .models import Cache
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ DOCKER_IMAGES_ARCHIVE_FILE_NAME = "images.tar"
 
 
 class CacheManager:
-    def __init__(self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache]):
+    def __init__(self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, str]):
         self._container = container
         self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
@@ -35,7 +34,7 @@ class CacheManager:
 
 class CacheRestore:
     def __init__(
-        self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+        self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, str], cache_name: str
     ):
         self._container = container
         self._cache_directory = cache_directory
@@ -91,7 +90,7 @@ class CacheRestore:
 
     def _restore_cache(self):
         temp_dir = get_remote_temp_directory(self._cache_name)
-        target_dir = sanitize_remote_path(self._cache_definitions[self._cache_name].path)
+        target_dir = sanitize_remote_path(self._cache_definitions[self._cache_name])
 
         logger.info("Cache '%s': Restoring", self._cache_name)
 
@@ -120,7 +119,7 @@ class NullCacheRestore(CacheRestore):
 class CacheRestoreFactory:
     @staticmethod
     def get(
-        container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+        container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, str], cache_name: str
     ) -> CacheRestore:
         if cache_name == "docker":
             cls = NullCacheRestore
@@ -132,7 +131,7 @@ class CacheRestoreFactory:
 
 class CacheSave:
     def __init__(
-        self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+        self, container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, str], cache_name: str
     ):
         self._container = container
         self._cache_directory = cache_directory
@@ -146,7 +145,7 @@ class CacheSave:
         self._download(remote_cache_directory, local_cache_archive_path)
 
     def _prepare(self) -> str:
-        remote_dir = sanitize_remote_path(self._cache_definitions[self._cache_name].path)
+        remote_dir = sanitize_remote_path(self._cache_definitions[self._cache_name])
         target_dir = get_remote_temp_directory(self._cache_name)
 
         logger.info("Cache '%s': Preparing", self._cache_name)
@@ -203,7 +202,7 @@ class NullCacheSave(CacheSave):
 class CacheSaveFactory:
     @staticmethod
     def get(
-        container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, Cache], cache_name: str
+        container: ContainerRunner, cache_directory: str, cache_definitions: Dict[str, str], cache_name: str
     ) -> CacheSave:
         if cache_name == "docker":
             cls = NullCacheSave

@@ -82,7 +82,7 @@ class RepositoryCloner:
             logger.info("Clone disabled: skipping")
             return
 
-        image = Image("alpine/git", run_as_user=self._user)
+        image = Image(name="alpine/git", run_as_user=self._user)
         runner = ContainerRunner(
             self._name,
             image,
@@ -146,7 +146,7 @@ class RepositoryCloner:
             self._first_non_none_value(
                 self._step_clone_settings.enabled,
                 self._global_clone_settings.enabled,
-                CloneSettings.default().enabled,
+                CloneSettings.construct().enabled,
             )
         )
 
@@ -155,7 +155,7 @@ class RepositoryCloner:
             self._first_non_none_value(
                 self._step_clone_settings.lfs,
                 self._global_clone_settings.lfs,
-                CloneSettings.default().lfs,
+                CloneSettings.construct().lfs,
             )
         )
 
@@ -163,7 +163,7 @@ class RepositoryCloner:
         return self._first_non_none_value(
             self._step_clone_settings.depth,
             self._global_clone_settings.depth,
-            CloneSettings.default().depth,
+            CloneSettings.construct().depth,
         )
 
     @staticmethod

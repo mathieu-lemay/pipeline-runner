@@ -29,8 +29,6 @@ class Config:
             "docker": {
                 "image": "docker:dind",
                 "memory": 1024,
-                "command": "--tls=false",
-                "environment": {"DOCKER_TLS_CERTDIR": None},
             }
         }
 
