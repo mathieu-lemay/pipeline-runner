@@ -97,7 +97,7 @@ def run(pipeline, repository_path, steps, env_files, color):
     _init_logger()
 
     if not pipeline:
-        pipeline = _prompt_for_pipeline(config.pipeline_file)
+        pipeline = _prompt_for_pipeline(os.path.join(repository_path or ".", "bitbucket-pipelines.yml"))
 
     if not pipeline:
         logger.error("pipeline not specified")
@@ -115,14 +115,9 @@ def run(pipeline, repository_path, steps, env_files, color):
 
 @main.command("list")
 @click.option(
-    "-p",
-    "--project-directory",
-    help="Root directory of the project. Defaults to current directory.",
-)
-@click.option(
-    "-f",
-    "--pipeline-file",
-    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
+    "-r",
+    "--repository-path",
+    help="Path to the git repository. Defaults to current directory.",
 )
 @click.option(
     "-c",
@@ -130,21 +125,15 @@ def run(pipeline, repository_path, steps, env_files, color):
     default=True,
     help="Enable colored output",
 )
-def list_(project_directory, pipeline_file, color):
+def list_(repository_path, color):
     """
     List the available pipelines.
     """
-    if project_directory:
-        config.project_directory = project_directory
-
-    if pipeline_file:
-        config.pipeline_file = pipeline_file
-
     config.color = color
 
     _init_logger()
 
-    pipelines = _get_pipelines_list(config.pipeline_file)
+    pipelines = _get_pipelines_list(os.path.join(repository_path or ".", "bitbucket-pipelines.yml"))
 
     logger.info("Available pipelines:\n\t%s", "\n\t".join(sorted(pipelines)))
 
@@ -152,39 +141,32 @@ def list_(project_directory, pipeline_file, color):
 @main.command()
 @click.argument("pipeline", default="")
 @click.option(
-    "-p",
-    "--project-directory",
-    help="Root directory of the project. Defaults to current directory.",
+    "-r",
+    "--repository-path",
+    help="Path to the git repository. Defaults to current directory.",
 )
-@click.option(
-    "-f",
-    "--pipeline-file",
-    help="File containing the pipeline definitions. Defaults to 'bitbucket-pipelines.yml'",
-)
-def parse(pipeline, project_directory, pipeline_file):
+def parse(pipeline, repository_path):
     """
     Parse the pipeline file.
     """
-    if project_directory:
-        config.project_directory = project_directory
+    pipeline_file = os.path.join(repository_path or ".", "bitbucket-pipelines.yml")
 
-    if pipeline_file:
-        config.pipeline_file = pipeline_file
-
-    pipelines_definition = PipelinesFileParser(config.pipeline_file, expand_vars=False).parse()
+    pipelines_definition = PipelinesFileParser(pipeline_file, expand_vars=False).parse()
 
     if pipeline:
         parsed = pipelines_definition.get_pipeline(pipeline)
+        if not parsed:
+            raise ValueError(f"Invalid pipeline: {pipeline}")
     else:
         parsed = pipelines_definition
 
-    print(utils.dumps(parsed))
+    print(utils.dumps(parsed, indent=2))
 
 
 @main.command()
 @click.argument("action", type=click.Choice(["clear", "list"]))
 def cache(action):
-    cache_dir = utils.get_user_cache_directory()
+    cache_dir = utils.get_cache_directory()
     projects = sorted(os.listdir(cache_dir))
     if action == "list":
         print("Caches:")
