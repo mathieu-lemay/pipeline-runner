@@ -7,6 +7,7 @@ from pipeline_runner.models import (
     Definitions,
     ParallelStep,
     Pipeline,
+    PipelineSpec,
     Service,
     Step,
     StepSize,
@@ -115,7 +116,7 @@ def test_parse_image_with_aws_oidc_role():
     assert "aws oidc-role not supported" in str(exc_info.value)
 
 
-def test_parse_image_with_envvars(mocker):
+def test_parse_image_with_envvars():
     name = "alpine:latest"
     username = "my-username"
     password = "my-password"
@@ -140,15 +141,18 @@ def test_parse_image_with_envvars(mocker):
         "AWS_SECRET_ACCESS_KEY": secret_access_key,
     }
 
-    mocker.patch.dict("os.environ", env_vars)
+    image = Image.parse_obj(value)
+    image.expand_env_vars(env_vars)
 
-    assert Image.parse_obj(value) == Image(
+    expected = Image(
         name=name,
         username=username,
         password=password,
         email=email,
         aws={"access-key": access_key_id, "secret-key": secret_access_key},
     )
+
+    assert image == expected
 
 
 def test_parse_pipeline_with_steps():
@@ -254,3 +258,158 @@ def test_parse_step_with_double_size():
     step = Step.parse_obj(spec)
 
     assert step.size == StepSize.Double
+
+
+def test_parse_pipeline_with_env_vars():
+    spec = {
+        "definitions": {
+            "services": {"from_env": {"image": "${SERVICE_IMAGE}", "variables": {"PASSWORD": "$PASSWORD"}}}
+        },
+        "pipelines": {
+            "default": [
+                {
+                    "step": {
+                        "name": "Test image from env",
+                        "image": "$STEP_IMAGE",
+                        "services": ["from_env"],
+                        "script": ["cat /etc/os-release"],
+                    },
+                },
+                {
+                    "parallel": [
+                        {
+                            "step": {
+                                "name": "Parallel 1",
+                                "image": "$PARALLEL_STEP_IMAGE",
+                                "services": ["from_env"],
+                                "script": ["cat /etc/os-release"],
+                            }
+                        },
+                        {
+                            "step": {
+                                "name": "Parallel 2",
+                                "image": "$PARALLEL_STEP_IMAGE",
+                                "services": ["from_env"],
+                                "script": ["cat /etc/os-release"],
+                            }
+                        },
+                    ],
+                },
+            ]
+        },
+    }
+
+    step_image = "step-image"
+    service_image = "service-image"
+    parallel_step_image = "parallel-image"
+    password = "some-password"
+    variables = {
+        "STEP_IMAGE": step_image,
+        "SERVICE_IMAGE": service_image,
+        "PARALLEL_STEP_IMAGE": parallel_step_image,
+        "PASSWORD": password,
+    }
+
+    parsed = PipelineSpec.parse_obj(spec)
+    parsed.expand_env_vars(variables)
+
+    expected = {
+        "image": None,
+        "definitions": {
+            "caches": {},
+            "services": {
+                "from_env": {
+                    "image": {
+                        "name": service_image,
+                        "username": None,
+                        "password": None,
+                        "email": None,
+                        "run-as-user": None,
+                        "aws": None,
+                    },
+                    "variables": {"PASSWORD": password},
+                    "memory": 1024,
+                }
+            },
+        },
+        "clone": {"depth": None, "lfs": None, "enabled": None},
+        "pipelines": {
+            "default": [
+                {
+                    "step": {
+                        "name": "Test image from env",
+                        "script": ["cat /etc/os-release"],
+                        "image": {
+                            "name": step_image,
+                            "username": None,
+                            "password": None,
+                            "email": None,
+                            "run-as-user": None,
+                            "aws": None,
+                        },
+                        "caches": [],
+                        "services": ["from_env"],
+                        "artifacts": [],
+                        "after-script": [],
+                        "size": StepSize.Simple,
+                        "clone": {"depth": None, "lfs": None, "enabled": None},
+                        "deployment": None,
+                        "trigger": Trigger.Automatic,
+                    },
+                },
+                {
+                    "parallel": [
+                        {
+                            "step": {
+                                "name": "Parallel 1",
+                                "script": ["cat /etc/os-release"],
+                                "image": {
+                                    "name": parallel_step_image,
+                                    "username": None,
+                                    "password": None,
+                                    "email": None,
+                                    "run-as-user": None,
+                                    "aws": None,
+                                },
+                                "caches": [],
+                                "services": ["from_env"],
+                                "artifacts": [],
+                                "after-script": [],
+                                "size": StepSize.Simple,
+                                "clone": {"depth": None, "lfs": None, "enabled": None},
+                                "deployment": None,
+                                "trigger": Trigger.Automatic,
+                            }
+                        },
+                        {
+                            "step": {
+                                "name": "Parallel 2",
+                                "script": ["cat /etc/os-release"],
+                                "image": {
+                                    "name": parallel_step_image,
+                                    "username": None,
+                                    "password": None,
+                                    "email": None,
+                                    "run-as-user": None,
+                                    "aws": None,
+                                },
+                                "caches": [],
+                                "services": ["from_env"],
+                                "artifacts": [],
+                                "after-script": [],
+                                "size": StepSize.Simple,
+                                "clone": {"depth": None, "lfs": None, "enabled": None},
+                                "deployment": None,
+                                "trigger": Trigger.Automatic,
+                            }
+                        },
+                    ],
+                },
+            ],
+            "branches": [],
+            "pull-requests": [],
+            "custom": [],
+        },
+    }
+
+    assert parsed.dict(by_alias=True) == expected

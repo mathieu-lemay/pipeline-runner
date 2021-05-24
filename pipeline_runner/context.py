@@ -52,6 +52,7 @@ class PipelineRunContext:
     def from_run_request(cls, req) -> "PipelineRunContext":
         env_vars = cls._load_env_vars(req.env_files)
         spec = parse_pipeline_file(req.pipeline_file_path)
+        spec.expand_env_vars(env_vars)
 
         pipeline_name = req.pipeline_name
         pipeline_to_run = spec.get_pipeline(pipeline_name)

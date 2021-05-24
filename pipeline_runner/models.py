@@ -1,4 +1,3 @@
-import os
 from enum import Enum
 from string import Template
 from typing import Dict, List, Optional, Union
@@ -9,9 +8,23 @@ from pydantic import Extra, Field, conlist, root_validator, validator
 
 
 class BaseModel(PydanticBaseModel):
+    __env_var_expand_fields__ = []
+
     class Config:
         extra = Extra.forbid
         allow_population_by_field_name = True
+
+    def expand_env_vars(self, variables: Dict[str, str]):
+        for attr in self.__env_var_expand_fields__:
+            value = getattr(self, attr)
+            if value is None:
+                continue
+
+            if isinstance(value, str):
+                value = Template(value).substitute(variables)
+                setattr(self, attr, value)
+            elif isinstance(value, BaseModel):
+                value.expand_env_vars(variables)
 
 
 # noinspection PyMethodParameters
@@ -20,23 +33,14 @@ class AwsCredentials(BaseModel):
     secret_access_key: str = Field(None, alias="secret-key")
     oidc_role: str = Field(None, alias="oidc-role")
 
+    __env_var_expand_fields__ = ["access_key_id", "secret_access_key", "oidc_role"]
+
     @validator("oidc_role")
     def oidc_role_not_supported(cls, v):
         if v is not None:
             raise ValueError("aws oidc-role not supported")
 
         return v
-
-    @root_validator
-    def expand_env_vars(cls, values):
-        for key, val in values.items():
-            if isinstance(val, str):
-                try:
-                    values[key] = Template(val).substitute(os.environ)
-                except KeyError as e:
-                    raise ValueError(f"environment variable not defined: {e}")
-
-        return values
 
 
 # noinspection PyMethodParameters
@@ -48,16 +52,7 @@ class Image(BaseModel):
     run_as_user: Optional[int] = Field(None, alias="run-as-user")
     aws: Optional[AwsCredentials] = None
 
-    @root_validator
-    def expand_env_vars(cls, values):
-        for key, val in values.items():
-            if isinstance(val, str):
-                try:
-                    values[key] = Template(val).substitute(os.environ)
-                except KeyError as e:
-                    raise ValueError(f"environment variable not defined: {e}")
-
-        return values
+    __env_var_expand_fields__ = ["name", "username", "password", "email", "aws"]
 
 
 ImageType = Optional[Union[str, Image]]
@@ -76,10 +71,20 @@ class Service(BaseModel):
 
         return value
 
+    def expand_env_vars(self, variables: Dict[str, str]):
+        self.image.expand_env_vars(variables)
+
+        for k, v in self.variables.items():
+            self.variables[k] = Template(v).substitute(variables)
+
 
 class Definitions(BaseModel):
     caches: Dict[str, str] = Field(default_factory=dict)
     services: Dict[str, Service] = Field(default_factory=dict)
+
+    def expand_env_vars(self, variables: Dict[str, str]):
+        for s in self.services.values():
+            s.expand_env_vars(variables)
 
 
 class CloneSettings(BaseModel):
@@ -108,15 +113,17 @@ class StepSize(str, Enum):
 class Step(BaseModel):
     name: Optional[str] = "<unnamed>"
     script: List[str]
-    image: ImageType = None
+    image: Optional[ImageType] = None
     caches: Optional[List[str]] = Field(default_factory=list)
     services: Optional[List[str]] = Field(default_factory=list)
     artifacts: Optional[List[str]] = Field(default_factory=list)
     after_script: Optional[List[str]] = Field(default_factory=list, alias="after-script")
     size: Optional[StepSize] = StepSize.Simple
-    clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty)
+    clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty, alias="clone")
     deployment: Optional[str] = None
     trigger: Trigger = Trigger.Automatic
+
+    __env_var_expand_fields__ = ["image"]
 
     # noinspection PyMethodParameters
     @validator("image")
@@ -143,13 +150,25 @@ class WrapperModel(BaseModel):
     def __getitem__(self, item):
         return self.wrapped[item]
 
+    # def expand_env_vars(self, variables: Dict[str, str]):
+    # if isinstance(self.wrapped, BaseModel):
+    # self.wrapped.expand_env_vars(variables)
+    # elif isinstance
+
 
 class StepWrapper(WrapperModel):
     wrapped: Step = Field(alias="step")
 
+    def expand_env_vars(self, variables: Dict[str, str]):
+        self.wrapped.expand_env_vars(variables)
+
 
 class ParallelStep(WrapperModel):
     wrapped: conlist(StepWrapper, min_items=2) = Field(alias="parallel")
+
+    def expand_env_vars(self, variables: Dict[str, str]):
+        for s in self.wrapped:
+            s.expand_env_vars(variables)
 
 
 class Variable(BaseModel):
@@ -186,6 +205,10 @@ class Pipeline(BaseModel):
     def __getitem__(self, item):
         return self.__root__[item]
 
+    def expand_env_vars(self, variables: Dict[str, str]):
+        for s in self.get_steps():
+            s.expand_env_vars(variables)
+
 
 class Pipelines(BaseModel):
     default: Optional[Pipeline] = None
@@ -213,12 +236,18 @@ class Pipelines(BaseModel):
 
         return values
 
+    def expand_env_vars(self, variables: Dict[str, str]):
+        for p in self.get_all().values():
+            p.expand_env_vars(variables)
+
 
 class PipelineSpec(BaseModel):
     image: ImageType = None
     definitions: Optional[Definitions] = Field(default_factory=Definitions.construct)
-    clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty)
+    clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty, alias="clone")
     pipelines: Pipelines
+
+    __env_var_expand_fields__ = ["image", "definitions", "pipelines"]
 
     @property
     def caches(self):
