@@ -31,8 +31,8 @@ class PipelineRunContext:
     ):
         self.pipeline_name = pipeline_name
         self.pipeline = pipeline
-        self.caches = caches
-        self.services = services
+        self.caches = self._merge_default_caches(caches)
+        self.services = self._merge_default_services(services)
         self.clone_settings = clone_settings
         self.default_image = default_image
         self.repository = repository
@@ -45,8 +45,6 @@ class PipelineRunContext:
 
         self._data_directory = self._get_pipeline_data_directory()
         self._cache_directory = self._get_repo_cache_directory()
-
-        self._ensure_default_service()
 
     @classmethod
     def from_run_request(cls, req) -> "PipelineRunContext":
@@ -104,12 +102,13 @@ class PipelineRunContext:
 
         return pi.build_number
 
-    def _ensure_default_service(self):
+    @staticmethod
+    def _merge_default_services(services: Dict[str, Service]) -> Dict[str, Service]:
         for name, definition in config.default_services.items():
             default_service = Service.parse_obj(definition)
 
-            if name in self.services:
-                service = self.services[name]
+            if name in services:
+                service = services[name]
                 service.image = default_service.image
 
                 if not service.variables:
@@ -117,7 +116,16 @@ class PipelineRunContext:
                 if not service.memory:
                     service.memory = default_service.memory
             else:
-                self.services[name] = default_service
+                services[name] = default_service
+
+        return services
+
+    @staticmethod
+    def _merge_default_caches(caches: Dict[str, str]) -> Dict[str, str]:
+        all_caches = config.default_caches.copy()
+        all_caches.update(caches)
+
+        return all_caches
 
     def load_repository_metadata(self) -> PipelineInfo:
         fp = os.path.join(self._get_repo_data_directory(), "meta.json")

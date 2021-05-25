@@ -118,3 +118,61 @@ def test_docker_service_uses_fallback_values():
 
     docker_service = Service(image=Image(name="docker:dind"), variables={"FOO": "bar"}, memory=2048)
     assert prc.services == {"docker": docker_service}
+
+
+def test_default_caches_are_used():
+    pipeline = Mock(spec=Pipeline)
+    repository = Mock(spec=Repository, env_name="some-env")
+
+    prc = PipelineRunContext(
+        pipeline_name="custom.test",
+        pipeline=pipeline,
+        caches={"poetry": "$HOME/.cache/pypoetry"},
+        services={},
+        clone_settings=CloneSettings.empty(),
+        default_image=None,
+        repository=repository,
+    )
+
+    all_caches = {
+        "composer": "~/.composer/cache",
+        "dotnetcore": "~/.nuget/packages",
+        "gradle": "~/.gradle/caches ",
+        "ivy2": "~/.ivy2/cache",
+        "maven": "~/.m2/repository",
+        "node": "node_modules",
+        "pip": "~/.cache/pip",
+        "sbt": "~/.sbt",
+        "poetry": "$HOME/.cache/pypoetry",
+    }
+
+    assert prc.caches == all_caches
+
+
+def test_default_caches_can_be_overridden():
+    pipeline = Mock(spec=Pipeline)
+    repository = Mock(spec=Repository, env_name="some-env")
+
+    prc = PipelineRunContext(
+        pipeline_name="custom.test",
+        pipeline=pipeline,
+        caches={"poetry": "$HOME/.cache/pypoetry", "pip": "foobar"},
+        services={},
+        clone_settings=CloneSettings.empty(),
+        default_image=None,
+        repository=repository,
+    )
+
+    all_caches = {
+        "composer": "~/.composer/cache",
+        "dotnetcore": "~/.nuget/packages",
+        "gradle": "~/.gradle/caches ",
+        "ivy2": "~/.ivy2/cache",
+        "maven": "~/.m2/repository",
+        "node": "node_modules",
+        "pip": "foobar",
+        "sbt": "~/.sbt",
+        "poetry": "$HOME/.cache/pypoetry",
+    }
+
+    assert prc.caches == all_caches

@@ -72,6 +72,23 @@ def test_after_script():
     assert result.exit_code == 2
 
 
+def test_default_cache(pipeline_cache_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_default_cache"))
+    result = runner.run()
+
+    assert result.ok, "Pipeline failed"
+
+    cache_file = os.path.join(pipeline_cache_directory, "pip.tar")
+
+    assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
+
+    with tarfile.open(cache_file) as f:
+        files_in_tar = [i.path for i in f.getmembers() if i.isfile()]
+
+    expected_files = ["pip/MD5SUM", "pip/a", "pip/b"]
+    assert sorted(files_in_tar) == expected_files
+
+
 def test_cache_alpine(pipeline_cache_directory):
     runner = PipelineRunner(PipelineRunRequest("custom.test_cache_alpine"))
     result = runner.run()

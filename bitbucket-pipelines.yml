@@ -37,6 +37,27 @@ pipelines:
             - echo "Doing cleanup"
             - echo "Exit Code was ${BITBUCKET_EXIT_CODE}"
 
+    test_default_cache:
+      - step:
+          name: Create Pip Cache
+          caches:
+            - pip
+          script:
+            - export CACHE_DIR=$HOME/.cache/pip
+            - sh -c 'if [ -d "${CACHE_DIR}" ]; then rm -rf "${CACHE_DIR}"; fi'
+            - mkdir -p "${CACHE_DIR}"
+            - dd if=/dev/random of=${CACHE_DIR}/a bs=2048 count=1
+            - dd if=/dev/random of=${CACHE_DIR}/b bs=2048 count=1
+            - md5sum ${CACHE_DIR}/* > MD5SUM
+            - mv MD5SUM ${CACHE_DIR}/
+      - step:
+          name: Ensure Caches Exists
+          caches:
+            - pip
+          script:
+            - export CACHE_DIR=$HOME/.cache/pip
+            - md5sum -c ${CACHE_DIR}/MD5SUM
+
     test_cache_alpine:
       - step:
           name: Create Cache
