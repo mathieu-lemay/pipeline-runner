@@ -4,7 +4,10 @@ from typing import Dict, List, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import Extra, Field, conlist, root_validator, validator
+from pydantic import Extra, Field, ValidationError, conlist, root_validator, validator
+from pydantic.error_wrappers import ErrorWrapper
+
+from .config import config
 
 
 class BaseModel(PydanticBaseModel):
@@ -72,7 +75,8 @@ class Service(BaseModel):
         return value
 
     def expand_env_vars(self, variables: Dict[str, str]):
-        self.image.expand_env_vars(variables)
+        if self.image:
+            self.image.expand_env_vars(variables)
 
         for k, v in self.variables.items():
             self.variables[k] = Template(v).substitute(variables)
@@ -81,6 +85,26 @@ class Service(BaseModel):
 class Definitions(BaseModel):
     caches: Dict[str, str] = Field(default_factory=dict)
     services: Dict[str, Service] = Field(default_factory=dict)
+
+    @validator("services")
+    def ensure_default_services_have_no_image_and_non_default_services_have_an_image(cls, value):
+        if value is None:
+            return None
+
+        errors = []
+
+        for service_name, service in value.items():
+            if service_name in config.default_services and service.image is not None:
+                errors.append(
+                    ErrorWrapper(ValueError(f"Default service {service_name} can't have an image"), loc=service_name)
+                )
+            elif service_name not in config.default_services and service.image is None:
+                errors.append(ErrorWrapper(ValueError(f"Service {service_name} must have an image"), loc=service_name))
+
+        if errors:
+            raise ValidationError(errors, cls)
+
+        return value
 
     def expand_env_vars(self, variables: Dict[str, str]):
         for s in self.services.values():
