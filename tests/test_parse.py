@@ -44,9 +44,17 @@ def test_parse_services():
         "postgres": {
             "image": "postgres:13",
             "variables": {
-                "POSTGRES_DB": "my-db",
+                "POSTGRES_DB": "pg-db",
                 "POSTGRES_USER": "pg-user",
                 "POSTGRES_PASSWORD": "pg-passwd",
+            },
+        },
+        "mysql": {
+            "image": "mysql",
+            "environment": {
+                "MYSQL_DB": "my-db",
+                "MYSQL_USER": "my-user",
+                "MYSQL_PASSWORD": "my-passwd",
             },
         },
     }
@@ -55,18 +63,29 @@ def test_parse_services():
 
     defs = Definitions.parse_obj(value)
 
-    assert defs.services.keys() == {"docker", "postgres"}
+    services = {
+        "docker": Service(image=None, variables={}, memory=3072),
+        "postgres": Service(
+            image="postgres:13",
+            variables={
+                "POSTGRES_DB": "pg-db",
+                "POSTGRES_USER": "pg-user",
+                "POSTGRES_PASSWORD": "pg-passwd",
+            },
+            memory=config.service_container_default_memory_limit,
+        ),
+        "mysql": Service(
+            image="mysql",
+            environment={
+                "MYSQL_DB": "my-db",
+                "MYSQL_USER": "my-user",
+                "MYSQL_PASSWORD": "my-passwd",
+            },
+            memory=config.service_container_default_memory_limit,
+        ),
+    }
 
-    assert defs.services["docker"] == Service(image=None, variables={}, memory=3072)
-    assert defs.services["postgres"] == Service(
-        image="postgres:13",
-        variables={
-            "POSTGRES_DB": "my-db",
-            "POSTGRES_USER": "pg-user",
-            "POSTGRES_PASSWORD": "pg-passwd",
-        },
-        memory=config.service_container_default_memory_limit,
-    )
+    assert defs.services == services
 
 
 def test_parse_image():
@@ -327,7 +346,7 @@ def test_parse_pipeline_with_env_vars():
                         "run-as-user": None,
                         "aws": None,
                     },
-                    "variables": {"PASSWORD": password},
+                    "environment": {"PASSWORD": password},
                     "memory": 1024,
                 }
             },
@@ -355,6 +374,7 @@ def test_parse_pipeline_with_env_vars():
                         "clone": {"depth": None, "lfs": None, "enabled": None},
                         "deployment": None,
                         "trigger": Trigger.Automatic,
+                        "max-time": None,
                     },
                 },
                 {
@@ -379,6 +399,7 @@ def test_parse_pipeline_with_env_vars():
                                 "clone": {"depth": None, "lfs": None, "enabled": None},
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
+                                "max-time": None,
                             }
                         },
                         {
@@ -401,6 +422,7 @@ def test_parse_pipeline_with_env_vars():
                                 "clone": {"depth": None, "lfs": None, "enabled": None},
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
+                                "max-time": None,
                             }
                         },
                     ],

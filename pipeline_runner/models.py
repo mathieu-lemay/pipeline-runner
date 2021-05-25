@@ -60,7 +60,7 @@ ImageType = Optional[Union[str, Image]]
 
 class Service(BaseModel):
     image: ImageType = None
-    variables: Dict[str, str] = Field(default_factory=dict)
+    variables: Dict[str, str] = Field(default_factory=dict, alias="environment")
     memory: Optional[int] = 1024
 
     # noinspection PyMethodParameters
@@ -87,14 +87,33 @@ class Definitions(BaseModel):
             s.expand_env_vars(variables)
 
 
+# noinspection PyMethodParameters
 class CloneSettings(BaseModel):
-    depth: Optional[int] = 50
+    depth: Optional[Union[str, int]] = 50
     lfs: Optional[bool] = False
     enabled: Optional[bool] = True
 
     @classmethod
     def empty(cls):
         return CloneSettings(depth=None, lfs=None, enabled=None)
+
+    @validator("depth")
+    def validate_depth(cls, value):
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            if value == "full":
+                return 0
+
+            raise ValueError(f"Not a valid value: {value}. Valid values are: ['full']")
+        elif isinstance(value, int):
+            if value <= 0:
+                raise ValueError(f"depth {value} is not a positive integer")
+
+            return value
+
+        raise TypeError(f"Invalid type for 'depth': {type(value)}")
 
 
 class Trigger(str, Enum):
@@ -110,10 +129,15 @@ class StepSize(str, Enum):
         return {self.Simple: 1, self.Double: 2}[self]
 
 
+class Pipe(BaseModel):
+    pipe: str
+    variables: Optional[Dict[str, str]] = Field(default=dict)
+
+
 class Step(BaseModel):
     name: Optional[str] = "<unnamed>"
-    script: List[str]
-    image: Optional[ImageType] = None
+    script: List[Union[str, Pipe]]
+    image: ImageType = None
     caches: Optional[List[str]] = Field(default_factory=list)
     services: Optional[List[str]] = Field(default_factory=list)
     artifacts: Optional[List[str]] = Field(default_factory=list)
@@ -122,6 +146,7 @@ class Step(BaseModel):
     clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty, alias="clone")
     deployment: Optional[str] = None
     trigger: Trigger = Trigger.Automatic
+    max_time: Optional[int] = Field(None, alias="max-time")
 
     __env_var_expand_fields__ = ["image"]
 
@@ -149,11 +174,6 @@ class WrapperModel(BaseModel):
 
     def __getitem__(self, item):
         return self.wrapped[item]
-
-    # def expand_env_vars(self, variables: Dict[str, str]):
-    # if isinstance(self.wrapped, BaseModel):
-    # self.wrapped.expand_env_vars(variables)
-    # elif isinstance
 
 
 class StepWrapper(WrapperModel):
@@ -248,6 +268,9 @@ class PipelineSpec(BaseModel):
     pipelines: Pipelines
 
     __env_var_expand_fields__ = ["image", "definitions", "pipelines"]
+
+    class Config:
+        extra = Extra.ignore
 
     @property
     def caches(self):
