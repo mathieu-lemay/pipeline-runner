@@ -200,12 +200,14 @@ class StepRunner:
             "BITBUCKET_BUILD_NUMBER": self._ctx.pipeline_ctx.build_number,
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
+            "BITBUCKET_PIPELINE_UUID": self._ctx.pipeline_ctx.pipeline_uuid,
             "BITBUCKET_REPO_FULL_NAME": f"{repo_slug}/{repo_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
             "BITBUCKET_REPO_OWNER": config.username,
             "BITBUCKET_REPO_OWNER_UUID": config.owner_uuid,
             "BITBUCKET_REPO_SLUG": repo_slug,
             "BITBUCKET_REPO_UUID": config.repo_uuid,
+            "BITBUCKET_STEP_UUID": self._ctx.step_uuid,
             "BITBUCKET_WORKSPACE": repo_slug,
         }
 
