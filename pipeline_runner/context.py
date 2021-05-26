@@ -2,14 +2,14 @@ import json
 import logging
 import os
 import uuid
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 from dotenv import dotenv_values
 from slugify import slugify
 
 from . import utils
 from .config import config
-from .models import CloneSettings, Image, ParallelStep, Pipeline, PipelineInfo, Service, Step
+from .models import CloneSettings, Image, Pipeline, PipelineInfo, Service, Step
 from .parse import parse_pipeline_file
 from .repository import Repository
 
@@ -166,8 +166,10 @@ class PipelineRunContext:
 class StepRunContext:
     def __init__(
         self,
-        step: Union[Step, ParallelStep],
+        step: Step,
         pipeline_run_context: PipelineRunContext,
+        parallel_step_index: Optional[int] = None,
+        parallel_step_count: Optional[int] = None,
     ):
         self.step = step
         self.pipeline_ctx = pipeline_run_context
@@ -175,6 +177,11 @@ class StepRunContext:
 
         self.step_uuid = uuid.uuid4()
 
-        # TODO:
-        #   self.step_number = ...
-        #   self.step_parallel_number = ...
+        if (parallel_step_index is None) != (parallel_step_count is None):
+            raise ValueError("`parallel_step_index` and `parallel_step_count` must be both defined or both undefined")
+
+        self.parallel_step_index = parallel_step_index
+        self.parallel_step_count = parallel_step_count
+
+    def is_parallel(self) -> bool:
+        return bool(self.parallel_step_count)

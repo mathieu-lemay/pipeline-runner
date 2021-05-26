@@ -199,6 +199,10 @@ class WrapperModel(BaseModel):
     def __getitem__(self, item):
         return self.wrapped[item]
 
+    def __len__(self):
+        # noinspection PyTypeChecker
+        return len(self.wrapped)
+
 
 class StepWrapper(WrapperModel):
     wrapped: Step = Field(alias="step")

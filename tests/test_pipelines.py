@@ -241,6 +241,13 @@ def test_manual_trigger(artifacts_directory, monkeypatch):
     assert res == (True, 0)
 
 
+def test_parallel_steps():
+    runner = PipelineRunner(PipelineRunRequest("custom.test_parallel_steps"))
+    result = runner.run()
+
+    assert result.ok
+
+
 # def test_environment_variables():
 #     assert False
 #

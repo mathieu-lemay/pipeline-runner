@@ -1,7 +1,7 @@
 import logging
 import os
 from time import time as ts
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import docker
 
@@ -11,7 +11,7 @@ from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
-from .models import Image, ParallelStep, PipelineResult, Trigger
+from .models import Image, ParallelStep, PipelineResult, Step, Trigger
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -67,7 +67,7 @@ class PipelineRunner:
 
     def _execute_pipeline(self):
         for step in self._pipeline.get_steps():
-            runner = StepRunnerFactory.get(StepRunContext(step, self._ctx))
+            runner = StepRunnerFactory.get(step, self._ctx)
 
             exit_code = runner.run()
 
@@ -211,6 +211,10 @@ class StepRunner:
             "BITBUCKET_WORKSPACE": repo_slug,
         }
 
+        if self._ctx.is_parallel():
+            env_vars["BITBUCKET_PARALLEL_STEP"] = self._ctx.parallel_step_index
+            env_vars["BITBUCKET_PARALLEL_STEP_COUNT"] = self._ctx.parallel_step_count
+
         if self._step.deployment:
             env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
 
@@ -288,13 +292,18 @@ class StepRunner:
 
 
 class ParallelStepRunner:
-    def __init__(self, step_run_context: StepRunContext):
-        self._ctx = step_run_context
+    def __init__(self, parallel_step: ParallelStep, pipeline_run_context: PipelineRunContext):
+        self._parallel_step = parallel_step
+        self._pipeline_ctx = pipeline_run_context
 
     def run(self) -> Optional[int]:
         return_code = 0
-        for s in self._ctx.step.steps:
-            runner = StepRunnerFactory.get(StepRunContext(s, self._ctx.pipeline_ctx))
+        step_count = len(self._parallel_step)
+
+        for idx, s in enumerate(self._parallel_step):
+            runner = StepRunnerFactory.get(
+                s, self._pipeline_ctx, parallel_step_index=idx, parallel_step_count=step_count
+            )
             rc = runner.run()
             if rc:
                 return_code = rc
@@ -304,8 +313,13 @@ class ParallelStepRunner:
 
 class StepRunnerFactory:
     @staticmethod
-    def get(step_run_context: StepRunContext):
-        if isinstance(step_run_context.step, ParallelStep):
-            return ParallelStepRunner(step_run_context)
+    def get(
+        step: Union[Step, ParallelStep],
+        pipeline_run_context: PipelineRunContext,
+        parallel_step_index: Optional[int] = None,
+        parallel_step_count: Optional[int] = None,
+    ):
+        if isinstance(step, ParallelStep):
+            return ParallelStepRunner(step, pipeline_run_context)
         else:
-            return StepRunner(step_run_context)
+            return StepRunner(StepRunContext(step, pipeline_run_context, parallel_step_index, parallel_step_count))
