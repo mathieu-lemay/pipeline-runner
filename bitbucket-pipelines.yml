@@ -162,8 +162,7 @@ pipelines:
           name: Test postgres service
           script:
             - apk --no-cache add postgresql-client
-            - sleep 2
-            - psql -h localhost -U postgres -c 'SELECT 1;'
+            - ./ci-scripts/retry.sh 20 .1 psql -h localhost -U postgres -c 'SELECT 1;'
           services:
             - postgres
 
@@ -173,8 +172,7 @@ pipelines:
           script:
             - apk --no-cache add curl
             - docker run -d --name nginx -p 8080:80 nginx:alpine
-            - sleep 2
-            - curl --fail 127.0.0.1:8080
+            - ./ci-scripts/retry.sh 20 .1 curl --fail 127.0.0.1:8080
           services:
             - docker
           caches:
