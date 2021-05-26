@@ -388,16 +388,17 @@ def pull_image(client, image):
 
 def get_image_authentication(image: Image):
     if image.aws:
-        aws_access_key_id = image.aws["access-key"]
-        aws_secret_access_key = image.aws["secret-key"]
+        aws_access_key_id = image.aws.access_key_id
+        aws_secret_access_key = image.aws.secret_access_key
         aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+        aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 
         client = boto3.client(
             "ecr",
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
-            region_name="ca-central-1",
+            region_name=aws_region,
         )
 
         resp = client.get_authorization_token()
