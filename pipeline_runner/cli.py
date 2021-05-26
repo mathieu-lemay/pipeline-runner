@@ -10,11 +10,11 @@ import pkg_resources
 from plumbum import ProcessExecutionError
 from pyfzf import FzfPrompt
 
-from . import PipelineRunner, PipelineRunRequest
-from . import __name__ as project_name
+from . import __name__ as root_module_name
 from . import utils
 from .config import config
 from .parse import parse_pipeline_file
+from .runner import PipelineRunner, PipelineRunRequest
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _prompt_for_pipeline(pipeline_file) -> Optional[str]:
 @click.pass_context
 def main(ctx, show_version):
     if show_version:
-        print(f"Pipeline Runner {pkg_resources.get_distribution(project_name).version}")
+        print(f"Pipeline Runner {pkg_resources.get_distribution(root_module_name).version}")
         ctx.exit()
 
 

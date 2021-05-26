@@ -7,7 +7,7 @@ import time
 import pytest
 from tenacity import retry, stop_after_delay, wait_fixed
 
-from pipeline_runner import PipelineRunner, PipelineRunRequest
+from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 pytestmark = pytest.mark.integration
 

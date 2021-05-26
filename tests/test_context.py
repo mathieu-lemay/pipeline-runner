@@ -3,9 +3,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from pipeline_runner import PipelineRunContext
 from pipeline_runner.models import CloneSettings, Image, Pipeline, PipelineInfo, Service
 from pipeline_runner.repository import Repository
+from pipeline_runner.runner import PipelineRunContext
 
 
 @pytest.fixture(autouse=True)

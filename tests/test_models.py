@@ -1,4 +1,4 @@
-from pipeline_runner import PipelineResult
+from pipeline_runner.runner import PipelineResult
 
 
 def test_pipeline_result_ok_returns_true_if_exit_code_is_zero():

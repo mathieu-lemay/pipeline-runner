@@ -1,10 +1,11 @@
 import pytest
 from pydantic import ValidationError
 
-from pipeline_runner import Image, config
+from pipeline_runner.config import config
 from pipeline_runner.models import (
     AwsCredentials,
     Definitions,
+    Image,
     ParallelStep,
     Pipeline,
     PipelineSpec,
