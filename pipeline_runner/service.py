@@ -32,7 +32,7 @@ class ServicesManager:
 
         self._client = docker.from_env()
 
-        self._containers = {}
+        self._service_runners = {}
 
     def start_services(self):
         self._ensure_memory_for_services()
@@ -47,17 +47,17 @@ class ServicesManager:
                 self._pipeline_cache_directory,
             )
             sr.start()
-            self._containers[sr.slug] = sr
+            self._service_runners[sr.slug] = sr
 
     def stop_services(self):
-        for s, sr in self._containers.items():
+        for s, sr in self._service_runners.items():
             try:
                 sr.stop()
             except Exception as e:
                 logger.exception("Error removing service '%s': %s", s, e)
 
-    def get_services_names(self) -> List[str]:
-        return list(self._containers.keys())
+    def get_services_containers(self) -> Dict[str, Container]:
+        return {name: runner.container for name, runner in self._service_runners.items()}
 
     def get_memory_usage(self) -> int:
         return sum(s.memory for s in self._services_by_name.values())
@@ -108,6 +108,10 @@ class ServiceRunner:
     @property
     def slug(self):
         return self._slug
+
+    @property
+    def container(self):
+        return self._container
 
     def start(self):
         logger.info("Starting service: %s", self._service_name)

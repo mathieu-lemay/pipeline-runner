@@ -31,7 +31,7 @@ class ContainerRunner:
         env_vars: Dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
-        services_names: List[str] = None,
+        services: Dict[str, Container] = None,
     ):
         self._name = name
         self._image = image
@@ -40,7 +40,7 @@ class ContainerRunner:
         self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
-        self._services_names = services_names or []
+        self._services = services or {}
 
         self._client = docker.from_env()
         self._container = None
@@ -140,56 +140,17 @@ class ContainerRunner:
         }
 
     def _install_docker_client(self):
-        if "docker" not in self._services_names:
+        if "docker" not in self._services:
             return
 
-        res = self.run_command("type docker")
+        res = self.run_command("command -v docker")
         if res.exit_code == 0:
             logger.debug("`docker` binary is already present in container.")
             return
 
-        try:
-            local_docker_binary = utils.get_docker_binary()
-            self._inject_docker_binary(local_docker_binary)
-        except Exception as e:
-            logger.error("Unable inject docker binary: %s", str(e))
-            self._install_docker_client_with_package_manager()
-
-    def _inject_docker_binary(self, binary_path):
-        logger.info("Injecting docker binary")
-
-        tar_data = io.BytesIO()
-        with tarfile.open(fileobj=tar_data, mode="w|") as tar:
-            stat = os.stat(binary_path)
-
-            ti = tarfile.TarInfo("/usr/local/bin/docker")
-            ti.size = stat.st_size
-            ti.mode = 0o100755
-
-            with open(binary_path, "rb") as f:
-                tar.addfile(ti, f)
-
-        tar_data.seek(0, os.SEEK_SET)
-
-        self.put_archive("/", tar_data)
-
-    def _install_docker_client_with_package_manager(self):
-        logger.info("Installing docker with package manager")
-
-        cmd = """
-        if type apt-get >/dev/null 2>&1; then
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update && apt-get install -y --no-install-recommends docker.io
-        elif type apk >/dev/null 2>&1; then
-            apk add --no-cache docker-cli
-        else
-            echo "Unsupported distribution" >&2
-            exit 1
-        fi
-        """
-
-        if self.run_script(cmd, user=0) != 0:
-            raise Exception("Error installing necessary binaries")
+        docker_service = self._services["docker"]
+        archive, _ = docker_service.get_archive("/usr/local/bin/docker")
+        self._container.put_archive("/usr/local/bin", archive)
 
 
 class ContainerScriptRunner:

@@ -119,7 +119,7 @@ class StepRunner:
             self._services_manager.start_services()
 
             environment = self._get_step_env_vars()
-            services_names = self._services_manager.get_services_names()
+            services = self._services_manager.get_services_containers()
             mem_limit = self._get_build_container_memory_limit(self._services_manager.get_memory_usage())
 
             self._container_runner = ContainerRunner(
@@ -130,7 +130,7 @@ class StepRunner:
                 environment,
                 self._output_logger,
                 mem_limit,
-                services_names,
+                services,
             )
             self._container_runner.start()
 
