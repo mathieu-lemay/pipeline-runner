@@ -3,10 +3,14 @@ import io
 import os
 import tarfile
 import time
+import uuid
 
+import dotenv
 import pytest
 from tenacity import retry, stop_after_delay, wait_fixed
 
+from pipeline_runner import APP_NAME
+from pipeline_runner.config import config
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 pytestmark = pytest.mark.integration
@@ -248,9 +252,58 @@ def test_parallel_steps():
     assert result.ok
 
 
-# def test_environment_variables():
-#     assert False
-#
-#
+def test_environment_variables(artifacts_directory, project_metadata, repository, mocker):
+    pipeline_uuid = "pipeline-uuid"
+    step_uuid = "step-uuid"
+
+    def uuid_generator(real_uuid_fn):
+        yield pipeline_uuid
+        yield step_uuid
+        while True:
+            yield real_uuid_fn()
+
+    real_uuid4 = uuid.uuid4
+
+    uuid4 = mocker.patch("uuid.uuid4")
+    uuid4.side_effect = uuid_generator(real_uuid4)
+
+    runner = PipelineRunner(PipelineRunRequest("custom.test_environment_variables"))
+    result = runner.run()
+
+    assert result.ok
+
+    pipeline_env_file = os.path.join(artifacts_directory, "variables")
+    assert os.path.exists(pipeline_env_file)
+
+    variables = {
+        k: v
+        for k, v in dotenv.dotenv_values(pipeline_env_file).items()
+        if k.startswith("BITBUCKET") or k in ("BUILD_DIR", "CI")
+    }
+
+    slug = project_metadata.slug
+    expected = {
+        "BITBUCKET_BRANCH": repository.get_current_branch(),
+        "BITBUCKET_BUILD_NUMBER": str(project_metadata.build_number),
+        "BITBUCKET_CLONE_DIR": f"/opt/{APP_NAME}/pipeline/build",
+        "BITBUCKET_COMMIT": repository.get_current_commit(),
+        "BITBUCKET_PIPELINE_UUID": str(pipeline_uuid),
+        "BITBUCKET_PROJECT_KEY": project_metadata.key,
+        "BITBUCKET_PROJECT_UUID": str(project_metadata.project_uuid),
+        "BITBUCKET_REPO_FULL_NAME": f"{slug}/{slug}",
+        "BITBUCKET_REPO_IS_PRIVATE": "true",
+        "BITBUCKET_REPO_OWNER": config.username,
+        "BITBUCKET_REPO_OWNER_UUID": config.owner_uuid,
+        "BITBUCKET_REPO_SLUG": slug,
+        "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
+        "BITBUCKET_STEP_UUID": str(step_uuid),
+        "BITBUCKET_WORKSPACE": slug,
+        "BUILD_DIR": f"/opt/{APP_NAME}/pipeline/build",
+        "CI": "true",
+    }
+
+    assert variables == expected
+
+
 # def test_pipeline_yml_in_other_folder():
 #     assert False

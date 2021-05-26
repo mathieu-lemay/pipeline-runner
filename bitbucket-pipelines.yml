@@ -260,3 +260,11 @@ pipelines:
               - set -eu
               - '[ "${BITBUCKET_PARALLEL_STEP}" = 1 ]'
               - '[ "${BITBUCKET_PARALLEL_STEP_COUNT}" = 2 ]'
+
+    test_environment_variables:
+      - step:
+          name: Output env vars
+          script:
+            - env | tee variables
+          artifacts:
+            - variables

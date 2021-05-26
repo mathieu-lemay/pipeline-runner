@@ -1,26 +1,9 @@
 import os.path
 from unittest.mock import Mock
 
-import pytest
-
-from pipeline_runner.models import CloneSettings, Image, Pipeline, ProjectMetadata, Service
+from pipeline_runner.models import CloneSettings, Image, Pipeline, Service
 from pipeline_runner.repository import Repository
 from pipeline_runner.runner import PipelineRunContext
-
-
-@pytest.fixture(autouse=True)
-def project_metadata(mocker):
-    project_metadata = ProjectMetadata(
-        name="SomeNiceProject",
-        slug="some-nice-project",
-        key="SNP",
-        path_hash="some-nice-project-FOOBAR",
-        build_number=42,
-    )
-
-    mocker.patch("pipeline_runner.models.ProjectMetadata.load_from_file", return_value=project_metadata)
-
-    return project_metadata
 
 
 def test_get_log_directory_returns_the_right_directory(user_data_directory, project_metadata):
