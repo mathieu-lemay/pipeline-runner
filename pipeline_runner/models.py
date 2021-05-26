@@ -333,7 +333,8 @@ class ProjectMetadata(BaseModel):
     path_hash: str
     slug: str
     key: str
-    uuid: UUID = Field(default_factory=uuid4)
+    project_uuid: UUID = Field(default_factory=uuid4)
+    repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: Optional[int] = 0
 
     @classmethod
@@ -344,8 +345,7 @@ class ProjectMetadata(BaseModel):
         fp = os.path.join(project_data_dir, "meta.json")
 
         if os.path.exists(fp):
-            with open(fp) as f:
-                meta = cls.parse_file(f)
+            meta = cls.parse_file(fp)
         else:
             name = os.path.basename(project_directory)
             slug = slugify(name)

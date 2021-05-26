@@ -49,7 +49,6 @@ class Config:
         # Randomly Generated
         # TODO: Generate them per project
         self.owner_uuid = "e07413cc-dcd9-4c68-aa2e-08e296b1a8af"
-        self.repo_uuid = "8e6a16f2-c4cb-4973-a7c6-595626b29ceb"
 
         self.bitbucket_build_number = os.getenv("BITBUCKET_BUILD_NUMBER", 0)
 
