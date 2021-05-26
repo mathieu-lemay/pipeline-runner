@@ -1,12 +1,16 @@
+import os.path
 from enum import Enum
 from string import Template
 from typing import Dict, List, Optional, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from git import Repo
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Extra, Field, ValidationError, conlist, root_validator, validator
 from pydantic.error_wrappers import ErrorWrapper
+from slugify import slugify
 
+from . import utils
 from .config import config
 
 
@@ -82,6 +86,7 @@ class Service(BaseModel):
             self.variables[k] = Template(v).substitute(variables)
 
 
+# noinspection PyMethodParameters
 class Definitions(BaseModel):
     caches: Dict[str, str] = Field(default_factory=dict)
     services: Dict[str, Service] = Field(default_factory=dict)
@@ -323,17 +328,48 @@ class PipelineSpec(BaseModel):
         return value
 
 
-class PipelineInfo:
-    def __init__(self, build_number: int = 0):
-        self.build_number = build_number
+class ProjectMetadata(BaseModel):
+    name: str
+    path_hash: str
+    slug: str
+    key: str
+    uuid: UUID = Field(default_factory=uuid4)
+    build_number: Optional[int] = 0
 
     @classmethod
-    def from_json(cls, json_: dict) -> "PipelineInfo":
-        build_number = json_.get("build_number", 0)
-        return cls(build_number=build_number)
+    def load_from_file(cls, project_directory: str) -> "ProjectMetadata":
+        path_hash = utils.hashify_path(project_directory)
 
-    def to_json(self) -> dict:
-        return {"build_number": self.build_number}
+        project_data_dir = utils.ensure_directory(os.path.join(utils.get_data_directory(), path_hash))
+        fp = os.path.join(project_data_dir, "meta.json")
+
+        if os.path.exists(fp):
+            with open(fp) as f:
+                meta = cls.parse_file(f)
+        else:
+            name = os.path.basename(project_directory)
+            slug = slugify(name)
+            key = "".join(s[0].upper() for s in slug.split("-"))
+            meta = cls(name=name, path_hash=path_hash, slug=slug, key=key)
+
+        meta.build_number += 1
+
+        with open(fp, "w") as f:
+            f.write(meta.json())
+
+        return meta
+
+
+class Repository:
+    def __init__(self, path: str):
+        self.path = path
+        self._git_repo = Repo(path)
+
+    def get_current_branch(self) -> str:
+        return self._git_repo.active_branch.name
+
+    def get_current_commit(self) -> str:
+        return self._git_repo.head.commit.hexsha
 
 
 class PipelineResult:

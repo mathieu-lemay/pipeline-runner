@@ -56,7 +56,7 @@ class PipelineRunner:
         else:
             logger.info("Pipeline '%s': Successful", self._ctx.pipeline_name)
 
-        return PipelineResult(exit_code, self._ctx.build_number, self._ctx.pipeline_uuid)
+        return PipelineResult(exit_code, self._ctx.project_metadata.build_number, self._ctx.pipeline_uuid)
 
     def _ask_for_variables(self) -> Dict[str, str]:
         pipeline_variables = {}
@@ -113,7 +113,7 @@ class StepRunner:
                 self._ctx.pipeline_ctx.services,
                 self._step.size.as_int(),
                 self._data_volume_name,
-                self._ctx.pipeline_ctx.repository.slug,
+                self._ctx.pipeline_ctx.project_metadata.slug,
                 self._ctx.pipeline_ctx.get_pipeline_cache_directory(),
             )
             self._services_manager.start_services()
@@ -189,7 +189,7 @@ class StepRunner:
         return env_vars
 
     def _get_bitbucket_env_vars(self) -> Dict[str, str]:
-        repo_slug = self._ctx.pipeline_ctx.repository.slug
+        repo_slug = self._ctx.pipeline_ctx.project_metadata.slug
         git_branch = self._ctx.pipeline_ctx.repository.get_current_branch()
         git_commit = self._ctx.pipeline_ctx.repository.get_current_commit()
 
@@ -197,7 +197,9 @@ class StepRunner:
             "CI": "true",
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
-            "BITBUCKET_BUILD_NUMBER": self._ctx.pipeline_ctx.build_number,
+            "BITBUCKET_BUILD_NUMBER": self._ctx.pipeline_ctx.project_metadata.build_number,
+            "BITBUCKET_PROJECT_KEY": self._ctx.pipeline_ctx.project_metadata.key,
+            "BITBUCKET_PROJECT_UUID": self._ctx.pipeline_ctx.project_metadata.uuid,
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
             "BITBUCKET_PIPELINE_UUID": self._ctx.pipeline_ctx.pipeline_uuid,

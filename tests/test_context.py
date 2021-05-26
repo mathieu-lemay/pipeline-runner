@@ -3,24 +3,29 @@ from unittest.mock import Mock
 
 import pytest
 
-from pipeline_runner.models import CloneSettings, Image, Pipeline, PipelineInfo, Service
+from pipeline_runner.models import CloneSettings, Image, Pipeline, ProjectMetadata, Service
 from pipeline_runner.repository import Repository
 from pipeline_runner.runner import PipelineRunContext
 
 
 @pytest.fixture(autouse=True)
-def repo_metadata(mocker):
-    repo_metadata = PipelineInfo(build_number=42)
+def project_metadata(mocker):
+    project_metadata = ProjectMetadata(
+        name="SomeNiceProject",
+        slug="some-nice-project",
+        key="SNP",
+        path_hash="some-nice-project-FOOBAR",
+        build_number=42,
+    )
 
-    mocker.patch("pipeline_runner.context.PipelineRunContext.load_repository_metadata", return_value=repo_metadata)
-    mocker.patch("pipeline_runner.context.PipelineRunContext.save_repository_metadata")
+    mocker.patch("pipeline_runner.models.ProjectMetadata.load_from_file", return_value=project_metadata)
 
-    return repo_metadata
+    return project_metadata
 
 
-def test_get_log_directory_returns_the_right_directory(user_data_directory, repo_metadata):
+def test_get_log_directory_returns_the_right_directory(user_data_directory, project_metadata):
     pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="my-repo-with-hash")
+    repository = Mock(spec=Repository)
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -29,22 +34,23 @@ def test_get_log_directory_returns_the_right_directory(user_data_directory, repo
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 
     log_directory = os.path.join(
         user_data_directory,
-        repository.env_name,
+        project_metadata.path_hash,
         "pipelines",
-        f"{repo_metadata.build_number}-{prc.pipeline_uuid}",
+        f"{project_metadata.build_number}-{prc.pipeline_uuid}",
         "logs",
     )
     assert prc.get_log_directory() == log_directory
 
 
-def test_get_artifact_directory_returns_the_right_directory(user_data_directory, repo_metadata):
+def test_get_artifact_directory_returns_the_right_directory(user_data_directory, project_metadata):
     pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="my-repo-with-hash")
+    repository = Mock(spec=Repository)
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -53,22 +59,23 @@ def test_get_artifact_directory_returns_the_right_directory(user_data_directory,
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 
     artifact_directory = os.path.join(
         user_data_directory,
-        repository.env_name,
+        project_metadata.path_hash,
         "pipelines",
-        f"{repo_metadata.build_number}-{prc.pipeline_uuid}",
+        f"{project_metadata.build_number}-{prc.pipeline_uuid}",
         "artifacts",
     )
     assert prc.get_artifact_directory() == artifact_directory
 
 
-def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_directory):
+def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_directory, project_metadata):
     pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="my-repo-with-hash")
+    repository = Mock(spec=Repository)
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -77,16 +84,17 @@ def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_dir
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 
-    cache_directory = os.path.join(user_cache_directory, repository.env_name, "caches")
+    cache_directory = os.path.join(user_cache_directory, project_metadata.path_hash, "caches")
     assert prc.get_pipeline_cache_directory() == cache_directory
 
 
-def test_docker_is_added_to_services_if_not_present():
+def test_docker_is_added_to_services_if_not_present(project_metadata):
     pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="some-env")
+    repository = Mock(spec=Repository)
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -95,6 +103,7 @@ def test_docker_is_added_to_services_if_not_present():
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 
@@ -102,9 +111,9 @@ def test_docker_is_added_to_services_if_not_present():
     assert prc.services == {"docker": docker_service}
 
 
-def test_docker_service_uses_fallback_values():
+def test_docker_service_uses_fallback_values(project_metadata):
     pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="some-env")
+    repository = Mock(spec=Repository)
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -113,6 +122,7 @@ def test_docker_service_uses_fallback_values():
         services={"docker": Service(memory=2048, variables={"FOO": "bar"})},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 
@@ -120,9 +130,9 @@ def test_docker_service_uses_fallback_values():
     assert prc.services == {"docker": docker_service}
 
 
-def test_default_caches_are_used():
+def test_default_caches_are_used(project_metadata):
     pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="some-env")
+    repository = Mock(spec=Repository)
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -131,6 +141,7 @@ def test_default_caches_are_used():
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 
@@ -149,7 +160,7 @@ def test_default_caches_are_used():
     assert prc.caches == all_caches
 
 
-def test_default_caches_can_be_overridden():
+def test_default_caches_can_be_overridden(project_metadata):
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository, env_name="some-env")
 
@@ -160,6 +171,7 @@ def test_default_caches_can_be_overridden():
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        project_metadata=project_metadata,
         repository=repository,
     )
 

@@ -1,9 +1,12 @@
+import base64
+import hashlib
 import logging
 import os
 import sys
 from typing import List, Union
 
 from appdirs import user_cache_dir, user_data_dir
+from slugify import slugify
 
 from . import APP_NAME
 
@@ -79,6 +82,15 @@ def wrap_in_shell(command: Union[str, List[str]], stop_on_error=True):
     wrapped += ["-c", command]
 
     return wrapped
+
+
+def hashify_path(path):
+    slug = slugify(os.path.basename(path))
+
+    h = hashlib.sha256(path.encode()).digest()
+    h = base64.urlsafe_b64encode(h).decode()[:8]
+
+    return f"{slug}-{h}"
 
 
 class FileStreamer:

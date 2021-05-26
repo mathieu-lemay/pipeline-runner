@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import uuid
@@ -9,7 +8,7 @@ from slugify import slugify
 
 from . import utils
 from .config import config
-from .models import CloneSettings, Image, Pipeline, PipelineInfo, Service, Step
+from .models import CloneSettings, Image, Pipeline, ProjectMetadata, Service, Step
 from .parse import parse_pipeline_file
 from .repository import Repository
 
@@ -25,6 +24,7 @@ class PipelineRunContext:
         services: Dict[str, Service],
         clone_settings: CloneSettings,
         default_image: Optional[Image],
+        project_metadata: ProjectMetadata,
         repository: Repository,
         env_vars: Optional[Dict[str, str]] = None,
         selected_steps: Optional[List[str]] = None,
@@ -35,12 +35,12 @@ class PipelineRunContext:
         self.services = self._merge_default_services(services)
         self.clone_settings = clone_settings
         self.default_image = default_image
+        self.project_metadata = project_metadata
         self.repository = repository
         self.env_vars = env_vars or {}
         self.selected_steps = selected_steps or []
 
         self.pipeline_uuid = uuid.uuid4()
-        self.build_number = self._get_build_number()
         self.pipeline_variables = {}
 
         self._data_directory = self._get_pipeline_data_directory()
@@ -61,6 +61,7 @@ class PipelineRunContext:
             logger.info("Available pipelines:\n\t%s", "\n\t".join(sorted(spec.get_available_pipelines())))
             raise ValueError(msg)
 
+        project_meta = ProjectMetadata.load_from_file(req.repository_path)
         repository = Repository(req.repository_path)
 
         return PipelineRunContext(
@@ -70,6 +71,7 @@ class PipelineRunContext:
             spec.services,
             spec.clone_settings,
             spec.image,
+            project_meta,
             repository,
             env_vars,
             req.selected_steps,
@@ -90,17 +92,6 @@ class PipelineRunContext:
             envvars.update(dotenv_values(env_file))
 
         return envvars
-
-    def _get_build_number(self):
-        if config.bitbucket_build_number:
-            return config.bitbucket_build_number
-
-        pi = self.load_repository_metadata()
-        pi.build_number += 1
-
-        self.save_repository_metadata(pi)
-
-        return pi.build_number
 
     @staticmethod
     def _merge_default_services(services: Dict[str, Service]) -> Dict[str, Service]:
@@ -127,23 +118,6 @@ class PipelineRunContext:
 
         return all_caches
 
-    def load_repository_metadata(self) -> PipelineInfo:
-        fp = os.path.join(self._get_repo_data_directory(), "meta.json")
-
-        if not os.path.exists(fp):
-            return PipelineInfo()
-
-        with open(fp) as f:
-            return PipelineInfo.from_json(json.load(f))
-
-    def save_repository_metadata(self, pi: PipelineInfo):
-        repo_data_dir = utils.ensure_directory(self._get_repo_data_directory())
-
-        fp = os.path.join(repo_data_dir, "meta.json")
-
-        with open(fp, "w") as f:
-            json.dump(pi.to_json(), f)
-
     def get_log_directory(self):
         return utils.ensure_directory(os.path.join(self._data_directory, "logs"))
 
@@ -154,13 +128,15 @@ class PipelineRunContext:
         return utils.ensure_directory(os.path.join(self._cache_directory, "caches"))
 
     def _get_repo_data_directory(self) -> str:
-        return os.path.join(utils.get_data_directory(), self.repository.env_name)
+        return os.path.join(utils.get_data_directory(), self.project_metadata.path_hash)
 
     def _get_repo_cache_directory(self) -> str:
-        return os.path.join(utils.get_cache_directory(), self.repository.env_name)
+        return os.path.join(utils.get_cache_directory(), self.project_metadata.path_hash)
 
     def _get_pipeline_data_directory(self) -> str:
-        return os.path.join(self._get_repo_data_directory(), "pipelines", f"{self.build_number}-{self.pipeline_uuid}")
+        return os.path.join(
+            self._get_repo_data_directory(), "pipelines", f"{self.project_metadata.build_number}-{self.pipeline_uuid}"
+        )
 
 
 class StepRunContext:
@@ -173,7 +149,7 @@ class StepRunContext:
     ):
         self.step = step
         self.pipeline_ctx = pipeline_run_context
-        self.slug = f"{pipeline_run_context.repository.slug}-step-{slugify(step.name)}"
+        self.slug = f"{pipeline_run_context.project_metadata.slug}-step-{slugify(step.name)}"
 
         self.step_uuid = uuid.uuid4()
 

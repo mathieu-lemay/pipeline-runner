@@ -1,54 +1,10 @@
-import base64
-import hashlib
 import logging
-import os.path
 from typing import Dict, Optional, Union
 
-from git import Repo
-from slugify import slugify
-
 from .config import config
-from .models import CloneSettings, Image
+from .models import CloneSettings, Image, Repository
 
 logger = logging.getLogger(__name__)
-
-
-class Repository:
-    def __init__(self, path: str):
-        self._path = path
-        self._name = os.path.basename(self._path)
-        self._slug = slugify(self._name)
-        self._env_name = self._hashify()
-
-        self._git_repo = Repo(self._path)
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def slug(self):
-        return self._slug
-
-    @property
-    def path(self) -> str:
-        return self._path
-
-    @property
-    def env_name(self):
-        return self._env_name
-
-    def get_current_branch(self) -> str:
-        return self._git_repo.active_branch.name
-
-    def get_current_commit(self) -> str:
-        return self._git_repo.head.commit.hexsha
-
-    def _hashify(self):
-        h = hashlib.sha256(self._path.encode()).digest()
-        h = base64.urlsafe_b64encode(h).decode()[:8]
-
-        return "{}-{}".format(self._slug, h)
 
 
 class RepositoryCloner:
