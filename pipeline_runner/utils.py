@@ -3,7 +3,9 @@ import os
 import sys
 from typing import List, Union
 
-from xdg import xdg_cache_home, xdg_data_home
+from appdirs import user_cache_dir, user_data_dir
+
+from . import APP_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +30,11 @@ def get_output_logger(output_directory: str, name: str) -> logging.Logger:
 
 
 def get_cache_directory() -> str:
-    return os.path.join(xdg_cache_home(), "pipeline-runner")
+    return user_cache_dir(appname=APP_NAME)
 
 
 def get_data_directory() -> str:
-    return os.path.join(xdg_data_home(), "pipeline-runner")
+    return user_data_dir(appname=APP_NAME)
 
 
 def ensure_directory(path) -> str:
