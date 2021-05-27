@@ -43,8 +43,8 @@ class PipelineRunContext:
         self.pipeline_uuid = uuid.uuid4()
         self.pipeline_variables = {}
 
-        self._data_directory = self._get_pipeline_data_directory()
-        self._cache_directory = self._get_repo_cache_directory()
+        self._data_directory = self.get_pipeline_data_directory()
+        self._cache_directory = utils.get_project_cache_directory(project_metadata.path_slug)
 
     @classmethod
     def from_run_request(cls, req) -> "PipelineRunContext":
@@ -124,19 +124,14 @@ class PipelineRunContext:
     def get_artifact_directory(self):
         return utils.ensure_directory(os.path.join(self._data_directory, "artifacts"))
 
-    def get_pipeline_cache_directory(self):
+    def get_cache_directory(self):
         return utils.ensure_directory(os.path.join(self._cache_directory, "caches"))
 
-    def _get_repo_data_directory(self) -> str:
-        return os.path.join(utils.get_data_directory(), self.project_metadata.path_hash)
+    def get_pipeline_data_directory(self) -> str:
+        project_data_dir = utils.get_project_data_directory(self.project_metadata.path_slug)
+        pipeline_id = f"{self.project_metadata.build_number}-{self.pipeline_uuid}"
 
-    def _get_repo_cache_directory(self) -> str:
-        return os.path.join(utils.get_cache_directory(), self.project_metadata.path_hash)
-
-    def _get_pipeline_data_directory(self) -> str:
-        return os.path.join(
-            self._get_repo_data_directory(), "pipelines", f"{self.project_metadata.build_number}-{self.pipeline_uuid}"
-        )
+        return os.path.join(project_data_dir, "pipelines", pipeline_id)
 
 
 class StepRunContext:

@@ -330,7 +330,7 @@ class PipelineSpec(BaseModel):
 
 class ProjectMetadata(BaseModel):
     name: str
-    path_hash: str
+    path_slug: str
     slug: str
     key: str
     project_uuid: UUID = Field(default_factory=uuid4)
@@ -339,9 +339,9 @@ class ProjectMetadata(BaseModel):
 
     @classmethod
     def load_from_file(cls, project_directory: str) -> "ProjectMetadata":
-        path_hash = utils.hashify_path(project_directory)
+        path_slug = utils.hashify_path(project_directory)
 
-        project_data_dir = utils.ensure_directory(os.path.join(utils.get_data_directory(), path_hash))
+        project_data_dir = utils.get_project_data_directory(path_slug)
         fp = os.path.join(project_data_dir, "meta.json")
 
         if os.path.exists(fp):
@@ -350,7 +350,7 @@ class ProjectMetadata(BaseModel):
             name = os.path.basename(project_directory)
             slug = slugify(name)
             key = "".join(s[0].upper() for s in slug.split("-"))
-            meta = cls(name=name, path_hash=path_hash, slug=slug, key=key)
+            meta = cls(name=name, path_slug=path_slug, slug=slug, key=key)
 
         meta.build_number += 1
 

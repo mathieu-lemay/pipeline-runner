@@ -32,7 +32,7 @@ def project_metadata(mocker):
         name="SomeNiceProject",
         slug="some-nice-project",
         key="SNP",
-        path_hash="some-nice-project-FOOBAR",
+        path_slug="some-nice-project-FOOBAR",
         build_number=451,
     )
 

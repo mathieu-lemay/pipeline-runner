@@ -40,6 +40,14 @@ def get_data_directory() -> str:
     return user_data_dir(appname=APP_NAME)
 
 
+def get_project_cache_directory(project_path_slug):
+    return ensure_directory(os.path.join(get_cache_directory(), project_path_slug))
+
+
+def get_project_data_directory(project_path_slug):
+    return ensure_directory(os.path.join(get_data_directory(), project_path_slug))
+
+
 def ensure_directory(path) -> str:
     if not os.path.exists(path):
         os.makedirs(path)

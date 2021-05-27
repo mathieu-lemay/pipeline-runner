@@ -23,7 +23,7 @@ def test_get_log_directory_returns_the_right_directory(user_data_directory, proj
 
     log_directory = os.path.join(
         user_data_directory,
-        project_metadata.path_hash,
+        project_metadata.path_slug,
         "pipelines",
         f"{project_metadata.build_number}-{prc.pipeline_uuid}",
         "logs",
@@ -48,7 +48,7 @@ def test_get_artifact_directory_returns_the_right_directory(user_data_directory,
 
     artifact_directory = os.path.join(
         user_data_directory,
-        project_metadata.path_hash,
+        project_metadata.path_slug,
         "pipelines",
         f"{project_metadata.build_number}-{prc.pipeline_uuid}",
         "artifacts",
@@ -71,8 +71,8 @@ def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_dir
         repository=repository,
     )
 
-    cache_directory = os.path.join(user_cache_directory, project_metadata.path_hash, "caches")
-    assert prc.get_pipeline_cache_directory() == cache_directory
+    cache_directory = os.path.join(user_cache_directory, project_metadata.path_slug, "caches")
+    assert prc.get_cache_directory() == cache_directory
 
 
 def test_docker_is_added_to_services_if_not_present(project_metadata):

@@ -119,7 +119,7 @@ class StepRunner:
                 self._step.size.as_int(),
                 self._data_volume_name,
                 self._ctx.pipeline_ctx.project_metadata.slug,
-                self._ctx.pipeline_ctx.get_pipeline_cache_directory(),
+                self._ctx.pipeline_ctx.get_cache_directory(),
             )
 
             mem_limit = self._get_build_container_memory_limit(self._services_manager.get_memory_usage())
@@ -264,7 +264,7 @@ class StepRunner:
 
     def _upload_caches(self):
         cm = CacheManager(
-            self._container_runner, self._ctx.pipeline_ctx.get_pipeline_cache_directory(), self._ctx.pipeline_ctx.caches
+            self._container_runner, self._ctx.pipeline_ctx.get_cache_directory(), self._ctx.pipeline_ctx.caches
         )
         cm.upload(self._step.caches)
 
@@ -297,7 +297,7 @@ class StepRunner:
         if exit_code == 0:
             cm = CacheManager(
                 self._container_runner,
-                self._ctx.pipeline_ctx.get_pipeline_cache_directory(),
+                self._ctx.pipeline_ctx.get_cache_directory(),
                 self._ctx.pipeline_ctx.caches,
             )
             cm.download(self._step.caches)

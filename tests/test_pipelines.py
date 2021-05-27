@@ -1,5 +1,6 @@
 import concurrent.futures
 import io
+import json
 import os
 import tarfile
 import time
@@ -11,17 +12,33 @@ from tenacity import retry, stop_after_delay, wait_fixed
 
 from pipeline_runner import APP_NAME
 from pipeline_runner.config import config
+from pipeline_runner.models import ProjectMetadata
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def pipeline_data_directory(user_data_directory):
+def project_data_directory(user_data_directory, mocker):
+    project_path_slug = "project-path-slug"
+
+    project_data_directory = os.path.join(user_data_directory, project_path_slug)
+
+    mocker.patch("pipeline_runner.utils.get_project_data_directory", return_value=project_data_directory)
+
+    return project_data_directory
+
+
+@pytest.fixture
+def pipeline_data_directory(project_data_directory, mocker):
     build_number = 1
     pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"
 
-    pipeline_data_directory = os.path.join(user_data_directory, "pipelines", f"{build_number}-{pipeline_uuid}")
+    pipeline_data_directory = os.path.join(project_data_directory, "pipelines", f"{build_number}-{pipeline_uuid}")
+
+    mocker.patch(
+        "pipeline_runner.context.PipelineRunContext.get_pipeline_data_directory", return_value=pipeline_data_directory
+    )
 
     return pipeline_data_directory
 
@@ -41,7 +58,7 @@ def pipeline_cache_directory(user_cache_directory, mocker):
     pipeline_cache = os.path.join(user_cache_directory, "caches")
     os.makedirs(pipeline_cache)
 
-    mocker.patch("pipeline_runner.context.PipelineRunContext.get_pipeline_cache_directory", return_value=pipeline_cache)
+    mocker.patch("pipeline_runner.context.PipelineRunContext.get_cache_directory", return_value=pipeline_cache)
 
     yield pipeline_cache
 
@@ -301,6 +318,77 @@ def test_environment_variables(artifacts_directory, project_metadata, repository
         "BUILD_DIR": f"/opt/{APP_NAME}/pipeline/build",
         "CI": "true",
     }
+
+    assert variables == expected
+
+
+def test_project_metadata_is_generated_if_file_doesnt_exist(project_data_directory, artifacts_directory):
+    runner = PipelineRunner(PipelineRunRequest("custom.test_environment_variables"))
+    result = runner.run()
+
+    assert result.ok
+
+    project_metadata_file = os.path.join(project_data_directory, "meta.json")
+    assert os.path.exists(project_metadata_file)
+
+    pipeline_env_file = os.path.join(artifacts_directory, "variables")
+    assert os.path.exists(pipeline_env_file)
+
+    project_metadata = ProjectMetadata.parse_file(project_metadata_file)
+
+    slug = project_metadata.slug
+    expected = {
+        "BITBUCKET_BUILD_NUMBER": str(project_metadata.build_number),
+        "BITBUCKET_PROJECT_KEY": project_metadata.key,
+        "BITBUCKET_PROJECT_UUID": str(project_metadata.project_uuid),
+        "BITBUCKET_REPO_FULL_NAME": f"{slug}/{slug}",
+        "BITBUCKET_REPO_SLUG": slug,
+        "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
+        "BITBUCKET_WORKSPACE": slug,
+    }
+
+    variables = {k: v for k, v in dotenv.dotenv_values(pipeline_env_file).items() if k in expected}
+
+    assert variables == expected
+
+
+def test_project_metadata_is_read_from_file_if_it_exists(project_data_directory, artifacts_directory):
+    project_metadata_file = os.path.join(project_data_directory, "meta.json")
+    project_metadata = {
+        "name": "Some Project",
+        "path_slug": "some-project-CAFEBABE",
+        "slug": "some-project",
+        "key": "SP",
+        "project_uuid": str(uuid.uuid4()),
+        "repo_uuid": str(uuid.uuid4()),
+        "build_number": 68,
+    }
+
+    with open(project_metadata_file, "w") as f:
+        json.dump(project_metadata, f)
+
+    runner = PipelineRunner(PipelineRunRequest("custom.test_environment_variables"))
+    result = runner.run()
+
+    assert result.ok
+
+    pipeline_env_file = os.path.join(artifacts_directory, "variables")
+    assert os.path.exists(pipeline_env_file)
+
+    project_metadata = ProjectMetadata.parse_obj(project_metadata)
+
+    slug = project_metadata.slug
+    expected = {
+        "BITBUCKET_BUILD_NUMBER": str(project_metadata.build_number + 1),
+        "BITBUCKET_PROJECT_KEY": project_metadata.key,
+        "BITBUCKET_PROJECT_UUID": str(project_metadata.project_uuid),
+        "BITBUCKET_REPO_FULL_NAME": f"{slug}/{slug}",
+        "BITBUCKET_REPO_SLUG": slug,
+        "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
+        "BITBUCKET_WORKSPACE": slug,
+    }
+
+    variables = {k: v for k, v in dotenv.dotenv_values(pipeline_env_file).items() if k in expected}
 
     assert variables == expected
 
