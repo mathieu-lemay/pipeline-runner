@@ -26,32 +26,41 @@ class ContainerRunner:
         self,
         name: str,
         image: Image,
+        network_name: Optional[str],
         repository_path: str,
         data_volume_name: str,
         env_vars: Dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
-        services: Dict[str, Container] = None,
     ):
         self._name = name
         self._image = image
+        self._network_name = network_name
         self._repository_path = repository_path
         self._data_volume_name = data_volume_name
         self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
-        self._services = services or {}
 
         self._client = docker.from_env()
         self._container = None
 
     def start(self):
-        pull_image(self._client, self._image)
         self._start_container()
         self._create_pipeline_directories()
-        self._install_docker_client()
 
-        return self._container
+    def install_docker_client_if_needed(self, services):
+        if "docker" not in services:
+            return
+
+        res = self.run_command("command -v docker")
+        if res.exit_code == 0:
+            logger.debug("`docker` binary is already present in container.")
+            return
+
+        docker_service = services["docker"]
+        archive, _ = docker_service.get_archive("/usr/local/bin/docker")
+        self._container.put_archive("/usr/local/bin", archive)
 
     def stop(self):
         if not self._container:
@@ -97,10 +106,9 @@ class ContainerRunner:
         return self._container.put_archive(*args, **kwargs)
 
     def _start_container(self):
-        logger.info("Creating container: %s", self._name)
+        pull_image(self._client, self._image)
 
-        # Make services reachable by hostname
-        extra_hosts = {n: s.attrs["NetworkSettings"]["IPAddress"] or "127.0.0.1" for n, s in self._services.items()}
+        logger.info("Creating container: %s", self._name)
 
         self._container = self._client.containers.run(
             self._image.name,
@@ -111,14 +119,19 @@ class ContainerRunner:
             environment=self._environment,
             volumes=self._get_volumes(),
             mem_limit=self._mem_limit,
-            network_mode="host",
+            network=self._network_name,
             tty=True,
             detach=True,
-            extra_hosts=extra_hosts,
         )
 
         logger.debug("Created container: %s", self._container.name)
         logger.debug("Image Used: %s", self._image.name)
+
+    def get_container_name(self) -> Optional[str]:
+        if not self._container:
+            return None
+
+        return self._container.name
 
     def _create_pipeline_directories(self):
         mkdir_cmd = " ".join(
@@ -142,19 +155,6 @@ class ContainerRunner:
             self._repository_path: {"bind": config.remote_workspace_dir, "mode": "ro"},
             self._data_volume_name: {"bind": config.remote_pipeline_dir},
         }
-
-    def _install_docker_client(self):
-        if "docker" not in self._services:
-            return
-
-        res = self.run_command("command -v docker")
-        if res.exit_code == 0:
-            logger.debug("`docker` binary is already present in container.")
-            return
-
-        docker_service = self._services["docker"]
-        archive, _ = docker_service.get_archive("/usr/local/bin/docker")
-        self._container.put_archive("/usr/local/bin", archive)
 
 
 class ContainerScriptRunner:

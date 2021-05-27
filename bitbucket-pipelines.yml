@@ -162,8 +162,11 @@ pipelines:
           name: Test postgres service
           script:
             - apk --no-cache add postgresql-client
-            - ./ci-scripts/retry.sh 20 .1 psql -h localhost -U postgres -c 'SELECT 1;'
-            - ./ci-scripts/retry.sh 20 .1 psql -h postgres -U postgres -c 'SELECT 1;'
+            - ./ci-scripts/retry.sh 20 .1 psql -h localhost -U postgres -w -c 'SELECT 1;'
+            # Ensure service _can't_ be reached by hostname
+            - if psql -h postgres -U postgres -w -c 'SELECT 1;'; then
+            -   exit 1
+            - fi
           services:
             - postgres
 

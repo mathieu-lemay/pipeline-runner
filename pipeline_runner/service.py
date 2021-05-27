@@ -34,7 +34,7 @@ class ServicesManager:
 
         self._service_runners = {}
 
-    def start_services(self):
+    def start_services(self, network_name: str):
         self._ensure_memory_for_services()
 
         for service_name, service in self._services_by_name.items():
@@ -42,6 +42,7 @@ class ServicesManager:
                 self._client,
                 service_name,
                 service,
+                network_name,
                 self._shared_data_volume_name,
                 self._repository_slug,
                 self._pipeline_cache_directory,
@@ -91,15 +92,17 @@ class ServiceRunner:
         docker_client: DockerClient,
         service_name: str,
         service: Service,
+        network_name: str,
         shared_data_volume_name: str,
-        repository_slug: str,
+        project_slug: str,
         pipeline_cache_directory: str,
     ):
         self._client = docker_client
         self._service_name = service_name
         self._service = service
+        self._network_name = network_name
         self._shared_data_volume_name = shared_data_volume_name
-        self._repository_slug = repository_slug
+        self._project_slug = project_slug
         self._pipeline_cache_directory = pipeline_cache_directory
         self._container = None
 
@@ -120,14 +123,11 @@ class ServiceRunner:
         self._container = self._start_container()
 
     def _start_container(self) -> Container:
-        name = self._get_container_name()
-
         container = self._client.containers.run(
             self._service.image.name,
-            name=name,
+            name=self._get_container_name(),
             environment=self._service.variables,
-            hostname=self._slug,
-            network_mode="host",
+            network=self._network_name,
             mem_limit=self._get_mem_limit(),
             detach=True,
         )
@@ -135,7 +135,7 @@ class ServiceRunner:
         return container
 
     def _get_container_name(self):
-        return f"{self._repository_slug}-service-{self._slug}"
+        return f"{self._project_slug}-service-{self._slug}"
 
     def stop(self):
         logger.info("Removing service: %s", self._service_name)
@@ -153,18 +153,15 @@ class ServiceRunner:
 
 class DockerServiceRunner(ServiceRunner):
     def _start_container(self) -> Container:
-        name = self._get_container_name()
-
         environment = self._service.variables
         environment["DOCKER_TLS_CERTDIR"] = ""
 
         container = self._client.containers.run(
             self._service.image.name,
-            name=name,
+            name=self._get_container_name(),
             command="--tls=false",
             environment=environment,
-            hostname=self._slug,
-            network_mode="host",
+            network=self._network_name,
             privileged=True,
             volumes=self._get_volumes(),
             mem_limit=self._get_mem_limit(),
@@ -202,6 +199,7 @@ class ServiceRunnerFactory:
         docker_client: DockerClient,
         service_name: str,
         service_def: Service,
+        network_name: str,
         shared_data_volume_name: str,
         repository_slug: str,
         pipeline_cache_directory: str,
@@ -212,5 +210,11 @@ class ServiceRunnerFactory:
             cls = ServiceRunner
 
         return cls(
-            docker_client, service_name, service_def, shared_data_volume_name, repository_slug, pipeline_cache_directory
+            docker_client,
+            service_name,
+            service_def,
+            network_name,
+            shared_data_volume_name,
+            repository_slug,
+            pipeline_cache_directory,
         )

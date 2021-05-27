@@ -42,6 +42,7 @@ class RepositoryCloner:
         runner = ContainerRunner(
             self._name,
             image,
+            None,
             self._repository.path,
             self._data_volume_name,
             self._environment,

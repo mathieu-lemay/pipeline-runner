@@ -4,6 +4,7 @@ from time import time as ts
 from typing import Dict, List, Optional, Union
 
 import docker
+from docker.models.networks import Network
 
 from . import utils
 from .artifacts import ArtifactManager
@@ -105,8 +106,12 @@ class StepRunner:
 
         s = ts()
 
+        network = None
+
         try:
             image = self._get_image()
+            network = self._create_network()
+            environment = self._get_step_env_vars()
 
             self._services_manager = ServicesManager(
                 self._step.services,
@@ -116,23 +121,26 @@ class StepRunner:
                 self._ctx.pipeline_ctx.project_metadata.slug,
                 self._ctx.pipeline_ctx.get_pipeline_cache_directory(),
             )
-            self._services_manager.start_services()
 
-            environment = self._get_step_env_vars()
-            services = self._services_manager.get_services_containers()
             mem_limit = self._get_build_container_memory_limit(self._services_manager.get_memory_usage())
 
             self._container_runner = ContainerRunner(
                 self._container_name,
                 image,
+                network.name,
                 self._ctx.pipeline_ctx.repository.path,
                 self._data_volume_name,
                 environment,
                 self._output_logger,
                 mem_limit,
-                services,
             )
+
             self._container_runner.start()
+
+            self._services_manager.start_services(f"container:{self._container_runner.get_container_name()}")
+
+            services = self._services_manager.get_services_containers()
+            self._container_runner.install_docker_client_if_needed(services)
 
             self._build_setup()
 
@@ -147,11 +155,14 @@ class StepRunner:
 
             self._build_teardown(exit_code)
         finally:
+            if self._services_manager:
+                self._services_manager.stop_services()
+
             if self._container_runner:
                 self._container_runner.stop()
 
-            if self._services_manager:
-                self._services_manager.stop_services()
+            if network:
+                network.remove()
 
             volume = next(iter(self._docker_client.volumes.list(filters={"name": self._data_volume_name})), None)
             if volume:
@@ -176,6 +187,16 @@ class StepRunner:
             return self._ctx.pipeline_ctx.default_image
 
         return Image(name=config.default_image)
+
+    def _create_network(self) -> Network:
+        name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
+        network = self._docker_client.networks.create(
+            name,
+            driver="bridge",
+            # options={"com.docker.network.bridge.enable_icc": 'true'}
+        )
+
+        return network
 
     def _get_step_env_vars(self) -> Dict[str, str]:
         env_vars = self._get_bitbucket_env_vars()
