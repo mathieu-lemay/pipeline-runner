@@ -163,6 +163,7 @@ pipelines:
           script:
             - apk --no-cache add postgresql-client
             - ./ci-scripts/retry.sh 20 .1 psql -h localhost -U postgres -c 'SELECT 1;'
+            - ./ci-scripts/retry.sh 20 .1 psql -h postgres -U postgres -c 'SELECT 1;'
           services:
             - postgres
 

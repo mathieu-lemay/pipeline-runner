@@ -99,6 +99,9 @@ class ContainerRunner:
     def _start_container(self):
         logger.info("Creating container: %s", self._name)
 
+        # Make services reachable by hostname
+        extra_hosts = {n: s.attrs["NetworkSettings"]["IPAddress"] or "127.0.0.1" for n, s in self._services.items()}
+
         self._container = self._client.containers.run(
             self._image.name,
             name=self._name,
@@ -111,6 +114,7 @@ class ContainerRunner:
             network_mode="host",
             tty=True,
             detach=True,
+            extra_hosts=extra_hosts,
         )
 
         logger.debug("Created container: %s", self._container.name)
