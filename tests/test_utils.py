@@ -10,5 +10,5 @@ def test_escape_shell_string():
     assert escape_shell_string("awk '(NR % 5 == 0)'") == r"awk \x27(NR \x25 5 == 0)\x27"
     assert (
         escape_shell_string(r"cat /proc/$$/environ | xargs -0 -n1 echo | tr '\n' ','")
-        == r"cat /proc/\x24\x24/environ | xargs -0 -n1 echo | tr \x27\x5cn\x27 \x27,\x27"  # noqa: W503 (contradicts PEP8 and will be updated soon)
+        == r"cat /proc/\x24\x24/environ | xargs -0 -n1 echo | tr \x27\x5cn\x27 \x27,\x27"
     )

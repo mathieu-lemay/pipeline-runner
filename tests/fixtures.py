@@ -8,7 +8,7 @@ from pipeline_runner.models import ProjectMetadata, Repository
 
 @pytest.fixture(autouse=True)
 def user_cache_directory(mocker):
-    with TemporaryDirectory() as cache_dir:
+    with TemporaryDirectory(prefix="pipeline-runner-cache-") as cache_dir:
         m = mocker.patch("pipeline_runner.utils.get_cache_directory")
 
         m.return_value = cache_dir
@@ -18,7 +18,7 @@ def user_cache_directory(mocker):
 
 @pytest.fixture(autouse=True)
 def user_data_directory(mocker):
-    with TemporaryDirectory() as data_dir:
+    with TemporaryDirectory(prefix="pipeline-runner-data-") as data_dir:
         m = mocker.patch("pipeline_runner.utils.get_data_directory")
 
         m.return_value = data_dir

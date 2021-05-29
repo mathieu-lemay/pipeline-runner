@@ -54,15 +54,15 @@ def artifacts_directory(pipeline_data_directory, mocker):
 
 
 @pytest.fixture(autouse=True)
-def pipeline_cache_directory(user_cache_directory, mocker):
-    pipeline_cache = os.path.join(user_cache_directory, "caches")
-    os.makedirs(pipeline_cache)
+def project_cache_directory(user_cache_directory, mocker):
+    project_cache = os.path.join(user_cache_directory, "caches")
+    os.makedirs(project_cache)
 
-    mocker.patch("pipeline_runner.context.PipelineRunContext.get_cache_directory", return_value=pipeline_cache)
+    mocker.patch("pipeline_runner.context.PipelineRunContext.get_cache_directory", return_value=project_cache)
 
-    yield pipeline_cache
+    yield project_cache
 
-    docker_cache_dir = os.path.join(pipeline_cache, "docker")
+    docker_cache_dir = os.path.join(project_cache, "docker")
     if os.path.exists(docker_cache_dir):
         import subprocess
 
@@ -93,13 +93,13 @@ def test_after_script():
     assert result.exit_code == 2
 
 
-def test_default_cache(pipeline_cache_directory):
+def test_default_cache(project_cache_directory):
     runner = PipelineRunner(PipelineRunRequest("custom.test_default_cache"))
     result = runner.run()
 
     assert result.ok, "Pipeline failed"
 
-    cache_file = os.path.join(pipeline_cache_directory, "pip.tar")
+    cache_file = os.path.join(project_cache_directory, "pip.tar")
 
     assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
@@ -110,13 +110,13 @@ def test_default_cache(pipeline_cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_cache_alpine(pipeline_cache_directory):
+def test_cache_alpine(project_cache_directory):
     runner = PipelineRunner(PipelineRunRequest("custom.test_cache_alpine"))
     result = runner.run()
 
     assert result.ok, "Pipeline failed"
 
-    cache_file = os.path.join(pipeline_cache_directory, "service1.tar")
+    cache_file = os.path.join(project_cache_directory, "service1.tar")
 
     assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
@@ -127,13 +127,13 @@ def test_cache_alpine(pipeline_cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_cache_debian(pipeline_cache_directory):
+def test_cache_debian(project_cache_directory):
     runner = PipelineRunner(PipelineRunRequest("custom.test_cache_debian"))
     result = runner.run()
 
     assert result.ok, "Pipeline failed"
 
-    cache_file = os.path.join(pipeline_cache_directory, "service1.tar")
+    cache_file = os.path.join(project_cache_directory, "service1.tar")
 
     assert os.path.isfile(cache_file), f"Cache file not found: {cache_file}"
 
@@ -144,13 +144,13 @@ def test_cache_debian(pipeline_cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_invalid_cache(pipeline_cache_directory):
+def test_invalid_cache(project_cache_directory):
     runner = PipelineRunner(PipelineRunRequest("custom.test_invalid_cache"))
     result = runner.run()
 
     assert result.ok
 
-    assert len(os.listdir(pipeline_cache_directory)) == 0
+    assert len(os.listdir(project_cache_directory)) == 0
 
 
 def test_artifacts(artifacts_directory):
