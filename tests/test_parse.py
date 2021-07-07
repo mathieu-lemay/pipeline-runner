@@ -7,6 +7,7 @@ from pipeline_runner.models import (
     Definitions,
     Image,
     ParallelStep,
+    Pipe,
     Pipeline,
     PipelineSpec,
     Service,
@@ -278,6 +279,64 @@ def test_parse_step_with_double_size():
     step = Step.parse_obj(spec)
 
     assert step.size == StepSize.Double
+
+
+def test_parse_step_with_pipes():
+    spec = {
+        "script": [
+            "echo a",
+            {
+                "pipe": "atlassian/trigger-pipeline:4.2.1",
+                "variables": {
+                    "BITBUCKET_USERNAME": "${TRIGGER_PIPELINE_USERNAME}",
+                    "BITBUCKET_APP_PASSWORD": "${TRIGGER_PIPELINE_APP_PASSWORD}",
+                    "REPOSITORY": "other-repo",
+                    "CUSTOM_PIPELINE_NAME": "deploy",
+                    "PIPELINE_VARIABLES": (
+                        '[{"key": "PIPELINE_VAR_1", "value": "VALUE_1"}, '
+                        '{ "key": "PIPELINE_VAR_2", "value": "VALUE_2"}, '
+                        '{ "key": "PIPELINE_VAR_3", "value": "VALUE_3"}]'
+                    ),
+                    "WAIT": "true",
+                },
+            },
+            "echo b",
+        ],
+        "after-script": [
+            "echo c",
+            {
+                "pipe": "atlassian/trigger-pipeline:4.2.1",
+                "variables": {
+                    "BITBUCKET_USERNAME": "${TRIGGER_PIPELINE_USERNAME}",
+                    "BITBUCKET_APP_PASSWORD": "${TRIGGER_PIPELINE_APP_PASSWORD}",
+                },
+            },
+            "echo d",
+        ],
+    }
+
+    parsed = Step.parse_obj(spec)
+
+    pipe_a = Pipe(
+        pipe="atlassian/trigger-pipeline:4.2.1",
+        variables=spec["script"][1]["variables"],
+    )
+
+    pipe_b = Pipe(
+        pipe="atlassian/trigger-pipeline:4.2.1",
+        variables=spec["after-script"][1]["variables"],
+    )
+
+    assert parsed.script == [
+        "echo a",
+        pipe_a,
+        "echo b",
+    ]
+    assert parsed.after_script == [
+        "echo c",
+        pipe_b,
+        "echo d",
+    ]
 
 
 def test_parse_pipeline_with_env_vars():

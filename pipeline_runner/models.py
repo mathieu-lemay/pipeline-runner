@@ -170,7 +170,7 @@ class Step(BaseModel):
     caches: Optional[List[str]] = Field(default_factory=list)
     services: Optional[List[str]] = Field(default_factory=list)
     artifacts: Optional[List[str]] = Field(default_factory=list)
-    after_script: Optional[List[str]] = Field(default_factory=list, alias="after-script")
+    after_script: Optional[List[Union[str, Pipe]]] = Field(default_factory=list, alias="after-script")
     size: Optional[StepSize] = StepSize.Simple
     clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty, alias="clone")
     deployment: Optional[str] = None
