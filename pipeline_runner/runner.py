@@ -12,7 +12,7 @@ from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
-from .models import Image, ParallelStep, PipelineResult, Step, Trigger
+from .models import Image, ParallelStep, Pipe, PipelineResult, Step, Trigger
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -109,6 +109,10 @@ class StepRunner:
         network = None
 
         try:
+            if "docker" not in self._step.services and self._docker_is_needed():
+                logger.debug("Docker service is needed, but wasn't requested. Adding it.")
+                self._step.services.append("docker")
+
             image = self._get_image()
             network = self._create_network()
             environment = self._get_step_env_vars()
@@ -245,6 +249,9 @@ class StepRunner:
 
     def _get_build_container_memory_limit(self, services_memory_usage: int) -> int:
         return config.total_memory_limit * self._step.size.as_int() - services_memory_usage
+
+    def _docker_is_needed(self) -> bool:
+        return any(i for i in self._step.script + self._step.after_script if isinstance(i, Pipe))
 
     def _build_setup(self):
         logger.info("Build setup: '%s'", self._step.name)

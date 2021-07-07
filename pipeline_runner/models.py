@@ -162,6 +162,20 @@ class Pipe(BaseModel):
     pipe: str
     variables: Optional[Dict[str, str]] = Field(default=dict)
 
+    def as_cmd(self) -> str:
+        variables = " ".join(f'-e {k}="{self._escape_value(v)}"' for k, v in self.variables.items())
+        return f"docker run --rm {variables} {self.get_image()}"
+
+    @staticmethod
+    def _escape_value(v):
+        return v.replace('"', '\\"')
+
+    def get_image(self) -> str:
+        if self.pipe.startswith("atlassian/"):
+            return self.pipe.replace("atlassian/", "bitbucketpipelines/", 1)
+
+        return self.pipe
+
 
 class Step(BaseModel):
     name: Optional[str] = "<unnamed>"

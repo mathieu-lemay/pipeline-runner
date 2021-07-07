@@ -16,7 +16,7 @@ from docker.models.containers import Container, ExecResult
 
 from . import utils
 from .config import config
-from .models import Image
+from .models import Image, Pipe
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class ContainerRunner:
         self._start_container()
         self._create_pipeline_directories()
 
-    def install_docker_client_if_needed(self, services):
+    def install_docker_client_if_needed(self, services: Dict[str, Container]):
         if "docker" not in services:
             return
 
@@ -71,16 +71,32 @@ class ContainerRunner:
 
     def run_script(
         self,
-        script: Union[str, List[str]],
+        script: List[Union[str, Pipe]],
         user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
         exec_time: bool = False,
     ) -> int:
-        command = utils.stringify(script, sep="\n")
+        if not isinstance(script, list):
+            raise TypeError("Script is not a list!")
+
+        command = self._parse_script(script)
 
         csr = ContainerScriptRunnerFactory.get(self._container, command, self._logger, user, env, exec_time)
 
         return csr.run()
+
+    @staticmethod
+    def _parse_script(script: List[Union[str, Pipe]]) -> str:
+        commands = []
+
+        for elem in script:
+            if isinstance(elem, Pipe):
+                cmd = elem.as_cmd()
+                commands.append(cmd)
+            else:
+                commands.append(elem)
+
+        return "\n".join(commands)
 
     def run_command(
         self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Optional[Union[int, str]] = None

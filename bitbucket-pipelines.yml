@@ -272,3 +272,13 @@ pipelines:
             - env | tee variables
           artifacts:
             - variables
+
+    test_pipe:
+      - variables:
+        - name: NAME
+      - step:
+          name: Test
+          script:
+            - pipe: atlassian/demo-pipe-python:0.1.2
+              variables:
+                NAME: "${NAME}"
