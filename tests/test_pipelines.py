@@ -394,9 +394,6 @@ def test_project_metadata_is_read_from_file_if_it_exists(project_data_directory,
 
 
 def test_pipeline_with_pipe(pipeline_data_directory, monkeypatch):
-    name = uuid.uuid4()
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"{name}\n"))
-
     runner = PipelineRunner(PipelineRunRequest("custom.test_pipe"))
     result = runner.run()
 
@@ -406,8 +403,8 @@ def test_pipeline_with_pipe(pipeline_data_directory, monkeypatch):
     with open(log_file) as f:
         log_lines = f.readlines()
 
-    expected_line = str(name) + "\n"
-    assert any(i for i in log_lines if i == expected_line)
+    for expected in ("name\n", "'name-in-single-quotes'\n", '"name-in-double-quotes"\n'):
+        assert any(i for i in log_lines if i == expected)
 
 
 # def test_pipeline_yml_in_other_folder():

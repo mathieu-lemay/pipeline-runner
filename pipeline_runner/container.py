@@ -76,27 +76,9 @@ class ContainerRunner:
         env: Optional[Dict[str, Any]] = None,
         exec_time: bool = False,
     ) -> int:
-        if not isinstance(script, list):
-            raise TypeError("Script is not a list!")
-
-        command = self._parse_script(script)
-
-        csr = ContainerScriptRunnerFactory.get(self._container, command, self._logger, user, env, exec_time)
+        csr = ContainerScriptRunnerFactory.get(self._container, script, self._logger, user, env, exec_time)
 
         return csr.run()
-
-    @staticmethod
-    def _parse_script(script: List[Union[str, Pipe]]) -> str:
-        commands = []
-
-        for elem in script:
-            if isinstance(elem, Pipe):
-                cmd = elem.as_cmd()
-                commands.append(cmd)
-            else:
-                commands.append(elem)
-
-        return "\n".join(commands)
 
     def run_command(
         self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Optional[Union[int, str]] = None
@@ -177,7 +159,7 @@ class ContainerScriptRunner:
     def __init__(
         self,
         container: Container,
-        script: str,
+        script: List[Union[str, Pipe]],
         output_logger: Optional[Logger] = None,
         user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
@@ -214,7 +196,7 @@ class ContainerScriptRunner:
         return self._get_exit_code_of_command(exit_code_file_path)
 
     def _prepare_script_for_remote_execution(self) -> Tuple[str, str]:
-        script = self._add_traces_to_script(self._script)
+        script = self._add_traces_to_script()
         exit_code_file_path = posixpath.join(config.temp_dir, f"exit_code-{uuid.uuid4().hex}")
 
         sh_script_name = f"shell_script-{uuid.uuid4().hex}.sh"
@@ -269,13 +251,17 @@ class ContainerScriptRunner:
         else:
             return exit_code
 
-    def _add_traces_to_script(self, script):
-        script_lines = map(self._add_trace_to_script_line, script.split("\n"))
+    def _add_traces_to_script(self):
+        script_lines = map(self._add_trace_to_script_line, self._script)
 
         return '\nprintf "\\n"\n'.join(line for line in script_lines if line)
 
-    def _add_trace_to_script_line(self, line):
-        line = line.strip()
+    def _add_trace_to_script_line(self, line: Union[str, Pipe]):
+        if isinstance(line, Pipe):
+            line = line.as_cmd()
+        else:
+            line = line.strip()
+
         if not line:
             return None
 
@@ -333,7 +319,7 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
     def __init__(
         self,
         container: Container,
-        script: str,
+        script: List[Union[str, Pipe]],
         output_logger: Optional[Logger] = None,
         user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,
@@ -368,7 +354,7 @@ class ContainerScriptRunnerFactory:
     @staticmethod
     def get(
         container: Container,
-        script: str,
+        script: List[Union[str, Pipe]],
         output_logger: Optional[Logger] = None,
         user: Optional[Union[int, str]] = None,
         env: Optional[Dict[str, Any]] = None,

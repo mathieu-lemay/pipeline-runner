@@ -274,11 +274,12 @@ pipelines:
             - variables
 
     test_pipe:
-      - variables:
-        - name: NAME
       - step:
           name: Test
           script:
-            - pipe: atlassian/demo-pipe-python:0.1.2
+            - pipe: atlassian/demo-pipe-bash:0.1.0
               variables:
-                NAME: "${NAME}"
+                NAME: |-
+                  name
+                  'name-in-single-quotes'
+                  "name-in-double-quotes"

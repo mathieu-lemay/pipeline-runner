@@ -39,12 +39,13 @@ def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command():
         pipe="atlassian/foo:1.2.3",
         variables={
             "FOO": "BAR",
-            "BAZ": '[{"some": "json with \'single-quotes\'"}]',
+            "BAZ": '[{"some": "json with \'single-quotes\'", "more": "json with line\nbreak"}]',
             "ENV": "${SOME_ENVVAR}",
         },
     )
 
     assert p.as_cmd() == (
-        'docker run --rm -e FOO="BAR" -e BAZ="[{\\"some\\": \\"json with \'single-quotes\'\\"}]" '
+        'docker run --rm -e FOO="BAR" '
+        '-e BAZ="[{\\"some\\": \\"json with \'single-quotes\'\\", \\"more\\": \\"json with line\nbreak\\"}]" '
         '-e ENV="${SOME_ENVVAR}" bitbucketpipelines/foo:1.2.3'
     )
