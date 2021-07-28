@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from time import time as ts
 from typing import Dict, List, Optional, Union
 
@@ -62,9 +63,21 @@ class PipelineRunner:
     def _ask_for_variables(self) -> Dict[str, str]:
         pipeline_variables = {}
         for var in self._pipeline.get_variables():
-            pipeline_variables[var.name] = input(f"Enter value for {var.name}: ")
+            pipeline_variables[var.name] = self._read_user_variable_from_stdin(var.name)
 
         return pipeline_variables
+
+    @staticmethod
+    def _read_user_variable_from_stdin(var_name) -> str:
+        if sys.stdin.isatty():
+            var = input(f"Enter value for {var_name}: ")
+        else:
+            var = sys.stdin.readline()
+            if not var:
+                raise IOError("Unable to read from stdin")
+            var = var.rstrip()
+
+        return var
 
     def _execute_pipeline(self):
         for step in self._pipeline.get_steps():
