@@ -183,7 +183,7 @@ class StepRunner:
 
         return True
 
-    def _get_image(self):
+    def _get_image(self) -> Image:
         if self._step.image:
             return self._step.image
 
@@ -260,6 +260,20 @@ class StepRunner:
         self._clone_repository()
         self._upload_artifacts()
         self._upload_caches()
+
+        if self._ctx.pipeline_ctx.pipeline_variables:
+            self._output_logger.info("Pipeline Variables:\n")
+
+            for k, v in self._ctx.pipeline_ctx.pipeline_variables.items():
+                self._output_logger.info("\t%s: %s\n", k, v)
+        self._output_logger.info("\n")
+
+        self._output_logger.info("Images used:\n")
+        docker_image = self._docker_client.images.get(self._get_image().name)
+        self._output_logger.info("\tbuild: %s\n", docker_image.attrs["RepoDigests"][0])
+        for name, container in self._services_manager.get_services_containers().items():
+            self._output_logger.info("\t%s: %s\n", name, container.image.attrs["RepoDigests"][0])
+        self._output_logger.info("\n")
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
