@@ -56,7 +56,7 @@ class Config:
 
     @property
     def log_config(self) -> Dict:
-        log_handler_name = "colored" if self.color else "default"
+        log_handler_name = "colored" if self.color and "NO_COLOR" not in os.environ else "default"
         return {
             "version": 1,
             "loggers": {
