@@ -59,7 +59,7 @@ class Image(BaseModel):
     run_as_user: Optional[int] = Field(None, alias="run-as-user")
     aws: Optional[AwsCredentials] = None
 
-    __env_var_expand_fields__ = ["name", "username", "password", "email", "aws"]
+    __env_var_expand_fields__ = ["username", "password", "email", "aws"]
 
 
 ImageType = Optional[Union[str, Image]]

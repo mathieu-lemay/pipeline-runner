@@ -166,7 +166,7 @@ def test_parse_image_with_envvars():
     image.expand_env_vars(env_vars)
 
     expected = Image(
-        name=name,
+        name="${IMAGE_NAME}",  # Env vars in the name field are not expanded
         username=username,
         password=password,
         email=email,
@@ -340,16 +340,18 @@ def test_parse_step_with_pipes():
 
 
 def test_parse_pipeline_with_env_vars():
+    step_image = "step-image"
+    service_image = "service-image"
+    parallel_step_image = "parallel-image"
+
     spec = {
-        "definitions": {
-            "services": {"from_env": {"image": "${SERVICE_IMAGE}", "variables": {"PASSWORD": "$PASSWORD"}}}
-        },
+        "definitions": {"services": {"from_env": {"image": service_image, "variables": {"PASSWORD": "$PASSWORD"}}}},
         "pipelines": {
             "default": [
                 {
                     "step": {
                         "name": "Test image from env",
-                        "image": "$STEP_IMAGE",
+                        "image": step_image,
                         "services": ["from_env"],
                         "script": ["cat /etc/os-release"],
                     },
@@ -359,7 +361,7 @@ def test_parse_pipeline_with_env_vars():
                         {
                             "step": {
                                 "name": "Parallel 1",
-                                "image": "$PARALLEL_STEP_IMAGE",
+                                "image": parallel_step_image,
                                 "services": ["from_env"],
                                 "script": ["cat /etc/os-release"],
                             }
@@ -367,7 +369,7 @@ def test_parse_pipeline_with_env_vars():
                         {
                             "step": {
                                 "name": "Parallel 2",
-                                "image": "$PARALLEL_STEP_IMAGE",
+                                "image": parallel_step_image,
                                 "services": ["from_env"],
                                 "script": ["cat /etc/os-release"],
                             }
@@ -378,14 +380,8 @@ def test_parse_pipeline_with_env_vars():
         },
     }
 
-    step_image = "step-image"
-    service_image = "service-image"
-    parallel_step_image = "parallel-image"
     password = "some-password"
     variables = {
-        "STEP_IMAGE": step_image,
-        "SERVICE_IMAGE": service_image,
-        "PARALLEL_STEP_IMAGE": parallel_step_image,
         "PASSWORD": password,
     }
 
