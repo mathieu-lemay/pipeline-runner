@@ -1,5 +1,4 @@
 import os.path
-from tempfile import TemporaryDirectory
 
 import pytest
 
@@ -7,23 +6,23 @@ from pipeline_runner.models import ProjectMetadata, Repository
 
 
 @pytest.fixture(autouse=True)
-def user_cache_directory(mocker):
-    with TemporaryDirectory(prefix="pipeline-runner-cache-") as cache_dir:
-        m = mocker.patch("pipeline_runner.utils.get_cache_directory")
+def user_cache_directory(tmp_path, mocker):
+    cache_dir = os.path.join(tmp_path, "cache")
 
-        m.return_value = cache_dir
+    m = mocker.patch("pipeline_runner.utils.get_cache_directory")
+    m.return_value = cache_dir
 
-        yield cache_dir
+    yield cache_dir
 
 
 @pytest.fixture(autouse=True)
-def user_data_directory(mocker):
-    with TemporaryDirectory(prefix="pipeline-runner-data-") as data_dir:
-        m = mocker.patch("pipeline_runner.utils.get_data_directory")
+def user_data_directory(tmp_path, mocker):
+    data_dir = os.path.join(tmp_path, "data")
 
-        m.return_value = data_dir
+    m = mocker.patch("pipeline_runner.utils.get_data_directory")
+    m.return_value = data_dir
 
-        yield data_dir
+    yield data_dir
 
 
 @pytest.fixture
