@@ -32,6 +32,7 @@ class ContainerRunner:
         env_vars: Dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
+        ssh_private_key: Optional[str] = None,
     ):
         self._name = name
         self._image = image
@@ -41,6 +42,7 @@ class ContainerRunner:
         self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2 ** 20  # MiB to B
+        self._ssh_private_key = ssh_private_key
 
         self._client = docker.from_env()
         self._container = None
@@ -48,6 +50,7 @@ class ContainerRunner:
     def start(self):
         self._start_container()
         self._create_pipeline_directories()
+        self._insert_ssh_key_and_config()
 
     def install_docker_client_if_needed(self, services: Dict[str, Container]):
         if "docker" not in services:
@@ -135,21 +138,39 @@ class ContainerRunner:
         return self._container.name
 
     def _create_pipeline_directories(self):
-        mkdir_cmd = " ".join(
-            [
-                "install",
-                "-dD",
-                "-o",
-                str(self._image.run_as_user or 0),
-                config.build_dir,
-                config.scripts_dir,
-                config.temp_dir,
-                config.caches_dir,
-            ]
-        )
+        mkdir_cmd = [
+            "install",
+            "-dD",
+            "-o",
+            str(self._image.run_as_user or 0),
+            config.build_dir,
+            config.scripts_dir,
+            config.temp_dir,
+            config.caches_dir,
+            config.ssh_key_dir,
+        ]
+
         exit_code, output = self.run_command(mkdir_cmd, user=0)
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
+
+    def _insert_ssh_key_and_config(self):
+        if not self._ssh_private_key:
+            return
+
+        private_key_file_path = os.path.join(config.ssh_key_dir, "id_rsa")
+
+        cmd = " && ".join(
+            [
+                "install -d -m 700 ~/.ssh",
+                f'echo "IdentityFile {private_key_file_path}\nServerAliveInterval 180" > ~/.ssh/config',
+                f"install -m 600 /dev/null {private_key_file_path}",
+                f'echo "{self._ssh_private_key}" > {private_key_file_path}',
+            ]
+        )
+        exit_code, output = self.run_command(cmd, user=0)
+        if exit_code != 0:
+            raise Exception(f"Error creating root ssh config: {output}")
 
     def _get_volumes(self):
         return {

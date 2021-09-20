@@ -406,5 +406,8 @@ def test_pipeline_with_pipe(pipeline_data_directory, monkeypatch):
         assert any(i for i in log_lines if i == expected)
 
 
-# def test_pipeline_yml_in_other_folder():
-#     assert False
+def test_ssh_key_is_present_in_runner():
+    runner = PipelineRunner(PipelineRunRequest("custom.test_ssh_key"))
+    result = runner.run()
+
+    assert result.ok

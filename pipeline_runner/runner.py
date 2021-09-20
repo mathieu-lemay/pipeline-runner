@@ -150,6 +150,7 @@ class StepRunner:
                 environment,
                 self._output_logger,
                 mem_limit,
+                self._ctx.pipeline_ctx.project_metadata.ssh_key,
             )
 
             self._container_runner.start()

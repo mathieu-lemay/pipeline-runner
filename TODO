@@ -3,7 +3,6 @@
 - Clone the real thing
 - pipes
 - Execution report
-- SSH Keys
 - --include / --exclude instead of --step
 - Validate there are no variables in branch / pull-request pipelines
 - Use docker volume for docker cache

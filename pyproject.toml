@@ -18,6 +18,7 @@ coloredlogs = "^15.0"
 pyfzf = "^0.2.2"
 pydantic = "^1.8.2"
 appdirs = "^1.4.4"
+cryptography = "^3.4.8"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

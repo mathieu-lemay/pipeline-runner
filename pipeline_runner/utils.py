@@ -6,6 +6,8 @@ import sys
 from typing import List, Union
 
 from appdirs import user_cache_dir, user_data_dir
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from slugify import slugify
 
 from . import APP_NAME
@@ -99,6 +101,14 @@ def hashify_path(path):
     h = base64.urlsafe_b64encode(h).decode()[:8]
 
     return f"{slug}-{h}"
+
+
+def generate_ssh_rsa_key() -> str:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    return private_key.decode()
 
 
 class FileStreamer:
