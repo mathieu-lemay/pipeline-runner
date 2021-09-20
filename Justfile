@@ -1,3 +1,5 @@
+set dotenv-load := true
+
 app := "pipeline_runner"
 
 run *args: _deps
