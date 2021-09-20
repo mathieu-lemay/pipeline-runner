@@ -32,9 +32,9 @@ class Config:
             }
         }
 
-        self.remote_base_dir = "/opt/pipeline-runner"
+        self.remote_base_dir = "/opt/atlassian"
         self.remote_workspace_dir = os.path.join(self.remote_base_dir, "workspace")
-        self.remote_pipeline_dir = os.path.join(self.remote_base_dir, "pipeline")
+        self.remote_pipeline_dir = os.path.join(self.remote_base_dir, "pipelines", "agent")
         self.build_dir = posixpath.join(self.remote_pipeline_dir, "build")
         self.scripts_dir = posixpath.join(self.remote_pipeline_dir, "scripts")
         self.temp_dir = posixpath.join(self.remote_pipeline_dir, "temp")

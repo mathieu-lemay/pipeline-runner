@@ -10,7 +10,6 @@ import dotenv
 import pytest
 from tenacity import retry, stop_after_delay, wait_fixed
 
-from pipeline_runner import APP_NAME
 from pipeline_runner.config import config
 from pipeline_runner.models import ProjectMetadata
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
@@ -302,7 +301,7 @@ def test_environment_variables(artifacts_directory, project_metadata, repository
     expected = {
         "BITBUCKET_BRANCH": repository.get_current_branch(),
         "BITBUCKET_BUILD_NUMBER": str(project_metadata.build_number),
-        "BITBUCKET_CLONE_DIR": f"/opt/{APP_NAME}/pipeline/build",
+        "BITBUCKET_CLONE_DIR": "/opt/atlassian/pipelines/agent/build",
         "BITBUCKET_COMMIT": repository.get_current_commit(),
         "BITBUCKET_PIPELINE_UUID": str(pipeline_uuid),
         "BITBUCKET_PROJECT_KEY": project_metadata.key,
@@ -315,7 +314,7 @@ def test_environment_variables(artifacts_directory, project_metadata, repository
         "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
         "BITBUCKET_STEP_UUID": str(step_uuid),
         "BITBUCKET_WORKSPACE": slug,
-        "BUILD_DIR": f"/opt/{APP_NAME}/pipeline/build",
+        "BUILD_DIR": "/opt/atlassian/pipelines/agent/build",
         "CI": "true",
     }
 
