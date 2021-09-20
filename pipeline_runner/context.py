@@ -91,6 +91,8 @@ class PipelineRunContext:
             logger.debug("Loading env file: %s", env_file)
             envvars.update(dotenv_values(env_file))
 
+        os.environ.update(envvars)
+
         return envvars
 
     @staticmethod
