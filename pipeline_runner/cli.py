@@ -58,6 +58,10 @@ def main(ctx, show_version):
         print(f"Pipeline Runner {pkg_resources.get_distribution(root_module_name).version}")
         ctx.exit()
 
+    if not ctx.invoked_subcommand:
+        print(ctx.get_help())
+        ctx.exit(1)
+
 
 @main.command()
 @click.argument("pipeline", default="")
