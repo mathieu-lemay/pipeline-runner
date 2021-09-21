@@ -111,6 +111,15 @@ class ContainerRunner:
 
         logger.info("Creating container: %s", self._name)
 
+        if config.cpu_limits:
+            opts = {
+                "cpu_period": 100000,
+                "cpu_quota": 400000,
+                "cpu_shares": 4096,
+            }
+        else:
+            opts = {}
+
         self._container = self._client.containers.run(
             self._image.name,
             name=self._name,
@@ -120,12 +129,10 @@ class ContainerRunner:
             environment=self._environment,
             volumes=self._get_volumes(),
             mem_limit=self._mem_limit,
-            cpu_period=100000,
-            cpu_quota=400000,
-            cpu_shares=4096,
             network=self._network_name,
             tty=True,
             detach=True,
+            **opts,
         )
 
         logger.debug("Created container: %s", self._container.name)

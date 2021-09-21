@@ -10,6 +10,7 @@ from . import __name__ as __project_name__
 class Config:
     def __init__(self):
         self.color = True
+        self.cpu_limits = False
 
         # TODO: Move some of these things to default definitions or smth
         self.default_image = "atlassian/default-image:latest"

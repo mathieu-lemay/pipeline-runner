@@ -2,7 +2,7 @@ import base64
 
 import pytest
 
-from pipeline_runner.container import get_image_authentication
+from pipeline_runner.container import ContainerRunner, get_image_authentication
 from pipeline_runner.models import AwsCredentials, Image
 
 
@@ -11,6 +11,11 @@ def aws_lib(mocker):
     lib = mocker.patch("pipeline_runner.container.boto3")
 
     return lib
+
+
+@pytest.fixture
+def config(mocker):
+    return mocker.patch("pipeline_runner.container.config")
 
 
 def test_get_image_authentication_returns_nothing_if_no_auth_defined():
@@ -80,3 +85,55 @@ def test_aws_credentials_have_precedence(aws_lib):
         "username": aws_username,
         "password": aws_password,
     }
+
+
+def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config, mocker):
+    runner = ContainerRunner(
+        name="container",
+        image=mocker.Mock(),
+        network_name=None,
+        repository_path="/some/path",
+        data_volume_name="data-volume",
+        env_vars={},
+        output_logger=mocker.Mock(),
+    )
+
+    mocker.patch("pipeline_runner.container.pull_image")
+    docker_client_mock = mocker.patch.object(runner, "_client")
+
+    config.cpu_limits = False
+
+    runner._start_container()
+
+    assert docker_client_mock.containers.run.call_count == 1
+    _, kwargs = docker_client_mock.containers.run.call_args
+
+    assert "cpu_period" not in kwargs
+    assert "cpu_quota" not in kwargs
+    assert "cpu_shares" not in kwargs
+
+
+def test_cpu_limits_are_applied_if_config_is_set_to_true(config, mocker):
+    runner = ContainerRunner(
+        name="container",
+        image=mocker.Mock(),
+        network_name=None,
+        repository_path="/some/path",
+        data_volume_name="data-volume",
+        env_vars={},
+        output_logger=mocker.Mock(),
+    )
+
+    mocker.patch("pipeline_runner.container.pull_image")
+    docker_client_mock = mocker.patch.object(runner, "_client")
+
+    config.cpu_limits = True
+
+    runner._start_container()
+
+    assert docker_client_mock.containers.run.call_count == 1
+    _, kwargs = docker_client_mock.containers.run.call_args
+
+    assert kwargs["cpu_period"] == 100_000
+    assert kwargs["cpu_quota"] == 400_000
+    assert kwargs["cpu_shares"] == 4096

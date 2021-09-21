@@ -88,15 +88,21 @@ def main(ctx, show_version):
     "-c",
     "--color/--no-color",
     default=True,
-    help="Enable colored output",
+    help="Enable colored output. Default: True",
 )
-def run(pipeline, repository_path, steps, env_files, color):
+@click.option(
+    "--cpu-limits/--no-cpu-limits",
+    default=False,
+    help="Enable to enforce cpu limits for the runner. Default: False",
+)
+def run(pipeline, repository_path, steps, env_files, color, cpu_limits):
     """
     Runs the pipeline PIPELINE.
 
     PIPELINE is the full path to the pipeline to run. Ex: branches.master
     """
     config.color = color
+    config.cpu_limits = cpu_limits
 
     _init_logger()
 
