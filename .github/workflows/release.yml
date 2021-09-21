@@ -45,14 +45,20 @@ jobs:
         run: |
           poetry publish --username __token__ --password "${{ secrets.PYPI_TOKEN }}" --build
 
+      - name: Get info on commit
+        id: git_info
+        run: |
+          echo "::set-output name=GIT_BRANCH::${GITHUB_REF#refs/heads/}"
+          echo "::set-output name=GIT_TAG::${GITHUB_REF#refs/tags/}"
+
       - name: Upload release archive
         uses: actions/upload-release-asset@v1.0.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_name: bitbucket-pipeline-runner-${{ github.ref }}.tar.gz
-          asset_path: ./dist/bitbucket-pipeline-runner-${{ github.ref }}.tar.gz
+          asset_name: bitbucket-pipeline-runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
+          asset_path: ./dist/bitbucket-pipeline-runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
           asset_content_type: application/gzip
 
       - name: Upload wheel
@@ -61,7 +67,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ github.ref }}-py3-none-any.whl
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ github.ref }}-py3-none-any.whl
+          asset_name: bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}-py3-none-any.whl
+          asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}-py3-none-any.whl
           asset_content_type: application/zip
 
