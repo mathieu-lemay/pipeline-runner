@@ -284,9 +284,9 @@ class StepRunner:
 
         self._output_logger.info("Images used:\n")
         docker_image = self._docker_client.images.get(self._get_image().name)
-        self._output_logger.info("\tbuild: %s\n", docker_image.attrs["RepoDigests"][0])
+        self._output_logger.info("\tbuild: %s@%s\n", docker_image.tags[0].split(":")[0], docker_image.id)
         for name, container in self._services_manager.get_services_containers().items():
-            self._output_logger.info("\t%s: %s\n", name, container.image.attrs["RepoDigests"][0])
+            self._output_logger.info("\t%s: %s@%s\n", name, container.image.tags[0].split(":")[0], container.image.id)
         self._output_logger.info("\n")
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
