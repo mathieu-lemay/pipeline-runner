@@ -416,7 +416,12 @@ def pull_image(client, image):
         client.images.pull(image.name, auth_config=auth_config)
     except docker.errors.NotFound:
         if client.images.get(image.name):
-            logger.warning(f"Image not found on remote, but exists locally: {image.name}")
+            logger.warning("Image not found on remote, but exists locally: %s", image.name)
+        else:
+            raise
+    except docker.errors.APIError:
+        if client.images.get(image.name):
+            logger.warning("Error fetching new version of image, falling back to curent one: %s", image.name)
         else:
             raise
 
