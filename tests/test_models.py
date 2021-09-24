@@ -16,7 +16,7 @@ def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero():
     build_number = 33
     pipeline_uuid = uuid.uuid4()
 
-    for i in range(1, 256):
+    for _ in range(1, 256):
         res = PipelineResult(1, build_number, pipeline_uuid)
 
         assert res.ok is False

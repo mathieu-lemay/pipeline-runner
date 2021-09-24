@@ -16,3 +16,4 @@ repos:
     hooks:
       - id: flake8
         name: Lint code
+        additional_dependencies: ["flake8-use-fstring", "flake8-bugbear"]
