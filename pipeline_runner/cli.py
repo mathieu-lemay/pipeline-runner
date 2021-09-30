@@ -10,7 +10,6 @@ import pkg_resources
 from plumbum import ProcessExecutionError
 from pyfzf import FzfPrompt
 
-from . import __name__ as root_module_name
 from . import utils
 from .config import config
 from .parse import parse_pipeline_file
@@ -55,7 +54,7 @@ def _prompt_for_pipeline(pipeline_file) -> Optional[str]:
 @click.pass_context
 def main(ctx, show_version):
     if show_version:
-        print(f"Pipeline Runner {pkg_resources.get_distribution(root_module_name).version}")
+        print(f"Pipeline Runner {pkg_resources.get_distribution('bitbucket_pipeline_runner').version}")
         ctx.exit()
 
     if not ctx.invoked_subcommand:
