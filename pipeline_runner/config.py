@@ -28,7 +28,7 @@ class Config:
 
         self.default_services = {
             "docker": {
-                "image": "docker:dind",
+                "image": "atlassian/pipelines-docker-daemon:v20-stable",
                 "memory": 1024,
             }
         }

@@ -506,7 +506,7 @@ python-versions = ">=3.5"
 name = "tenacity"
 version = "7.0.0"
 description = "Retry code until it succeeds"
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 
@@ -580,7 +580,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "eb9de477ffa6c2dd3afe24e2b8cc6dca406e0799b0faec20fe0ab7156975bfe0"
+content-hash = "fbf2b22a64031cd9e0f0a6092633b738c672e876a3ac59eec289ff1927649455"
 
 [metadata.files]
 appdirs = [

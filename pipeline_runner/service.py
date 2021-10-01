@@ -1,17 +1,28 @@
+import importlib.resources
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import docker
 from docker import DockerClient
 from docker.models.containers import Container
 from slugify import slugify
+from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
+from . import static
 from .config import config
 from .container import ContainerScriptRunner, pull_image
 from .models import Service
 
 logger = logging.getLogger(__name__)
+
+
+class ServiceNotReadyException(Exception):
+    pass
+
+
+class ServiceUnhealthyException(Exception):
+    pass
 
 
 class ServicesManager:
@@ -121,6 +132,7 @@ class ServiceRunner:
         pull_image(self._client, self._service.image)
 
         self._container = self._start_container()
+        self._ensure_container_ready(self._container)
 
     def _start_container(self) -> Container:
         container = self._client.containers.run(
@@ -133,6 +145,9 @@ class ServiceRunner:
         )
 
         return container
+
+    def _ensure_container_ready(self, container: Container):
+        pass
 
     def _get_container_name(self):
         return f"{self._project_slug}-service-{self._slug}"
@@ -159,21 +174,48 @@ class DockerServiceRunner(ServiceRunner):
         container = self._client.containers.run(
             self._service.image.name,
             name=self._get_container_name(),
-            command="--tls=false",
+            command=["runit.sh", "--tls=false"],
             environment=environment,
             network=self._network_name,
             privileged=True,
             volumes=self._get_volumes(),
             mem_limit=self._get_mem_limit(),
             detach=True,
+            healthcheck={
+                "test": ["CMD", "docker", "ps"],
+                "interval": 5_000_000_000,
+                "start_period": 30_000_000_000,
+                "timeout": 1_000_000_000,
+            },
         )
 
         return container
 
-    def _get_volumes(self) -> Optional[Dict[str, Dict[str, str]]]:
+    @retry(wait=wait_fixed(1), stop=stop_after_delay(30), retry=retry_if_exception_type(ServiceNotReadyException))
+    def _ensure_container_ready(self, container: Container):
+        # Refresh container to ensure we have its health status
+        container = self._client.containers.get(container.name)
+        health = container.attrs["State"]["Health"]["Status"]
+        if health == "healthy":
+            return
+        elif health == "unhealthy":
+            raise ServiceUnhealthyException()
+        else:
+            raise ServiceNotReadyException()
+
+    def _get_volumes(self) -> Dict[str, Dict[str, str]]:
+        with importlib.resources.path(static, "dind") as p:
+            dind_script_path = p
+
+        with importlib.resources.path(static, "runit.sh") as p:
+            runit_script_path = p
+
         return {
             os.path.join(self._pipeline_cache_directory, "docker"): {"bind": "/var/lib/docker"},
             self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
+            # https://github.com/moby/moby/pull/42331
+            dind_script_path: {"bind": "/usr/local/bin/dind"},
+            runit_script_path: {"bind": "/usr/local/bin/runit.sh"},
         }
 
     def _teardown(self):

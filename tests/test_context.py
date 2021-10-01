@@ -90,7 +90,9 @@ def test_docker_is_added_to_services_if_not_present(project_metadata):
         repository=repository,
     )
 
-    docker_service = Service(image=Image(name="docker:dind"), variables={}, memory=1024)
+    docker_service = Service(
+        image=Image(name="atlassian/pipelines-docker-daemon:v20-stable"), variables={}, memory=1024
+    )
     assert prc.services == {"docker": docker_service}
 
 
@@ -109,7 +111,9 @@ def test_docker_service_uses_fallback_values(project_metadata):
         repository=repository,
     )
 
-    docker_service = Service(image=Image(name="docker:dind"), variables={"FOO": "bar"}, memory=2048)
+    docker_service = Service(
+        image=Image(name="atlassian/pipelines-docker-daemon:v20-stable"), variables={"FOO": "bar"}, memory=2048
+    )
     assert prc.services == {"docker": docker_service}
 
 

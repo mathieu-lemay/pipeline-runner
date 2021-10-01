@@ -25,11 +25,11 @@ pyfzf = "^0.2.2"
 pydantic = "^1.8.2"
 appdirs = "^1.4.4"
 cryptography = "^3.4.8"
+tenacity = "^7.0.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 pytest-mock = "^3.5.1"
-tenacity = "^7.0.0"
 coverage = "^5.5"
 
 [tool.poetry.scripts]

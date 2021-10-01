@@ -298,3 +298,19 @@ pipelines:
             - ssh-keygen -l -f /opt/atlassian/pipelines/agent/ssh/id_rsa
           artifacts:
             - variables
+
+    test_docker_buildkit:
+      - step:
+          name: Test build docker image with buildkit
+          script:
+            - |
+              cat << EOF > Dockerfile
+              FROM alpine
+              RUN apk --no-cache add bash
+              ENTRYPOINT ["bash"]
+              EOF
+            - DOCKER_BUILDKIT=1 docker build -t buildtest .
+          services:
+            - docker
+          caches:
+            - docker
