@@ -41,15 +41,15 @@ jobs:
       - name: Install Poetry
         uses: Gr1N/setup-poetry@v7
 
-      - name: Build package and upload to pypi
-        run: |
-          poetry publish --username __token__ --password "${{ secrets.PYPI_TOKEN }}" --build
-
       - name: Get info on commit
         id: git_info
         run: |
           echo "::set-output name=GIT_BRANCH::${GITHUB_REF#refs/heads/}"
           echo "::set-output name=GIT_TAG::${GITHUB_REF#refs/tags/}"
+
+      - name: Build package
+        run: |
+          poetry build
 
       - name: Upload release archive
         uses: actions/upload-release-asset@v1.0.1
@@ -71,3 +71,6 @@ jobs:
           asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}-py3-none-any.whl
           asset_content_type: application/zip
 
+      - name: Upload package to PyPI
+        run: |
+          poetry publish --username __token__ --password "${{ secrets.PYPI_TOKEN }}"
