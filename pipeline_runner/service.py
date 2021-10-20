@@ -222,11 +222,9 @@ class DockerServiceRunner(ServiceRunner):
         logger.info("Executing teardown for service: %s", self._service_name)
 
         script = [
-            'containers="$(docker ps -q)"',
-            'if [ -n "${containers}" ]; then',
-            "    docker kill ${containers}",
-            "fi",
+            "docker ps -q | xargs -r docker kill",
             "docker container prune -f",
+            "docker image prune -f",
             "docker volume prune -f",
         ]
         csr = ContainerScriptRunner(self._container, script)
