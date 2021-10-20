@@ -45,3 +45,10 @@ def repository():
     from pipeline_runner import __file__ as root_file
 
     return Repository(os.path.dirname(os.path.dirname(root_file)))
+
+
+@pytest.fixture
+def tmp_path_chdir(request, tmp_path):
+    os.chdir(tmp_path)
+    yield tmp_path
+    os.chdir(request.config.invocation_dir)
