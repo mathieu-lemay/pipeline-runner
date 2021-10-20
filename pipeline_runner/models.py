@@ -161,7 +161,7 @@ class StepSize(str, Enum):
 
 class Pipe(BaseModel):
     pipe: str
-    variables: Optional[Dict[str, str]] = Field(default=dict)
+    variables: Optional[Dict[str, Union[str, List[str]]]] = Field(default=dict)
 
     def as_cmd(self) -> str:
         variables = " ".join(f'-e {k}="{self._escape_value(v)}"' for k, v in self.variables.items())
