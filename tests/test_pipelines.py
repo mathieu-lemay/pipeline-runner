@@ -6,6 +6,7 @@ import tarfile
 import time
 import uuid
 
+import docker
 import dotenv
 import pytest
 from tenacity import retry, stop_after_delay, wait_fixed
@@ -61,12 +62,12 @@ def project_cache_directory(user_cache_directory, mocker):
 
     yield project_cache
 
-    docker_cache_dir = os.path.join(project_cache, "docker")
-    if os.path.exists(docker_cache_dir):
-        import subprocess
-
-        cmd = f"sudo rm -rf {docker_cache_dir}"
-        subprocess.run(cmd, shell=True)
+    docker_client = docker.from_env()
+    cache_volume = next(
+        (v for v in docker_client.volumes.list() if v.name == "pipeline-runner-service-docker-cache"), None
+    )
+    if cache_volume:
+        cache_volume.remove()
 
 
 def test_success():

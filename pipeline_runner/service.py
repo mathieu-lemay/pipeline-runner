@@ -1,6 +1,5 @@
 import importlib.resources
 import logging
-import os
 from typing import Dict, List
 
 import docker
@@ -211,7 +210,7 @@ class DockerServiceRunner(ServiceRunner):
             runit_script_path = p
 
         return {
-            os.path.join(self._pipeline_cache_directory, "docker"): {"bind": "/var/lib/docker"},
+            f"{self._get_container_name()}-cache": {"bind": "/var/lib/docker"},
             self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
             # https://github.com/moby/moby/pull/42331
             dind_script_path: {"bind": "/usr/local/bin/dind"},
