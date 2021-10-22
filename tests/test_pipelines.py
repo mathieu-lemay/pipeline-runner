@@ -19,9 +19,15 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
-def project_data_directory(user_data_directory, mocker):
-    project_path_slug = "project-path-slug"
+def project_path_slug(mocker):
+    slug = "project-path-slug"
+    mocker.patch("pipeline_runner.utils.hashify_path", return_value=slug)
 
+    return slug
+
+
+@pytest.fixture
+def project_data_directory(user_data_directory, project_path_slug, mocker):
     project_data_directory = os.path.join(user_data_directory, project_path_slug)
 
     mocker.patch("pipeline_runner.utils.get_project_data_directory", return_value=project_data_directory)
@@ -393,13 +399,13 @@ def test_project_metadata_is_read_from_file_if_it_exists(project_data_directory,
     assert variables == expected
 
 
-def test_pipeline_with_pipe(pipeline_data_directory, monkeypatch):
+def test_pipeline_with_pipe(pipeline_data_directory, project_path_slug, monkeypatch):
     runner = PipelineRunner(PipelineRunRequest("custom.test_pipe"))
     result = runner.run()
 
     assert result.ok
 
-    log_file = os.path.join(pipeline_data_directory, "logs", "pipeline-runner-step-test.txt")
+    log_file = os.path.join(pipeline_data_directory, "logs", f"{project_path_slug}-step-test.txt")
     with open(log_file) as f:
         log_lines = f.readlines()
 

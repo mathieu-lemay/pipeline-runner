@@ -135,7 +135,7 @@ class StepRunner:
                 self._ctx.pipeline_ctx.services,
                 self._step.size.as_int(),
                 self._data_volume_name,
-                self._ctx.pipeline_ctx.project_metadata.slug,
+                self._ctx.pipeline_ctx.project_metadata.path_slug,
                 self._ctx.pipeline_ctx.get_cache_directory(),
             )
 

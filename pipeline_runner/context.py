@@ -146,7 +146,7 @@ class StepRunContext:
     ):
         self.step = step
         self.pipeline_ctx = pipeline_run_context
-        self.slug = f"{pipeline_run_context.project_metadata.slug}-step-{slugify(step.name)}"
+        self.slug = f"{pipeline_run_context.project_metadata.path_slug}-step-{slugify(step.name)}"
 
         self.step_uuid = uuid.uuid4()
 
