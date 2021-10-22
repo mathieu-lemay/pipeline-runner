@@ -5,6 +5,7 @@ from typing import Dict, List
 import docker
 from docker import DockerClient
 from docker.models.containers import Container
+from docker.models.volumes import Volume
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
@@ -209,13 +210,32 @@ class DockerServiceRunner(ServiceRunner):
         with importlib.resources.path(static, "runit.sh") as p:
             runit_script_path = p
 
+        cache_volume = self._get_cache_volume()
+
         return {
-            f"{self._get_container_name()}-cache": {"bind": "/var/lib/docker"},
+            cache_volume.name: {"bind": "/var/lib/docker"},
             self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
             # https://github.com/moby/moby/pull/42331
             dind_script_path: {"bind": "/usr/local/bin/dind"},
             runit_script_path: {"bind": "/usr/local/bin/runit.sh"},
         }
+
+    def _get_cache_volume(self) -> Volume:
+        label_name = "org.acidrain.pipeline_runner.project"
+        label_value = self._project_slug
+
+        volumes = self._client.volumes.list(filters={"label": f"{label_name}={label_value}"})
+
+        if not volumes:
+            volume = self._client.volumes.create(
+                f"{self._get_container_name()}-cache", labels={label_name: label_value}
+            )
+        elif len(volumes) == 1:
+            volume = volumes[0]
+        else:
+            raise Exception("Found more than one cache volume")
+
+        return volume
 
     def _teardown(self):
         logger.info("Executing teardown for service: %s", self._service_name)
