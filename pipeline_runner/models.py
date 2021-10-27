@@ -241,6 +241,7 @@ class ParallelStep(WrapperModel):
 
 class Variable(BaseModel):
     name: str
+    default: Optional[str]
 
 
 class Variables(WrapperModel):

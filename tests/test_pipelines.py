@@ -210,8 +210,9 @@ def test_run_as_user():
 def test_pipeline_variables(artifacts_directory, monkeypatch):
     filename = "some-file"
     message = "Hello World!"
+    var_with_default_1 = "Overriding default 1"
 
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n\n{var_with_default_1}\n\n"))
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_pipeline_variables"))
     result = runner.run()
@@ -227,7 +228,9 @@ def test_pipeline_variables(artifacts_directory, monkeypatch):
     assert os.path.exists(output_file)
 
     with open(output_file) as f:
-        assert f.read() == f"{message}\n"
+        assert f.read() == "\n".join(
+            [f"Message: {message}", f"Var With Default 1: {var_with_default_1}", "Var With Default 2: Default 2", ""]
+        )
 
 
 def test_manual_trigger(artifacts_directory, monkeypatch):

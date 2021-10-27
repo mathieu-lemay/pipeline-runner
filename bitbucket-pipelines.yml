@@ -226,6 +226,10 @@ pipelines:
           - name: FILENAME
           - name: MESSAGE
           - name: EMPTY
+          - name: VAR_WITH_DEFAULT_1
+            default: Default 1
+          - name: VAR_WITH_DEFAULT_2
+            default: Default 2
       - step:
           name: Test Pipeline Variables
           artifacts:
@@ -235,7 +239,9 @@ pipelines:
             - 'echo "FILENAME: ${FILENAME:?}"'
             - 'echo "MESSAGE: ${MESSAGE:?}"'
             - mkdir output
-            - 'echo "${MESSAGE}" > "output/${FILENAME}"'
+            - 'echo "Message: ${MESSAGE}" >> "output/${FILENAME}"'
+            - 'echo "Var With Default 1: ${VAR_WITH_DEFAULT_1}" >> "output/${FILENAME}"'
+            - 'echo "Var With Default 2: ${VAR_WITH_DEFAULT_2}" >> "output/${FILENAME}"'
 
     test_manual_trigger:
       - step:
