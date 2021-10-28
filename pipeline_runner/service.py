@@ -243,7 +243,6 @@ class DockerServiceRunner(ServiceRunner):
         script = [
             "docker ps -q | xargs -r docker kill",
             "docker container prune -f",
-            "docker image prune -f",
             "docker volume prune -f",
         ]
         csr = ContainerScriptRunner(self._container, script)
