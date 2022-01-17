@@ -8,7 +8,7 @@ try:
     from yaml import CLoader as YamlLoader
 except ImportError:
     # noinspection PyUnresolvedReferences
-    from yaml import YamlLoader
+    from yaml import Loader as YamlLoader
 
 
 def parse_pipeline_file(file_path: str) -> PipelineSpec:
