@@ -176,7 +176,7 @@ class StepRunner:
 
             self._build_teardown(exit_code)
         except Exception as e:
-            logger.exception("Pipeline may be compromised due to exception: %s", e)
+            logger.exception("Error during pipeline execution: %s", e)
             exit_code = 1
         finally:
             if self._services_manager:
