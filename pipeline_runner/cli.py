@@ -7,7 +7,6 @@ from typing import List, Optional
 
 import click
 import pkg_resources
-from plumbum import ProcessExecutionError
 from pyfzf import FzfPrompt
 
 from . import utils
@@ -34,11 +33,11 @@ def _prompt_for_pipeline(pipeline_file) -> Optional[str]:
 
     try:
         fzf = FzfPrompt()
-        pipeline = next(iter(fzf.prompt(pipelines)))
+        pipeline = next(iter(fzf.prompt(pipelines)), None)
+        if not pipeline:
+            logger.warning("No pipeline selected")
     except SystemError:
         logger.warning("fzf executable not found, disabling interactive pipeline selection.")
-    except ProcessExecutionError:
-        logger.warning("No pipeline selected")
 
     return pipeline
 
