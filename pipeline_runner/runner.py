@@ -175,6 +175,9 @@ class StepRunner:
                 logger.error("Step '%s': FAIL", self._step.name)
 
             self._build_teardown(exit_code)
+        except Exception as e:
+            logger.exception("Error during pipeline execution: %s", e)
+            exit_code = 1
         finally:
             if self._services_manager:
                 self._services_manager.stop_services()
