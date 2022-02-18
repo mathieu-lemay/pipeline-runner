@@ -230,6 +230,17 @@ pipelines:
             default: Default 1
           - name: VAR_WITH_DEFAULT_2
             default: Default 2
+          - name: VAR_WITH_CHOICE
+            allowed-values:
+              - dev
+              - staging
+              - production
+          - name: VAR_WITH_CHOICE_AND_DEFAULT
+            default: ghi
+            allowed-values:
+              - abc
+              - def
+              - ghi
       - step:
           name: Test Pipeline Variables
           artifacts:
@@ -242,6 +253,8 @@ pipelines:
             - 'echo "Message: ${MESSAGE}" >> "output/${FILENAME}"'
             - 'echo "Var With Default 1: ${VAR_WITH_DEFAULT_1}" >> "output/${FILENAME}"'
             - 'echo "Var With Default 2: ${VAR_WITH_DEFAULT_2}" >> "output/${FILENAME}"'
+            - 'echo "Var With Choice: ${VAR_WITH_CHOICE}" >> "output/${FILENAME}"'
+            - 'echo "Var With Choice and Default: ${VAR_WITH_CHOICE_AND_DEFAULT}" >> "output/${FILENAME}"'
 
     test_manual_trigger:
       - step:

@@ -13,7 +13,7 @@ from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
-from .models import Image, ParallelStep, Pipe, PipelineResult, Step, Trigger
+from .models import Image, ParallelStep, Pipe, PipelineResult, Step, Trigger, Variable
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -63,24 +63,37 @@ class PipelineRunner:
     def _ask_for_variables(self) -> Dict[str, str]:
         pipeline_variables = {}
         for var in self._pipeline.get_variables():
-            pipeline_variables[var.name] = self._read_user_variable_from_stdin(var.name, var.default)
+            pipeline_variables[var.name] = self._read_user_variable_from_stdin(var)
 
         return pipeline_variables
 
+    @classmethod
+    def _read_user_variable_from_stdin(cls, var: Variable) -> str:
+        default = var.default or ""
+
+        if not var.allowed_values:
+            value = cls._read_from_stdin(f"Enter value for {var.name} [{default}]") or default
+        else:
+            prompt = [f"Enter value for {var.name}:"]
+            prompt += [f"\t{v}" for v in var.allowed_values]
+            prompt.append(f"Choice [{var.default or ''}]")
+            value = cls._read_from_stdin("\n".join(prompt)) or default
+
+            if value not in var.allowed_values:
+                raise ValueError(f"Invalid value for {var.name}: {value}")
+
+        return value
+
     @staticmethod
-    def _read_user_variable_from_stdin(var_name: str, default_value: str) -> str:
+    def _read_from_stdin(prompt: str) -> str:
         if sys.stdin.isatty():
-            var = input(f"Enter value for {var_name} [{default_value or ''}]: ")
+            var = input(f"{prompt}: ")
         else:
             var = sys.stdin.readline()
             if not var:
                 raise IOError("Unable to read from stdin")
-            var = var.rstrip()
 
-        if not var and default_value:
-            var = default_value
-
-        return var
+        return var.rstrip()
 
     def _execute_pipeline(self):
         for step in self._pipeline.get_steps():

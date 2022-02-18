@@ -242,6 +242,7 @@ class ParallelStep(WrapperModel):
 class Variable(BaseModel):
     name: str
     default: Optional[str]
+    allowed_values: Optional[List[str]] = Field(alias="allowed-values")
 
 
 class Variables(WrapperModel):

@@ -211,8 +211,11 @@ def test_pipeline_variables(artifacts_directory, monkeypatch):
     filename = "some-file"
     message = "Hello World!"
     var_with_default_1 = "Overriding default 1"
+    var_with_choice = "staging"
 
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"{filename}\n{message}\n\n{var_with_default_1}\n\n"))
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(f"{filename}\n{message}\n\n{var_with_default_1}\n\n{var_with_choice}\n\n")
+    )
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_pipeline_variables"))
     result = runner.run()
@@ -229,7 +232,14 @@ def test_pipeline_variables(artifacts_directory, monkeypatch):
 
     with open(output_file) as f:
         assert f.read() == "\n".join(
-            [f"Message: {message}", f"Var With Default 1: {var_with_default_1}", "Var With Default 2: Default 2", ""]
+            [
+                f"Message: {message}",
+                f"Var With Default 1: {var_with_default_1}",
+                "Var With Default 2: Default 2",
+                f"Var With Choice: {var_with_choice}",
+                "Var With Choice and Default: ghi",
+                "",
+            ]
         )
 
 
