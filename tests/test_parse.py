@@ -253,8 +253,85 @@ def test_variables_can_only_be_the_first_element_of_the_pipelines():
 
     assert exc_info.value.model == Pipeline
     assert exc_info.value.errors() == [
-        {"loc": ("__root__",), "msg": "'variables' can only be the first element of the list", "type": "value_error"}
+        {"loc": ("__root__",), "msg": "'variables' can only be the first element of the list.", "type": "value_error"}
     ]
+
+
+def test_parse_variables_with_default_values():
+    spec = [
+        {"variables": [{"name": "foo", "default": "foo-value"}, {"name": "bar"}]},
+        {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
+    ]
+
+    pipeline = Pipeline.parse_obj(spec)
+
+    variables = Variables(variables=[Variable(name="foo", default="foo-value"), Variable(name="bar", default=None)])
+    step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
+    expected = Pipeline(
+        __root__=[
+            variables,
+            step,
+        ]
+    )
+
+    assert pipeline == expected
+
+
+def test_parse_variables_with_choices():
+    spec = [
+        {"variables": [{"name": "foo", "allowed-values": ["a1", "b2", "c3"], "default": "a1"}]},
+        {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
+    ]
+
+    pipeline = Pipeline.parse_obj(spec)
+
+    variables = Variables(variables=[Variable(name="foo", allowed_values=["a1", "b2", "c3"], default="a1")])
+    step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
+    expected = Pipeline(
+        __root__=[
+            variables,
+            step,
+        ]
+    )
+
+    assert pipeline == expected
+
+
+def test_variables_with_choices_must_have_a_default_value():
+    spec = [
+        {"variables": [{"name": "foo", "allowed-values": ["a", "b", "c"]}]},
+        {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
+    ]
+
+    with pytest.raises(ValidationError) as exc_info:
+        Pipeline.parse_obj(spec)
+
+    assert exc_info.value.model == Pipeline
+    assert {
+        "loc": ("__root__", 0, "variables", 0, "__root__"),
+        "msg": (
+            "The variable default value is not provided. "
+            "A default value is required if allowed values list is specified."
+        ),
+        "type": "value_error",
+    } in exc_info.value.errors()
+
+
+def test_variables_with_choices_must_have_a_default_value_that_is_part_of_the_choices():
+    spec = [
+        {"variables": [{"name": "foo", "allowed-values": ["a", "b", "c"], "default": "d"}]},
+        {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
+    ]
+
+    with pytest.raises(ValidationError) as exc_info:
+        Pipeline.parse_obj(spec)
+
+    assert exc_info.value.model == Pipeline
+    assert {
+        "loc": ("__root__", 0, "variables", 0, "__root__"),
+        "msg": 'The variable allowed values list doesn\'t contain a default value "d".',
+        "type": "value_error",
+    } in exc_info.value.errors()
 
 
 def test_parse_step_with_default_values():

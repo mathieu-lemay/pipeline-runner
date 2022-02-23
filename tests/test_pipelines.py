@@ -237,7 +237,7 @@ def test_pipeline_variables(artifacts_directory, monkeypatch):
                 f"Var With Default 1: {var_with_default_1}",
                 "Var With Default 2: Default 2",
                 f"Var With Choice: {var_with_choice}",
-                "Var With Choice and Default: ghi",
+                "Var With Choice Using Default: ghi",
                 "",
             ]
         )

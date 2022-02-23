@@ -244,6 +244,24 @@ class Variable(BaseModel):
     default: Optional[str]
     allowed_values: Optional[List[str]] = Field(alias="allowed-values")
 
+    # noinspection PyMethodParameters
+    @root_validator
+    def validate_var_with_allowed_values_must_have_a_default_value(cls, values):
+        allowed_values = values["allowed_values"]
+        default = values["default"]
+
+        if allowed_values:
+            if not default:
+                raise ValueError(
+                    "The variable default value is not provided. "
+                    "A default value is required if allowed values list is specified."
+                )
+
+            if default not in allowed_values:
+                raise ValueError(f'The variable allowed values list doesn\'t contain a default value "{default}".')
+
+        return values
+
 
 class Variables(WrapperModel):
     wrapped: List[Variable] = Field(alias="variables")
@@ -256,7 +274,7 @@ class Pipeline(BaseModel):
     @validator("__root__")
     def validate_variables_must_be_first_element_of_list_if_present(cls, pipeline_items):
         if any(i for i in pipeline_items[1:] if isinstance(i, Variables)):
-            raise ValueError("'variables' can only be the first element of the list")
+            raise ValueError("'variables' can only be the first element of the list.")
 
         return pipeline_items
 
