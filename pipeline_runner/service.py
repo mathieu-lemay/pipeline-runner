@@ -160,7 +160,7 @@ class ServiceRunner:
         self._container.remove(v=True, force=True)
 
     def _get_mem_limit(self) -> int:
-        return self._service.memory * 2 ** 20
+        return self._service.memory * 2**20
 
     def _teardown(self):
         pass

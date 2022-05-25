@@ -41,7 +41,7 @@ class ContainerRunner:
         self._data_volume_name = data_volume_name
         self._environment = env_vars
         self._logger = output_logger
-        self._mem_limit = mem_limit * 2 ** 20  # MiB to B
+        self._mem_limit = mem_limit * 2**20  # MiB to B
         self._ssh_private_key = ssh_private_key
 
         self._client = docker.from_env()

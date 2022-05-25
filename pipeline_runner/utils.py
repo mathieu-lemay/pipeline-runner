@@ -66,7 +66,7 @@ def stringify(value: Union[str, List[str]], sep: str = " "):
 
 def escape_shell_string(value: str) -> str:
     for c in "\\$%{}\"'":
-        value = value.replace(c, fr"\x{ord(c):02x}")
+        value = value.replace(c, rf"\x{ord(c):02x}")
 
     return value
 
