@@ -1,6 +1,7 @@
 import concurrent.futures
 import io
 import json
+import logging.config
 import os
 import tarfile
 import time
@@ -16,6 +17,17 @@ from pipeline_runner.models import ProjectMetadata
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def _cwd():
+    dir_ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(dir_)
+
+
+@pytest.fixture(autouse=True)
+def _log():
+    logging.config.dictConfig(config.log_config)
 
 
 @pytest.fixture
