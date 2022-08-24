@@ -13,7 +13,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.7"
 PyYAML = "^6.0"
-docker = "^5.0.2"
+docker = "^6.0.0"
 click = "^8.0.1"
 python-slugify = "^6.1.2"
 boto3 = "^1.16.63"
