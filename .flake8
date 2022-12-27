@@ -3,11 +3,15 @@ max-line-length = 120
 exclude = .venv
 ignore =
     # Let `black` take care of these:
-    E203, # whitespace before ‘:’
-    E501, # line too long
-    W503, # binary operator after line break
+    # whitespace before ‘:’
+    E203
+    # line too long
+    E501
+    # binary operator after line break
+    W503
 
     # This one is disabled by default in flake8-use-fstring. I guess it's because it yields too many false positives.
     # We need to explicitly disable it since we are overriding the default "ignore".
     # Ex: `json_str = '{"foo": "bar"}'` yields a false positive.
-    FS003, # f-string missing prefix
+    # f-string missing prefix
+    FS003
