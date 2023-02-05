@@ -181,7 +181,7 @@ class CacheSave:
                 for chunk in data:
                     size += len(chunk)
                     f.write(chunk)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001: Do not catch blind exception: `Exception`
                 logger.error(f"Error getting cache from container: {self._cache_name}: {e}")
                 os.unlink(f.name)
                 return
