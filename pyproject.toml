@@ -55,6 +55,7 @@ select = [
     "BLE",  # flake8-blind-except
     "C4",  # flake8-comprehensions
     "E",  # pycodestyle
+    "ERA",  # flake8-eradicate
     "F",  # Pyflakes
     "W",  # pycodestyle
 ]

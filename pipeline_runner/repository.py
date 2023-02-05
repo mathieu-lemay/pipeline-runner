@@ -69,7 +69,7 @@ class RepositoryCloner:
             "git config user.name bitbucket-pipelines",
             "git config user.email commits-noreply@bitbucket.org",
             "git config push.default current",
-            # "git config http.${BITBUCKET_GIT_HTTP_ORIGIN}.proxy http://localhost:29418/",
+            # TODO: "git config http.${BITBUCKET_GIT_HTTP_ORIGIN}.proxy http://localhost:29418/",
             f"git remote set-url origin {origin}",
             "git reflog expire --expire=all --all",
             "echo '.bitbucket/pipelines/generated' >> .git/info/exclude",

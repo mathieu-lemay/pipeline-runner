@@ -227,11 +227,7 @@ class StepRunner:
 
     def _create_network(self) -> Network:
         name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
-        network = self._docker_client.networks.create(
-            name,
-            driver="bridge",
-            # options={"com.docker.network.bridge.enable_icc": 'true'}
-        )
+        network = self._docker_client.networks.create(name, driver="bridge")
 
         return network
 
