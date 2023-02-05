@@ -62,6 +62,7 @@ select = [
     "I",  # flake8-isort
     "N",  # pep8-naming
     "PT",  # flake8-pytest-style
+    "RUF",  # ruff
     "W",  # pycodestyle
 ]
 
