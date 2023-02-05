@@ -122,7 +122,8 @@ class StepRunner:
             self._ctx.pipeline_ctx.get_log_directory(), f"{self._container_name}"
         )
 
-    def run(self) -> Optional[int]:
+    # TODO: Decomplexify
+    def run(self) -> Optional[int]:  # noqa: C901: Too complex (11)
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return
