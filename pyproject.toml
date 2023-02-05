@@ -50,7 +50,7 @@ exclude = [".venv"]
 ignore = ["E501"]
 line-length = 120
 select = [
-    #"A",  # flake8-builtins
+    "A",  # flake8-builtins
     "B",  # flake8-bugbear
     "E",  # pycodestyle
     "F",  # Pyflakes
