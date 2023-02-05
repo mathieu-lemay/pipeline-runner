@@ -45,6 +45,18 @@ force_grid_wrap = 0
 use_parentheses = true
 line_length = 120
 
+[tool.ruff]
+exclude = [".venv"]
+ignore = ["E501"]
+line-length = 120
+select = [
+    #"A",  # flake8-builtins
+    "B",  # flake8-bugbear
+    "E",  # pycodestyle
+    "F",  # Pyflakes
+    "W",  # pycodestyle
+]
+
 [tool.pytest.ini_options]
 markers = ["integration: Integration tests that run full pipelines."]
 
