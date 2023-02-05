@@ -181,7 +181,7 @@ def cache(action):
     projects = sorted(os.listdir(cache_dir))
     if action == "list":
         print("Caches:")
-        print("\n".join(map(lambda i: f"\t{i}", projects)))
+        print("\n".join(f"\t{p}" for p in projects))
     elif action == "clear":
         for p in projects:
             shutil.rmtree(os.path.join(cache_dir, p))
