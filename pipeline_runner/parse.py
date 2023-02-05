@@ -4,18 +4,12 @@ import yaml
 
 from .models import PipelineSpec
 
-try:
-    from yaml import CLoader as YamlLoader
-except ImportError:
-    # noinspection PyUnresolvedReferences
-    from yaml import Loader as YamlLoader
-
 
 def parse_pipeline_file(file_path: str) -> PipelineSpec:
     if not os.path.isfile(file_path):
         raise ValueError(f"Pipelines file not found: {file_path}")
 
     with open(file_path) as f:
-        pipelines_data = yaml.load(f, Loader=YamlLoader)
+        pipelines_data = yaml.safe_load(f)
 
     return PipelineSpec.parse_obj(pipelines_data)
