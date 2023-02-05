@@ -60,7 +60,15 @@ select = [
     "F",  # Pyflakes
     "G",  # flake8-logging-format
     "I",  # flake8-isort
+    "N",  # pep8-naming
     "W",  # pycodestyle
+]
+
+[tool.ruff.pep8-naming]
+classmethod-decorators = [
+    "classmethod",
+    "pydantic.validator",
+    "pydantic.root_validator"
 ]
 
 [tool.pytest.ini_options]

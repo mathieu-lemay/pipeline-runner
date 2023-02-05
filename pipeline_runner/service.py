@@ -17,11 +17,11 @@ from .models import Service
 logger = logging.getLogger(__name__)
 
 
-class ServiceNotReadyException(Exception):
+class ServiceNotReadyError(Exception):
     pass
 
 
-class ServiceUnhealthyException(Exception):
+class ServiceUnhealthyError(Exception):
     pass
 
 
@@ -191,7 +191,7 @@ class DockerServiceRunner(ServiceRunner):
 
         return container
 
-    @retry(wait=wait_fixed(1), stop=stop_after_delay(30), retry=retry_if_exception_type(ServiceNotReadyException))
+    @retry(wait=wait_fixed(1), stop=stop_after_delay(30), retry=retry_if_exception_type(ServiceNotReadyError))
     def _ensure_container_ready(self, container: Container):
         # Refresh container to ensure we have its health status
         container = self._client.containers.get(container.name)
@@ -199,9 +199,9 @@ class DockerServiceRunner(ServiceRunner):
         if health == "healthy":
             return
         elif health == "unhealthy":
-            raise ServiceUnhealthyException()
+            raise ServiceUnhealthyError()
         else:
-            raise ServiceNotReadyException()
+            raise ServiceNotReadyError()
 
     def _get_volumes(self) -> Dict[str, Dict[str, str]]:
         with importlib.resources.path(static, "dind") as p:
