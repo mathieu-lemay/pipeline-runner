@@ -58,6 +58,7 @@ select = [
     "E",  # pycodestyle
     "ERA",  # flake8-eradicate
     "F",  # Pyflakes
+    "G",  # flake8-logging-format
     "W",  # pycodestyle
 ]
 
