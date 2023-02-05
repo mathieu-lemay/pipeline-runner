@@ -175,6 +175,9 @@ def parse(pipeline, repository_path):
 @click.argument("action", type=click.Choice(["clear", "list"]))
 def cache(action):
     cache_dir = utils.get_cache_directory()
+    if not os.path.isdir(cache_dir):
+        return
+
     projects = sorted(os.listdir(cache_dir))
     if action == "list":
         print("Caches:")
