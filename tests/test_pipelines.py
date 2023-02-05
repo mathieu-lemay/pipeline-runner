@@ -30,7 +30,7 @@ def _log():
     logging.config.dictConfig(config.log_config)
 
 
-@pytest.fixture
+@pytest.fixture()
 def project_path_slug(mocker):
     slug = "project-path-slug"
     mocker.patch("pipeline_runner.utils.hashify_path", return_value=slug)
@@ -38,7 +38,7 @@ def project_path_slug(mocker):
     return slug
 
 
-@pytest.fixture
+@pytest.fixture()
 def project_data_directory(user_data_directory, project_path_slug, mocker):
     project_data_directory = os.path.join(user_data_directory, project_path_slug)
 
@@ -47,7 +47,7 @@ def project_data_directory(user_data_directory, project_path_slug, mocker):
     return project_data_directory
 
 
-@pytest.fixture
+@pytest.fixture()
 def pipeline_data_directory(project_data_directory, mocker):
     build_number = 1
     pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"

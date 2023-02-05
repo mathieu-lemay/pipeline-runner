@@ -61,6 +61,7 @@ select = [
     "G",  # flake8-logging-format
     "I",  # flake8-isort
     "N",  # pep8-naming
+    "PT",  # flake8-pytest-style
     "W",  # pycodestyle
 ]
 
