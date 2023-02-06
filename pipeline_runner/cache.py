@@ -175,18 +175,18 @@ class CacheSave:
 
         with NamedTemporaryFile(dir=self._cache_directory, delete=False) as f:
             try:
-                logger.debug(f"Downloading cache folder '{src}' to '{f.name}'")
+                logger.debug("Downloading cache folder '%s' to '%s'", src, f.name)
                 data, _ = self._container.get_archive(src)
                 size = 0
                 for chunk in data:
                     size += len(chunk)
                     f.write(chunk)
-            except Exception as e:
-                logger.error(f"Error getting cache from container: {self._cache_name}: {e}")
+            except Exception as e:  # noqa: BLE001: Do not catch blind exception: `Exception`
+                logger.error("Error getting cache from container: %s: %s", self._cache_name, e)
                 os.unlink(f.name)
                 return
             else:
-                logger.debug(f"Moving temp cache archive {f.name} to {dst}")
+                logger.debug("Moving temp cache archive %s to %s", f.name, dst)
                 os.rename(f.name, dst)
 
         t = ts() - t

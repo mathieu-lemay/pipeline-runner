@@ -73,7 +73,6 @@ def escape_shell_string(value: str) -> str:
 
 def get_human_readable_size(num):
     for unit in ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB"]:
-
         if abs(num) < 1024.0:
             return f"{num:3.1f}{unit}"
 

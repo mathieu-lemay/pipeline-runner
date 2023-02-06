@@ -6,14 +6,14 @@ from pipeline_runner.container import ContainerRunner, get_image_authentication
 from pipeline_runner.models import AwsCredentials, Image
 
 
-@pytest.fixture
+@pytest.fixture()
 def aws_lib(mocker):
     lib = mocker.patch("pipeline_runner.container.boto3")
 
     return lib
 
 
-@pytest.fixture
+@pytest.fixture()
 def config(mocker):
     return mocker.patch("pipeline_runner.container.config")
 

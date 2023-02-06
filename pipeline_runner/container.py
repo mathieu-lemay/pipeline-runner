@@ -278,7 +278,7 @@ class ContainerScriptRunner:
         try:
             exit_code = int(str_code)
         except ValueError:
-            raise Exception(f"Invalid exit code: {str_code}")
+            raise Exception(f"Invalid exit code: {str_code}") from None
         else:
             return exit_code
 
@@ -333,7 +333,7 @@ class ContainerScriptRunner:
         tar_data = io.BytesIO()
 
         with tarfile.open(fileobj=tar_data, mode="w|") as tar:
-            for (name, script) in scripts:
+            for name, script in scripts:
                 ti = tarfile.TarInfo(name)
                 script_data = script.encode()
                 ti.size = len(script_data)
