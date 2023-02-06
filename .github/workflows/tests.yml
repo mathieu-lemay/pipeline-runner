@@ -39,5 +39,6 @@ jobs:
 
       - name: Tests
         run: |
+          git checkout master
           poetry run coverage run -m pytest -v tests
           poetry run coverage report
