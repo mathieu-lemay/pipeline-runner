@@ -11,20 +11,23 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 PyYAML = "^6.0"
 docker = "^6.0.0"
 click = "^8.0.1"
 python-slugify = "^8.0.0"
-boto3 = "^1.16.63"
+# Pin boto3 to a specific version to avoid poetry's resolver
+# to go on forever.
+# https://github.com/python-poetry/poetry/issues/7858
+boto3 = "1.26.135"
 GitPython = "^3.1.12"
-python-dotenv = "^0.21.0"
+python-dotenv = "^1.0.0"
 requests = "^2.25.1"
 coloredlogs = "^15.0"
 pyfzf = "^0.3.0"
 pydantic = "^1.8.2"
 appdirs = "^1.4.4"
-cryptography = "^39.0.0"
+cryptography = "^40.0.2"
 tenacity = "^8.0.1"
 
 [tool.poetry.dev-dependencies]
