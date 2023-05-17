@@ -34,18 +34,18 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
       - name: Install Poetry
-        uses: Gr1N/setup-poetry@v7
+        uses: Gr1N/setup-poetry@v8
 
       - name: Get info on commit
         id: git_info
         run: |
-          echo "::set-output name=GIT_BRANCH::${GITHUB_REF#refs/heads/}"
-          echo "::set-output name=GIT_TAG::${GITHUB_REF#refs/tags/}"
+          echo "GIT_BRANCH=${GITHUB_REF#refs/heads/}" >> "${GITHUB_OUTPUT}"
+          echo "GIT_TAG=${GITHUB_REF#refs/tags/}" >> "${GITHUB_OUTPUT}"
 
       - name: Build package
         run: |
@@ -57,8 +57,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_name: bitbucket-pipeline-runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
-          asset_path: ./dist/bitbucket-pipeline-runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
+          asset_name: bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
+          asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
           asset_content_type: application/gzip
 
       - name: Upload wheel
