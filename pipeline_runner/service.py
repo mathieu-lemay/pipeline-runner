@@ -1,5 +1,5 @@
-import importlib.resources
 import logging
+from importlib.resources import as_file, files
 from typing import Dict, List
 
 import docker
@@ -9,7 +9,8 @@ from docker.models.volumes import Volume
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
-from . import static
+import pipeline_runner
+
 from .config import config
 from .container import ContainerScriptRunner, pull_image
 from .models import Service
@@ -204,10 +205,12 @@ class DockerServiceRunner(ServiceRunner):
             raise ServiceNotReadyError()
 
     def _get_volumes(self) -> Dict[str, Dict[str, str]]:
-        with importlib.resources.path(static, "dind") as p:
+        static_files = files(pipeline_runner).joinpath("static")
+
+        with as_file(static_files.joinpath("dind")) as p:
             dind_script_path = p
 
-        with importlib.resources.path(static, "runit.sh") as p:
+        with as_file(static_files.joinpath("runit.sh")) as p:
             runit_script_path = p
 
         cache_volume = self._get_cache_volume()
