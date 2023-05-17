@@ -110,6 +110,27 @@ def generate_ssh_rsa_key() -> str:
     return private_key.decode()
 
 
+class PathTraversalError(Exception):
+    pass
+
+
+def safe_extract_tar(tar, path=".", members=None, *, numeric_owner=False) -> None:
+    def _is_within_directory(directory, target):
+        abs_directory = os.path.abspath(directory)
+        abs_target = os.path.abspath(target)
+
+        prefix = os.path.commonprefix([abs_directory, abs_target])
+
+        return prefix == abs_directory
+
+    for member in tar.getmembers():
+        member_path = os.path.join(path, member.name)
+        if not _is_within_directory(path, member_path):
+            raise PathTraversalError
+
+    tar.extractall(path, members, numeric_owner=numeric_owner)
+
+
 class FileStreamer:
     def __init__(self, it):
         self._it = it
