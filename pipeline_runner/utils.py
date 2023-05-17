@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 import sys
+from tarfile import TarFile
 from typing import List, Union
 
 from appdirs import user_cache_dir, user_data_dir
@@ -114,7 +115,7 @@ class PathTraversalError(Exception):
     pass
 
 
-def safe_extract_tar(tar, path=".", members=None, *, numeric_owner=False) -> None:
+def safe_extract_tar(tar: TarFile, path=".", *, numeric_owner=False) -> None:
     def _is_within_directory(directory, target):
         abs_directory = os.path.abspath(directory)
         abs_target = os.path.abspath(target)
@@ -123,12 +124,12 @@ def safe_extract_tar(tar, path=".", members=None, *, numeric_owner=False) -> Non
 
         return prefix == abs_directory
 
-    for member in tar.getmembers():
+    for member in tar:
         member_path = os.path.join(path, member.name)
         if not _is_within_directory(path, member_path):
             raise PathTraversalError
 
-    tar.extractall(path, members, numeric_owner=numeric_owner)
+        tar.extract(member, path, numeric_owner=numeric_owner)
 
 
 class FileStreamer:
