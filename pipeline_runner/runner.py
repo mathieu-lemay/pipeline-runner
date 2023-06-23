@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 from time import time as ts
-from typing import Dict, List, Optional, Union
 
 import docker
 from docker.models.networks import Network
@@ -24,9 +23,9 @@ class PipelineRunRequest:
     def __init__(
         self,
         pipeline_name: str,
-        repository_path: Optional[str] = None,
-        selected_steps: List[str] = None,
-        env_files: List[str] = None,
+        repository_path: str | None = None,
+        selected_steps: list[str] | None = None,
+        env_files: list[str] | None = None,
     ):
         self.pipeline_name = pipeline_name
         self.selected_steps = selected_steps or []
@@ -60,7 +59,7 @@ class PipelineRunner:
 
         return PipelineResult(exit_code, self._ctx.project_metadata.build_number, self._ctx.pipeline_uuid)
 
-    def _ask_for_variables(self) -> Dict[str, str]:
+    def _ask_for_variables(self) -> dict[str, str]:
         pipeline_variables = {}
         for var in self._pipeline.get_variables():
             pipeline_variables[var.name] = self._read_user_variable_from_stdin(var)
@@ -123,7 +122,7 @@ class StepRunner:
         )
 
     # TODO: Decomplexify
-    def run(self) -> Optional[int]:  # noqa: C901: Too complex (11)
+    def run(self) -> int | None:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return
@@ -232,7 +231,7 @@ class StepRunner:
 
         return network
 
-    def _get_step_env_vars(self) -> Dict[str, str]:
+    def _get_step_env_vars(self) -> dict[str, str]:
         env_vars = self._get_bitbucket_env_vars()
 
         if "docker" in self._step.services:
@@ -243,7 +242,7 @@ class StepRunner:
 
         return env_vars
 
-    def _get_bitbucket_env_vars(self) -> Dict[str, str]:
+    def _get_bitbucket_env_vars(self) -> dict[str, str]:
         project_slug = self._ctx.pipeline_ctx.project_metadata.slug
         git_branch = self._ctx.pipeline_ctx.repository.get_current_branch()
         git_commit = self._ctx.pipeline_ctx.repository.get_current_commit()
@@ -370,7 +369,7 @@ class ParallelStepRunner:
         self._parallel_step = parallel_step
         self._pipeline_ctx = pipeline_run_context
 
-    def run(self) -> Optional[int]:
+    def run(self) -> int | None:
         return_code = 0
         step_count = len(self._parallel_step)
 
@@ -388,10 +387,10 @@ class ParallelStepRunner:
 class StepRunnerFactory:
     @staticmethod
     def get(
-        step: Union[Step, ParallelStep],
+        step: Step | ParallelStep,
         pipeline_run_context: PipelineRunContext,
-        parallel_step_index: Optional[int] = None,
-        parallel_step_count: Optional[int] = None,
+        parallel_step_index: int | None = None,
+        parallel_step_count: int | None = None,
     ):
         if isinstance(step, ParallelStep):
             return ParallelStepRunner(step, pipeline_run_context)

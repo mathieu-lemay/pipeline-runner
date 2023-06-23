@@ -1,7 +1,7 @@
 import os.path
 from enum import Enum
 from string import Template
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Sequence, Union
 from uuid import UUID, uuid4
 
 from git import Repo
@@ -16,7 +16,7 @@ from .utils import generate_ssh_rsa_key
 
 
 class BaseModel(PydanticBaseModel):
-    __env_var_expand_fields__ = []
+    __env_var_expand_fields__: Sequence[str]
 
     class Config:
         extra = Extra.forbid
@@ -41,7 +41,7 @@ class AwsCredentials(BaseModel):
     secret_access_key: str = Field(None, alias="secret-key")
     oidc_role: str = Field(None, alias="oidc-role")
 
-    __env_var_expand_fields__ = ["access_key_id", "secret_access_key", "oidc_role"]
+    __env_var_expand_fields__: Sequence[str] = ["access_key_id", "secret_access_key", "oidc_role"]
 
     @validator("oidc_role")
     def oidc_role_not_supported(cls, v):
@@ -60,7 +60,7 @@ class Image(BaseModel):
     run_as_user: Optional[int] = Field(None, alias="run-as-user")
     aws: Optional[AwsCredentials] = None
 
-    __env_var_expand_fields__ = ["username", "password", "email", "aws"]
+    __env_var_expand_fields__: Sequence[str] = ["username", "password", "email", "aws"]
 
 
 ImageType = Optional[Union[str, Image]]
@@ -192,7 +192,7 @@ class Step(BaseModel):
     trigger: Trigger = Trigger.Automatic
     max_time: Optional[int] = Field(None, alias="max-time")
 
-    __env_var_expand_fields__ = ["image"]
+    __env_var_expand_fields__: Sequence[str] = ["image"]
 
     # noinspection PyMethodParameters
     @validator("image")
@@ -335,7 +335,7 @@ class PipelineSpec(BaseModel):
     clone_settings: Optional[CloneSettings] = Field(default_factory=CloneSettings.empty, alias="clone")
     pipelines: Pipelines
 
-    __env_var_expand_fields__ = ["image", "definitions", "pipelines"]
+    __env_var_expand_fields__: Sequence[str] = ["image", "definitions", "pipelines"]
 
     class Config:
         extra = Extra.ignore
