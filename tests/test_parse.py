@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -20,14 +22,14 @@ from pipeline_runner.models import (
 )
 
 
-def test_parse_empty_definitions():
+def test_parse_empty_definitions() -> None:
     defs = Definitions.parse_obj({})
 
     assert defs.caches == {}
     assert defs.services == {}
 
 
-def test_parse_caches():
+def test_parse_caches() -> None:
     caches = {
         "poetry": "~/.cache/pypoetry",
         "pip": "${HOME}/.cache/pip",
@@ -40,7 +42,7 @@ def test_parse_caches():
     assert defs.caches == caches
 
 
-def test_parse_services():
+def test_parse_services() -> None:
     services = {
         "docker": {"memory": 3072},
         "postgres": {
@@ -68,7 +70,7 @@ def test_parse_services():
     services = {
         "docker": Service(image=None, variables={}, memory=3072),
         "postgres": Service(
-            image="postgres:13",
+            image=Image(name="postgres:13"),
             variables={
                 "POSTGRES_DB": "pg-db",
                 "POSTGRES_USER": "pg-user",
@@ -77,8 +79,8 @@ def test_parse_services():
             memory=config.service_container_default_memory_limit,
         ),
         "mysql": Service(
-            image="mysql",
-            environment={
+            image=Image(name="mysql"),
+            variables={
                 "MYSQL_DB": "my-db",
                 "MYSQL_USER": "my-user",
                 "MYSQL_PASSWORD": "my-passwd",
@@ -90,7 +92,7 @@ def test_parse_services():
     assert defs.services == services
 
 
-def test_parse_image():
+def test_parse_image() -> None:
     name = "alpine:latest"
     user = 1000
 
@@ -98,10 +100,10 @@ def test_parse_image():
 
     image = Image.parse_obj(value)
 
-    assert image == Image(name=name, run_as_user=user)
+    assert image == Image(name=name, run_as_user="1000")
 
 
-def test_parse_image_with_credentials():
+def test_parse_image_with_credentials() -> None:
     name = "private-repo/image"
     username = "my-username"
     password = "my-password"
@@ -112,7 +114,7 @@ def test_parse_image_with_credentials():
     assert Image.parse_obj(value) == Image(name=name, username=username, password=password, email=email)
 
 
-def test_parse_image_with_aws_credentials():
+def test_parse_image_with_aws_credentials() -> None:
     name = "aws-repo/image"
     access_key_id = "access-key-id"
     secret_access_key = "secret-access-key"
@@ -125,7 +127,7 @@ def test_parse_image_with_aws_credentials():
     )
 
 
-def test_parse_image_with_aws_oidc_role():
+def test_parse_image_with_aws_oidc_role() -> None:
     name = "alpine:latest"
     oidc_role = "some-role"
 
@@ -137,7 +139,7 @@ def test_parse_image_with_aws_oidc_role():
     assert "aws oidc-role not supported" in str(exc_info.value)
 
 
-def test_parse_image_with_envvars():
+def test_parse_image_with_envvars() -> None:
     name = "alpine:latest"
     username = "my-username"
     password = "my-password"
@@ -170,13 +172,13 @@ def test_parse_image_with_envvars():
         username=username,
         password=password,
         email=email,
-        aws={"access-key": access_key_id, "secret-key": secret_access_key},
+        aws=AwsCredentials(access_key_id=access_key_id, secret_access_key=secret_access_key),
     )
 
     assert image == expected
 
 
-def test_parse_pipeline_with_steps():
+def test_parse_pipeline_with_steps() -> None:
     spec = [
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
         {"step": {"name": "Step 2", "script": ["echo 'Step 2'"]}},
@@ -196,7 +198,7 @@ def test_parse_pipeline_with_steps():
     assert pipeline == expected
 
 
-def test_parse_pipeline_with_parallel_steps():
+def test_parse_pipeline_with_parallel_steps() -> None:
     spec = [
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
         {
@@ -212,17 +214,12 @@ def test_parse_pipeline_with_parallel_steps():
     step1 = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     pstep1 = StepWrapper(step=Step(name="Parallel Step 1", script=["echo 'Parallel 1'"]))
     pstep2 = StepWrapper(step=Step(name="Parallel Step 2", script=["echo 'Parallel 2'"]))
-    expected = Pipeline(
-        __root__=[
-            step1,
-            ParallelStep(parallel=[pstep1, pstep2]),
-        ]
-    )
+    expected = Pipeline(__root__=[step1, ParallelStep(wrapped=[pstep1, pstep2])])
 
     assert pipeline == expected
 
 
-def test_parse_pipeline_with_variables():
+def test_parse_pipeline_with_variables() -> None:
     spec = [
         {"variables": [{"name": "foo"}, {"name": "bar"}]},
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
@@ -230,7 +227,7 @@ def test_parse_pipeline_with_variables():
 
     pipeline = Pipeline.parse_obj(spec)
 
-    variables = Variables(variables=[Variable(name="foo"), Variable(name="bar")])
+    variables = Variables(wrapped=[Variable(name="foo"), Variable(name="bar")])
     step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     expected = Pipeline(
         __root__=[
@@ -242,7 +239,7 @@ def test_parse_pipeline_with_variables():
     assert pipeline == expected
 
 
-def test_variables_can_only_be_the_first_element_of_the_pipelines():
+def test_variables_can_only_be_the_first_element_of_the_pipelines() -> None:
     spec = [
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
         {"variables": [{"name": "foo"}, {"name": "bar"}]},
@@ -257,7 +254,7 @@ def test_variables_can_only_be_the_first_element_of_the_pipelines():
     ]
 
 
-def test_parse_variables_with_default_values():
+def test_parse_variables_with_default_values() -> None:
     spec = [
         {"variables": [{"name": "foo", "default": "foo-value"}, {"name": "bar"}]},
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
@@ -265,7 +262,7 @@ def test_parse_variables_with_default_values():
 
     pipeline = Pipeline.parse_obj(spec)
 
-    variables = Variables(variables=[Variable(name="foo", default="foo-value"), Variable(name="bar", default=None)])
+    variables = Variables(wrapped=[Variable(name="foo", default="foo-value"), Variable(name="bar", default=None)])
     step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     expected = Pipeline(
         __root__=[
@@ -277,7 +274,7 @@ def test_parse_variables_with_default_values():
     assert pipeline == expected
 
 
-def test_parse_variables_with_choices():
+def test_parse_variables_with_choices() -> None:
     spec = [
         {"variables": [{"name": "foo", "allowed-values": ["a1", "b2", "c3"], "default": "a1"}]},
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
@@ -285,7 +282,7 @@ def test_parse_variables_with_choices():
 
     pipeline = Pipeline.parse_obj(spec)
 
-    variables = Variables(variables=[Variable(name="foo", allowed_values=["a1", "b2", "c3"], default="a1")])
+    variables = Variables(wrapped=[Variable(name="foo", allowed_values=["a1", "b2", "c3"], default="a1")])
     step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     expected = Pipeline(
         __root__=[
@@ -297,7 +294,7 @@ def test_parse_variables_with_choices():
     assert pipeline == expected
 
 
-def test_variables_with_choices_must_have_a_default_value():
+def test_variables_with_choices_must_have_a_default_value() -> None:
     spec = [
         {"variables": [{"name": "foo", "allowed-values": ["a", "b", "c"]}]},
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
@@ -317,7 +314,7 @@ def test_variables_with_choices_must_have_a_default_value():
     } in exc_info.value.errors()
 
 
-def test_variables_with_choices_must_have_a_default_value_that_is_part_of_the_choices():
+def test_variables_with_choices_must_have_a_default_value_that_is_part_of_the_choices() -> None:
     spec = [
         {"variables": [{"name": "foo", "allowed-values": ["a", "b", "c"], "default": "d"}]},
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
@@ -334,7 +331,7 @@ def test_variables_with_choices_must_have_a_default_value_that_is_part_of_the_ch
     } in exc_info.value.errors()
 
 
-def test_parse_step_with_default_values():
+def test_parse_step_with_default_values() -> None:
     spec = {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}
 
     step = Step.parse_obj(spec)
@@ -342,7 +339,7 @@ def test_parse_step_with_default_values():
     assert step == Step(name="Step 1", script=["cat /etc/os-release", "exit 0"])
 
 
-def test_parse_step_with_manual_trigger():
+def test_parse_step_with_manual_trigger() -> None:
     spec = {"script": [], "trigger": "manual"}
 
     step = Step.parse_obj(spec)
@@ -350,7 +347,7 @@ def test_parse_step_with_manual_trigger():
     assert step.trigger == Trigger.Manual
 
 
-def test_parse_step_with_double_size():
+def test_parse_step_with_double_size() -> None:
     spec = {"script": [], "size": "2x"}
 
     step = Step.parse_obj(spec)
@@ -358,8 +355,8 @@ def test_parse_step_with_double_size():
     assert step.size == StepSize.Double
 
 
-def test_parse_step_with_pipes():
-    spec = {
+def test_parse_step_with_pipes() -> None:
+    spec: dict[str, Any] = {
         "script": [
             "echo a",
             {
@@ -404,19 +401,11 @@ def test_parse_step_with_pipes():
         variables=spec["after-script"][1]["variables"],
     )
 
-    assert parsed.script == [
-        "echo a",
-        pipe_a,
-        "echo b",
-    ]
-    assert parsed.after_script == [
-        "echo c",
-        pipe_b,
-        "echo d",
-    ]
+    assert parsed.script == ["echo a", pipe_a, "echo b"]
+    assert parsed.after_script == ["echo c", pipe_b, "echo d"]
 
 
-def test_parse_pipeline_with_env_vars():
+def test_parse_pipeline_with_env_vars() -> None:
     step_image = "step-image"
     service_image = "service-image"
     parallel_step_image = "parallel-image"
@@ -561,9 +550,9 @@ def test_parse_pipeline_with_env_vars():
                     ],
                 },
             ],
-            "branches": [],
-            "pull-requests": [],
-            "custom": [],
+            "branches": {},
+            "pull-requests": {},
+            "custom": {},
         },
     }
 

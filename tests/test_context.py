@@ -1,12 +1,14 @@
 import os.path
+from pathlib import Path
 from unittest.mock import Mock
 
-from pipeline_runner.models import CloneSettings, Image, Pipeline, Service
-from pipeline_runner.repository import Repository
-from pipeline_runner.runner import PipelineRunContext
+from pipeline_runner.context import PipelineRunContext
+from pipeline_runner.models import CloneSettings, Image, Pipeline, ProjectMetadata, Repository, Service
 
 
-def test_get_log_directory_returns_the_right_directory(user_data_directory, project_metadata):
+def test_get_log_directory_returns_the_right_directory(
+    user_data_directory: Path, project_metadata: ProjectMetadata
+) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository)
 
@@ -31,7 +33,9 @@ def test_get_log_directory_returns_the_right_directory(user_data_directory, proj
     assert prc.get_log_directory() == log_directory
 
 
-def test_get_artifact_directory_returns_the_right_directory(user_data_directory, project_metadata):
+def test_get_artifact_directory_returns_the_right_directory(
+    user_data_directory: Path, project_metadata: ProjectMetadata
+) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository)
 
@@ -56,7 +60,9 @@ def test_get_artifact_directory_returns_the_right_directory(user_data_directory,
     assert prc.get_artifact_directory() == artifact_directory
 
 
-def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_directory, project_metadata):
+def test_get_pipeline_cache_directory_returns_the_right_directory(
+    user_cache_directory: Path, project_metadata: ProjectMetadata
+) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository)
 
@@ -75,7 +81,7 @@ def test_get_pipeline_cache_directory_returns_the_right_directory(user_cache_dir
     assert prc.get_cache_directory() == cache_directory
 
 
-def test_docker_is_added_to_services_if_not_present(project_metadata):
+def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMetadata) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository)
 
@@ -101,7 +107,7 @@ def test_docker_is_added_to_services_if_not_present(project_metadata):
     assert prc.services == {"docker": docker_service}
 
 
-def test_docker_service_uses_fallback_values(project_metadata):
+def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository)
 
@@ -127,7 +133,7 @@ def test_docker_service_uses_fallback_values(project_metadata):
     assert prc.services == {"docker": docker_service}
 
 
-def test_default_caches_are_used(project_metadata):
+def test_default_caches_are_used(project_metadata: ProjectMetadata) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository)
 
@@ -157,7 +163,7 @@ def test_default_caches_are_used(project_metadata):
     assert prc.caches == all_caches
 
 
-def test_default_caches_can_be_overridden(project_metadata):
+def test_default_caches_can_be_overridden(project_metadata: ProjectMetadata) -> None:
     pipeline = Mock(spec=Pipeline)
     repository = Mock(spec=Repository, env_name="some-env")
 

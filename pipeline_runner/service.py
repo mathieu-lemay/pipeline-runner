@@ -1,11 +1,11 @@
 import logging
 from importlib.resources import as_file, files
-from typing import Dict, List
+from typing import Union
 
-import docker
+import docker  # type: ignore
 from docker import DockerClient
-from docker.models.containers import Container
-from docker.models.volumes import Volume
+from docker.models.containers import Container  # type: ignore
+from docker.models.volumes import Volume  # type: ignore
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
@@ -29,8 +29,8 @@ class ServiceUnhealthyError(Exception):
 class ServicesManager:
     def __init__(
         self,
-        service_names: List[str],
-        service_definitions: Dict[str, Service],
+        service_names: list[str],
+        service_definitions: dict[str, Service],
         memory_multiplier: int,
         shared_data_volume_name: str,
         repository_slug: str,
@@ -44,9 +44,9 @@ class ServicesManager:
 
         self._client = docker.from_env()
 
-        self._service_runners = {}
+        self._service_runners: dict[str, ServiceRunner] = {}
 
-    def start_services(self, network_name: str):
+    def start_services(self, network_name: str) -> None:
         self._ensure_memory_for_services()
 
         for service_name, service in self._services_by_name.items():
@@ -62,21 +62,21 @@ class ServicesManager:
             sr.start()
             self._service_runners[sr.slug] = sr
 
-    def stop_services(self):
+    def stop_services(self) -> None:
         for s, sr in self._service_runners.items():
             try:
                 sr.stop()
             except Exception as e:
                 logger.exception("Error removing service '%s': %s", s, e)
 
-    def get_services_containers(self) -> Dict[str, Container]:
+    def get_services_containers(self) -> dict[str, Container]:
         return {name: runner.container for name, runner in self._service_runners.items()}
 
     def get_memory_usage(self) -> int:
         return sum(s.memory for s in self._services_by_name.values())
 
     @staticmethod
-    def _get_services(service_names, service_definitions) -> Dict[str, Service]:
+    def _get_services(service_names: list[str], service_definitions: dict[str, Service]) -> dict[str, Service]:
         services = {}
         for service_name in service_names:
             if service_name not in service_definitions:
@@ -86,7 +86,7 @@ class ServicesManager:
 
         return services
 
-    def _ensure_memory_for_services(self):
+    def _ensure_memory_for_services(self) -> None:
         requested_mem = self.get_memory_usage()
         available_mem = self._get_service_containers_memory_limit()
         if requested_mem > available_mem:
@@ -121,14 +121,17 @@ class ServiceRunner:
         self._slug = slugify(self._service_name)
 
     @property
-    def slug(self):
+    def slug(self) -> str:
         return self._slug
 
     @property
-    def container(self):
+    def container(self) -> Container:
         return self._container
 
-    def start(self):
+    def start(self) -> None:
+        if not self._service.image:
+            raise ValueError("Service has no image.")
+
         logger.info("Starting service: %s", self._service_name)
         pull_image(self._client, self._service.image)
 
@@ -136,6 +139,9 @@ class ServiceRunner:
         self._ensure_container_ready(self._container)
 
     def _start_container(self) -> Container:
+        if not self._service.image:
+            raise ValueError("Service has no image.")
+
         container = self._client.containers.run(
             self._service.image.name,
             name=self._get_container_name(),
@@ -147,13 +153,17 @@ class ServiceRunner:
 
         return container
 
-    def _ensure_container_ready(self, container: Container):
+    def _ensure_container_ready(self, container: Container) -> None:
         pass
 
-    def _get_container_name(self):
+    def _get_container_name(self) -> str:
         return f"{self._project_slug}-service-{self._slug}"
 
-    def stop(self):
+    def stop(self) -> None:
+        if not self._container:
+            # TODO: Refactor
+            raise Exception("called on uninitialized service")
+
         logger.info("Removing service: %s", self._service_name)
 
         self._teardown()
@@ -163,12 +173,15 @@ class ServiceRunner:
     def _get_mem_limit(self) -> int:
         return self._service.memory * 2**20
 
-    def _teardown(self):
+    def _teardown(self) -> None:
         pass
 
 
 class DockerServiceRunner(ServiceRunner):
     def _start_container(self) -> Container:
+        if not self._service.image:
+            raise ValueError("Service has no image.")
+
         environment = self._service.variables
         environment["DOCKER_TLS_CERTDIR"] = ""
 
@@ -191,7 +204,7 @@ class DockerServiceRunner(ServiceRunner):
         return container
 
     @retry(wait=wait_fixed(1), stop=stop_after_delay(30), retry=retry_if_exception_type(ServiceNotReadyError))
-    def _ensure_container_ready(self, container: Container):
+    def _ensure_container_ready(self, container: Container) -> None:
         # Refresh container to ensure we have its health status
         container = self._client.containers.get(container.name)
         health = container.attrs["State"]["Health"]["Status"]
@@ -202,7 +215,7 @@ class DockerServiceRunner(ServiceRunner):
         else:
             raise ServiceNotReadyError()
 
-    def _get_volumes(self) -> Dict[str, Dict[str, str]]:
+    def _get_volumes(self) -> dict[str, dict[str, str]]:
         static_files = files(pipeline_runner).joinpath("static")
 
         with as_file(static_files.joinpath("runit.sh")) as p:
@@ -213,7 +226,7 @@ class DockerServiceRunner(ServiceRunner):
         return {
             cache_volume.name: {"bind": "/var/lib/docker"},
             self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
-            runit_script_path: {"bind": "/usr/local/bin/runit.sh"},
+            str(runit_script_path): {"bind": "/usr/local/bin/runit.sh"},
         }
 
     def _get_cache_volume(self) -> Volume:
@@ -233,7 +246,7 @@ class DockerServiceRunner(ServiceRunner):
 
         return volume
 
-    def _teardown(self):
+    def _teardown(self) -> None:
         logger.info("Executing teardown for service: %s", self._service_name)
 
         script = [
@@ -256,6 +269,8 @@ class ServiceRunnerFactory:
         repository_slug: str,
         pipeline_cache_directory: str,
     ) -> ServiceRunner:
+        cls: type[Union[ServiceRunner, DockerServiceRunner]]
+
         if service_name == "docker":
             cls = DockerServiceRunner
         else:

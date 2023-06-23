@@ -4,12 +4,11 @@ import os.path
 import tarfile
 from tarfile import TarInfo
 from time import time as ts
-from typing import List
 from uuid import UUID
 
-from . import utils
 from .config import config
 from .container import ContainerRunner
+from .utils import FileStreamer, get_human_readable_size, safe_extract_tar
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class ArtifactManager:
         self._artifact_directory = artifact_directory
         self._step_uuid = step_uuid
 
-    def upload(self):
+    def upload(self) -> None:
         logger.info("Loading artifacts")
 
         t = ts()
@@ -50,7 +49,7 @@ class ArtifactManager:
 
         logger.info("Artifacts loaded in %.3fs", t)
 
-    def download(self, artifacts: List[str]):
+    def download(self, artifacts: list[str]) -> None:
         if not artifacts:
             return
 
@@ -74,17 +73,17 @@ class ArtifactManager:
         data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
         logger.debug("artifacts stats: %s", stats)
 
-        # noinspection PyTypeChecker
-        with tarfile.open(fileobj=utils.FileStreamer(data), mode="r|") as wrapper_tar:
+        # FileStreamer only implements `read` which is all that is needed.
+        with tarfile.open(fileobj=FileStreamer(data), mode="r|") as wrapper_tar:  # type: ignore[abstract]
             for entry in wrapper_tar:
                 with tarfile.open(fileobj=wrapper_tar.extractfile(entry), mode="r|") as tar:
-                    utils.safe_extract_tar(tar, artifact_local_directory)
+                    safe_extract_tar(tar, artifact_local_directory)
 
         t = ts() - t
 
         logger.info(
             "Artifacts saved %s to %s in %.3fs",
-            utils.get_human_readable_size(stats["size"]),
+            get_human_readable_size(stats["size"]),
             artifact_local_directory,
             t,
         )

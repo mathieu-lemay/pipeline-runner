@@ -3,11 +3,11 @@ import logging.config
 import os
 import shutil
 import sys
-from typing import List, Optional
+from typing import Optional
 
 import click
 import pkg_resources
-from pyfzf import FzfPrompt
+from pyfzf import FzfPrompt  # type: ignore
 
 from . import utils
 from .config import config
@@ -17,17 +17,17 @@ from .runner import PipelineRunner, PipelineRunRequest
 logger = logging.getLogger(__name__)
 
 
-def _init_logger():
+def _init_logger() -> None:
     logging.config.dictConfig(config.log_config)
 
 
-def _get_pipelines_list(pipeline_file: str) -> List[str]:
+def _get_pipelines_list(pipeline_file: str) -> list[str]:
     pipelines_definition = parse_pipeline_file(pipeline_file)
 
     return pipelines_definition.get_available_pipelines()
 
 
-def _prompt_for_pipeline(pipeline_file) -> Optional[str]:
+def _prompt_for_pipeline(pipeline_file: str) -> Optional[str]:
     pipeline = None
     pipelines = _get_pipelines_list(pipeline_file)
 
@@ -51,7 +51,7 @@ def _prompt_for_pipeline(pipeline_file) -> Optional[str]:
     help="Print project version and exit.",
 )
 @click.pass_context
-def main(ctx, show_version):
+def main(ctx: click.Context, show_version: bool) -> None:
     if show_version:
         print(f"Pipeline Runner {pkg_resources.get_distribution('bitbucket_pipeline_runner').version}")
         ctx.exit()
@@ -62,7 +62,7 @@ def main(ctx, show_version):
 
 
 @main.command()
-@click.argument("pipeline", default="")
+@click.argument("pipeline", required=False)
 @click.option(
     "-r",
     "--repository-path",
@@ -93,7 +93,9 @@ def main(ctx, show_version):
     default=False,
     help="Enable to enforce cpu limits for the runner. Default: False",
 )
-def run(pipeline, repository_path, steps, env_files, color, cpu_limits):
+def run(
+    pipeline: Optional[str], repository_path: str, steps: list[str], env_files: list[str], color: bool, cpu_limits: bool
+) -> None:
     """
     Runs the pipeline PIPELINE.
 
@@ -133,7 +135,7 @@ def run(pipeline, repository_path, steps, env_files, color, cpu_limits):
     default=True,
     help="Enable colored output",
 )
-def list_(repository_path, color):
+def list_(repository_path: str, color: bool) -> None:
     """
     List the available pipelines.
     """
@@ -147,13 +149,13 @@ def list_(repository_path, color):
 
 
 @main.command()
-@click.argument("pipeline", default="")
+@click.argument("pipeline", required=False)
 @click.option(
     "-r",
     "--repository-path",
     help="Path to the git repository. Defaults to current directory.",
 )
-def parse(pipeline, repository_path):
+def parse(pipeline: Optional[str], repository_path: str) -> None:
     """
     Parse the pipeline file.
     """
@@ -165,15 +167,14 @@ def parse(pipeline, repository_path):
         parsed = pipelines_definition.get_pipeline(pipeline)
         if not parsed:
             raise ValueError(f"Invalid pipeline: {pipeline}")
+        print(parsed.json(indent=2))
     else:
-        parsed = pipelines_definition
-
-    print(parsed.json(indent=2))
+        print(pipelines_definition.json(indent=2))
 
 
 @main.command()
 @click.argument("action", type=click.Choice(["clear", "list"]))
-def cache(action):
+def cache(action: str) -> None:
     cache_dir = utils.get_cache_directory()
     if not os.path.isdir(cache_dir):
         return

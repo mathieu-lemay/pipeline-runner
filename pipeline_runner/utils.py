@@ -3,8 +3,9 @@ import hashlib
 import logging
 import os
 import sys
+from logging import Logger
 from tarfile import TarFile
-from typing import List, Union
+from typing import IO, Iterator, Union
 
 from appdirs import user_cache_dir, user_data_dir
 from cryptography.hazmat.primitives import serialization
@@ -16,7 +17,7 @@ from . import APP_NAME
 logger = logging.getLogger(__name__)
 
 
-def get_output_logger(output_directory: str, name: str) -> logging.Logger:
+def get_output_logger(output_directory: str, name: str) -> Logger:
     formatter = logging.Formatter("%(message)s")
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
@@ -43,22 +44,22 @@ def get_data_directory() -> str:
     return user_data_dir(appname=APP_NAME)
 
 
-def get_project_cache_directory(project_path_slug):
+def get_project_cache_directory(project_path_slug: str) -> str:
     return ensure_directory(os.path.join(get_cache_directory(), project_path_slug))
 
 
-def get_project_data_directory(project_path_slug):
+def get_project_data_directory(project_path_slug: str) -> str:
     return ensure_directory(os.path.join(get_data_directory(), project_path_slug))
 
 
-def ensure_directory(path) -> str:
+def ensure_directory(path: str) -> str:
     if not os.path.exists(path):
         os.makedirs(path)
 
     return path
 
 
-def stringify(value: Union[str, List[str]], sep: str = " "):
+def stringify(value: Union[str, list[str]], sep: str = " ") -> str:
     if isinstance(value, list):
         value = sep.join(value)
 
@@ -72,17 +73,21 @@ def escape_shell_string(value: str) -> str:
     return value
 
 
-def get_human_readable_size(num):
-    for unit in ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB"]:
-        if abs(num) < 1024.0:
+def get_human_readable_size(value: int) -> str:
+    if value < 0:
+        raise ValueError("size must be positive")
+
+    num: float = value
+    for unit in ["B", "KiB", "MiB", "GiB"]:
+        if num < 1024:
             return f"{num:3.1f}{unit}"
 
-        num /= 1024.0
+        num /= 1024
 
-    return f"{num:.1f}{unit}"
+    return f"{num:.1f}TiB"
 
 
-def wrap_in_shell(command: Union[str, List[str]], stop_on_error=True):
+def wrap_in_shell(command: Union[str, list[str]], stop_on_error: bool = True) -> list[str]:
     command = stringify(command)
 
     wrapped = ["sh"]
@@ -94,13 +99,13 @@ def wrap_in_shell(command: Union[str, List[str]], stop_on_error=True):
     return wrapped
 
 
-def hashify_path(path):
+def hashify_path(path: str) -> str:
     slug = slugify(os.path.basename(path))
 
     h = hashlib.sha256(path.encode()).digest()
-    h = base64.urlsafe_b64encode(h).decode()[:8]
+    suffix = base64.urlsafe_b64encode(h).decode()[:8]
 
-    return f"{slug}-{h}"
+    return f"{slug}-{suffix}"
 
 
 def generate_ssh_rsa_key() -> str:
@@ -115,8 +120,8 @@ class PathTraversalError(Exception):
     pass
 
 
-def safe_extract_tar(tar: TarFile, path=".", *, numeric_owner=False) -> None:
-    def _is_within_directory(directory, target):
+def safe_extract_tar(tar: TarFile, path: str = ".", *, numeric_owner: bool = False) -> None:
+    def _is_within_directory(directory: str, target: str) -> bool:
         abs_directory = os.path.abspath(directory)
         abs_target = os.path.abspath(target)
 
@@ -132,18 +137,18 @@ def safe_extract_tar(tar: TarFile, path=".", *, numeric_owner=False) -> None:
         tar.extract(member, path, numeric_owner=numeric_owner)
 
 
-class FileStreamer:
-    def __init__(self, it):
+class FileStreamer(IO[bytes]):
+    def __init__(self, it: Iterator[bytes]) -> None:
         self._it = it
         self._chunk = b""
         self._has_more_data = True
 
-    def _grow_chunk(self):
+    def _grow_chunk(self) -> None:
         self._chunk = self._chunk + next(self._it)
 
-    def read(self, n):
+    def read(self, n: int = 512) -> bytes:
         if not self._has_more_data:
-            return None
+            return b""
 
         try:
             while len(self._chunk) < n:

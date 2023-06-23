@@ -30,10 +30,16 @@ appdirs = "^1.4.4"
 cryptography = "^41.0.1"
 tenacity = "^8.0.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.0.1"
 pytest-mock = "^3.5.1"
 coverage = { version = "^7.0.1", extras = ["toml"] }
+mypy = "^1.4.0"
+types-appdirs = "^1.4.3.5"
+types-setuptools = "^68.0.0.0"
+types-pyyaml = "^6.0.12.10"
+types-python-slugify = "^8.0.0.2"
+types-boto3 = "^1.0.2"
 
 [tool.poetry.scripts]
 pipeline-runner = 'pipeline_runner.cli:main'
@@ -47,6 +53,19 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 line_length = 120
+
+[tool.mypy]
+namespace_packages=true
+explicit_package_bases=true
+strict=true
+show_error_codes=true
+plugins=["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
 
 [tool.ruff]
 exclude = [".venv"]

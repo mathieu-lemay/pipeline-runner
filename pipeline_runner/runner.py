@@ -1,11 +1,12 @@
 import logging
 import os
 import sys
+from abc import ABC, abstractmethod
 from time import time as ts
 from typing import Optional, Union
 
-import docker
-from docker.models.networks import Network
+import docker  # type: ignore
+from docker.models.networks import Network  # type: ignore
 
 from . import utils
 from .artifacts import ArtifactManager
@@ -13,7 +14,7 @@ from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
-from .models import Image, ParallelStep, Pipe, PipelineResult, Step, Trigger, Variable
+from .models import Image, ParallelStep, Pipe, PipelineResult, Step, StepWrapper, Trigger, Variable
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -95,7 +96,7 @@ class PipelineRunner:
 
         return var.rstrip()
 
-    def _execute_pipeline(self):
+    def _execute_pipeline(self) -> int:
         for step in self._pipeline.get_steps():
             runner = StepRunnerFactory.get(step, self._ctx)
 
@@ -107,14 +108,20 @@ class PipelineRunner:
         return 0
 
 
-class StepRunner:
+class BaseStepRunner(ABC):
+    @abstractmethod
+    def run(self) -> Optional[int]:
+        """Run the step."""
+
+
+class StepRunner(BaseStepRunner):
     def __init__(self, step_run_context: StepRunContext):
         self._ctx = step_run_context
         self._step = step_run_context.step
 
         self._docker_client = docker.from_env()
-        self._services_manager = None
-        self._container_runner = None
+        self._services_manager: Optional[ServicesManager] = None
+        self._container_runner: Optional[ContainerRunner] = None
 
         self._container_name = self._ctx.slug
         self._data_volume_name = f"{self._container_name}-data"
@@ -126,7 +133,7 @@ class StepRunner:
     def run(self) -> Optional[int]:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
-            return
+            return None
 
         logger.info("Running step: %s", self._step.name)
         logger.debug("Step ID: %s", self._ctx.step_uuid)
@@ -138,6 +145,8 @@ class StepRunner:
 
         network = None
 
+        exit_code: int
+
         try:
             if "docker" not in self._step.services and self._docker_is_needed():
                 logger.debug("Docker service is needed, but wasn't requested. Adding it.")
@@ -147,7 +156,7 @@ class StepRunner:
             network = self._create_network()
             environment = self._get_step_env_vars()
 
-            self._services_manager = ServicesManager(
+            services_manager = ServicesManager(
                 self._step.services,
                 self._ctx.pipeline_ctx.services,
                 self._step.size.as_int(),
@@ -155,10 +164,11 @@ class StepRunner:
                 self._ctx.pipeline_ctx.project_metadata.path_slug,
                 self._ctx.pipeline_ctx.get_cache_directory(),
             )
+            self._services_manager = services_manager
 
-            mem_limit = self._get_build_container_memory_limit(self._services_manager.get_memory_usage())
+            mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
 
-            self._container_runner = ContainerRunner(
+            container_runner = ContainerRunner(
                 self._container_name,
                 image,
                 network.name,
@@ -169,21 +179,20 @@ class StepRunner:
                 mem_limit,
                 self._ctx.pipeline_ctx.project_metadata.ssh_key,
             )
+            self._container_runner = container_runner
 
-            self._container_runner.start()
+            container_runner.start()
 
-            self._services_manager.start_services(f"container:{self._container_runner.get_container_name()}")
+            services_manager.start_services(f"container:{container_runner.get_container_name()}")
 
-            services = self._services_manager.get_services_containers()
-            self._container_runner.install_docker_client_if_needed(services)
+            services = services_manager.get_services_containers()
+            container_runner.install_docker_client_if_needed(services)
 
             self._build_setup()
 
-            exit_code = self._container_runner.run_script(self._step.script, exec_time=True)
+            exit_code = container_runner.run_script(self._step.script, exec_time=True)
 
-            self._container_runner.run_script(
-                self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True
-            )
+            container_runner.run_script(self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True)
 
             if exit_code:
                 logger.error("Step '%s': FAIL", self._step.name)
@@ -211,7 +220,7 @@ class StepRunner:
 
         return exit_code
 
-    def _should_run(self):
+    def _should_run(self) -> bool:
         if self._ctx.pipeline_ctx.selected_steps and self._step.name not in self._ctx.pipeline_ctx.selected_steps:
             return False
 
@@ -248,29 +257,29 @@ class StepRunner:
         git_branch = self._ctx.pipeline_ctx.repository.get_current_branch()
         git_commit = self._ctx.pipeline_ctx.repository.get_current_commit()
 
-        env_vars = {
+        env_vars: dict[str, str] = {
             "CI": "true",
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
-            "BITBUCKET_BUILD_NUMBER": self._ctx.pipeline_ctx.project_metadata.build_number,
+            "BITBUCKET_BUILD_NUMBER": str(self._ctx.pipeline_ctx.project_metadata.build_number),
             "BITBUCKET_PROJECT_KEY": self._ctx.pipeline_ctx.project_metadata.key,
-            "BITBUCKET_PROJECT_UUID": self._ctx.pipeline_ctx.project_metadata.project_uuid,
+            "BITBUCKET_PROJECT_UUID": str(self._ctx.pipeline_ctx.project_metadata.project_uuid),
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
-            "BITBUCKET_PIPELINE_UUID": self._ctx.pipeline_ctx.pipeline_uuid,
+            "BITBUCKET_PIPELINE_UUID": str(self._ctx.pipeline_ctx.pipeline_uuid),
             "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
             "BITBUCKET_REPO_OWNER": config.username,
             "BITBUCKET_REPO_OWNER_UUID": config.owner_uuid,
             "BITBUCKET_REPO_SLUG": project_slug,
-            "BITBUCKET_REPO_UUID": self._ctx.pipeline_ctx.project_metadata.repo_uuid,
-            "BITBUCKET_STEP_UUID": self._ctx.step_uuid,
+            "BITBUCKET_REPO_UUID": str(self._ctx.pipeline_ctx.project_metadata.repo_uuid),
+            "BITBUCKET_STEP_UUID": str(self._ctx.step_uuid),
             "BITBUCKET_WORKSPACE": project_slug,
         }
 
         if self._ctx.is_parallel():
-            env_vars["BITBUCKET_PARALLEL_STEP"] = self._ctx.parallel_step_index
-            env_vars["BITBUCKET_PARALLEL_STEP_COUNT"] = self._ctx.parallel_step_count
+            env_vars["BITBUCKET_PARALLEL_STEP"] = str(self._ctx.parallel_step_index)
+            env_vars["BITBUCKET_PARALLEL_STEP_COUNT"] = str(self._ctx.parallel_step_count)
 
         if self._step.deployment:
             env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
@@ -283,7 +292,11 @@ class StepRunner:
     def _docker_is_needed(self) -> bool:
         return any(i for i in self._step.script + self._step.after_script if isinstance(i, Pipe))
 
-    def _build_setup(self):
+    def _build_setup(self) -> None:
+        if not self._services_manager:
+            # TODO: Refactor
+            raise Exception("called on uninitialized runner")
+
         logger.info("Build setup: '%s'", self._step.name)
         s = ts()
 
@@ -307,19 +320,27 @@ class StepRunner:
 
         logger.info("Build setup finished in %.3fs: '%s'", ts() - s, self._step.name)
 
-    def _upload_artifacts(self):
+    def _upload_artifacts(self) -> None:
+        if not self._container_runner:
+            # TODO: Refactor
+            raise Exception("called on uninitialized runner")
+
         am = ArtifactManager(
             self._container_runner, self._ctx.pipeline_ctx.get_artifact_directory(), self._ctx.step_uuid
         )
         am.upload()
 
-    def _upload_caches(self):
+    def _upload_caches(self) -> None:
+        if not self._container_runner:
+            # TODO: Refactor
+            raise Exception("called on uninitialized runner")
+
         cm = CacheManager(
             self._container_runner, self._ctx.pipeline_ctx.get_cache_directory(), self._ctx.pipeline_ctx.caches
         )
         cm.upload(self._step.caches)
 
-    def _clone_repository(self):
+    def _clone_repository(self) -> None:
         image = self._get_image()
 
         rc = RepositoryCloner(
@@ -334,7 +355,7 @@ class StepRunner:
         )
         rc.clone()
 
-    def _build_teardown(self, exit_code):
+    def _build_teardown(self, exit_code: int) -> None:
         logger.info("Build teardown: '%s'", self._step.name)
         s = ts()
 
@@ -344,7 +365,11 @@ class StepRunner:
 
         logger.info("Build teardown finished in %.3fs: '%s'", ts() - s, self._step.name)
 
-    def _download_caches(self, exit_code):
+    def _download_caches(self, exit_code: int) -> None:
+        if not self._container_runner:
+            # TODO: Refactor
+            raise Exception("called on uninitialized runner")
+
         if exit_code == 0:
             cm = CacheManager(
                 self._container_runner,
@@ -355,17 +380,22 @@ class StepRunner:
         else:
             logger.warning("Skipping caches for failed step")
 
-    def _download_artifacts(self):
+    def _download_artifacts(self) -> None:
+        if not self._container_runner:
+            # TODO: Refactor
+            raise Exception("called on uninitialized runner")
+
         am = ArtifactManager(
             self._container_runner, self._ctx.pipeline_ctx.get_artifact_directory(), self._ctx.step_uuid
         )
         am.download(self._step.artifacts)
 
-    def _stop_services(self):
+    def _stop_services(self) -> None:
+        # TODO: Remove
         pass
 
 
-class ParallelStepRunner:
+class ParallelStepRunner(BaseStepRunner):
     def __init__(self, parallel_step: ParallelStep, pipeline_run_context: PipelineRunContext):
         self._parallel_step = parallel_step
         self._pipeline_ctx = pipeline_run_context
@@ -388,12 +418,13 @@ class ParallelStepRunner:
 class StepRunnerFactory:
     @staticmethod
     def get(
-        step: Union[Step, ParallelStep],
+        step: Union[Step, StepWrapper, ParallelStep],
         pipeline_run_context: PipelineRunContext,
         parallel_step_index: Optional[int] = None,
         parallel_step_count: Optional[int] = None,
-    ):
+    ) -> BaseStepRunner:
         if isinstance(step, ParallelStep):
             return ParallelStepRunner(step, pipeline_run_context)
-        else:
-            return StepRunner(StepRunContext(step, pipeline_run_context, parallel_step_index, parallel_step_count))
+
+        s = step.step if isinstance(step, StepWrapper) else step
+        return StepRunner(StepRunContext(s, pipeline_run_context, parallel_step_index, parallel_step_count))

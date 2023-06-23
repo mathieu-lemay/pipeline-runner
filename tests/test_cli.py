@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 
 import pkg_resources
 from click.testing import CliRunner
@@ -7,7 +8,7 @@ from click.testing import CliRunner
 from pipeline_runner.cli import main
 
 
-def test_specifying_no_command_shows_help():
+def test_specifying_no_command_shows_help() -> None:
     runner = CliRunner()
     # noinspection PyTypeChecker
     result = runner.invoke(main)
@@ -16,7 +17,7 @@ def test_specifying_no_command_shows_help():
     assert result.output == main.make_context("Pipeline Runner", []).get_help() + "\n"
 
 
-def test_show_version():
+def test_show_version() -> None:
     runner = CliRunner()
     # noinspection PyTypeChecker
     result = runner.invoke(main, ["--version"])
@@ -26,7 +27,7 @@ def test_show_version():
     assert result.output == expected
 
 
-def test_list_pipelines(tmp_path_chdir):
+def test_list_pipelines(tmp_path_chdir: Path) -> None:
     with open(os.path.join(tmp_path_chdir, "bitbucket-pipelines.yml"), "w") as f:
         f.write(
             """pipelines:

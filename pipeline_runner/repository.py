@@ -1,10 +1,13 @@
 import logging
-from typing import Dict, Optional, Union
+from typing import Optional, TypeVar, Union, cast
 
 from .config import config
 from .models import CloneSettings, Image, Repository
 
 logger = logging.getLogger(__name__)
+
+
+T = TypeVar("T")
 
 
 class RepositoryCloner:
@@ -13,7 +16,7 @@ class RepositoryCloner:
         repository: Repository,
         step_clone_settings: CloneSettings,
         global_clone_settings: CloneSettings,
-        environment: Dict[str, str],
+        environment: dict[str, str],
         user: Optional[Union[int, str]],
         parent_container_name: str,
         data_volume_name: str,
@@ -30,7 +33,7 @@ class RepositoryCloner:
 
         self._container = None
 
-    def clone(self):
+    def clone(self) -> None:
         # TODO: Fix cyclic import
         from .container import ContainerRunner
 
@@ -59,7 +62,7 @@ class RepositoryCloner:
         finally:
             runner.stop()
 
-    def _get_clone_script(self) -> [str]:
+    def _get_clone_script(self) -> list[str]:
         origin = self._get_origin()
         git_clone_cmd = self._get_clone_command(origin)
 
@@ -80,7 +83,7 @@ class RepositoryCloner:
         # https://x-token-auth:$REPOSITORY_OAUTH_ACCESS_TOKEN@bitbucket.org/$BITBUCKET_REPO_FULL_NAME.git
         return f"file://{config.remote_workspace_dir}"
 
-    def _get_clone_command(self, origin) -> str:
+    def _get_clone_command(self, origin: str) -> str:
         git_clone_cmd = []
 
         if not self._should_clone_lfs():
@@ -116,13 +119,15 @@ class RepositoryCloner:
             )
         )
 
-    def _get_clone_depth(self) -> Optional[int]:
-        return self._first_non_none_value(
+    def _get_clone_depth(self) -> Optional[Union[str, int]]:
+        depth = self._first_non_none_value(
             self._step_clone_settings.depth,
             self._global_clone_settings.depth,
             CloneSettings.construct().depth,
         )
 
+        return cast(Optional[Union[str, int]], depth)
+
     @staticmethod
-    def _first_non_none_value(*args) -> Optional[object]:
+    def _first_non_none_value(*args: Optional[T]) -> Optional[T]:
         return next((v for v in args if v is not None), None)
