@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from time import time as ts
+from typing import Optional, Union
 
 import docker
 from docker.models.networks import Network
@@ -23,9 +24,9 @@ class PipelineRunRequest:
     def __init__(
         self,
         pipeline_name: str,
-        repository_path: str | None = None,
-        selected_steps: list[str] | None = None,
-        env_files: list[str] | None = None,
+        repository_path: Optional[str] = None,
+        selected_steps: Optional[list[str]] = None,
+        env_files: Optional[list[str]] = None,
     ):
         self.pipeline_name = pipeline_name
         self.selected_steps = selected_steps or []
@@ -122,7 +123,7 @@ class StepRunner:
         )
 
     # TODO: Decomplexify
-    def run(self) -> int | None:
+    def run(self) -> Optional[int]:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return
@@ -369,7 +370,7 @@ class ParallelStepRunner:
         self._parallel_step = parallel_step
         self._pipeline_ctx = pipeline_run_context
 
-    def run(self) -> int | None:
+    def run(self) -> Optional[int]:
         return_code = 0
         step_count = len(self._parallel_step)
 
@@ -387,10 +388,10 @@ class ParallelStepRunner:
 class StepRunnerFactory:
     @staticmethod
     def get(
-        step: Step | ParallelStep,
+        step: Union[Step, ParallelStep],
         pipeline_run_context: PipelineRunContext,
-        parallel_step_index: int | None = None,
-        parallel_step_count: int | None = None,
+        parallel_step_index: Optional[int] = None,
+        parallel_step_count: Optional[int] = None,
     ):
         if isinstance(step, ParallelStep):
             return ParallelStepRunner(step, pipeline_run_context)
