@@ -28,7 +28,7 @@ class Config:
 
         self.default_services = {
             "docker": {
-                "image": "atlassian/pipelines-docker-daemon:v20-stable",
+                "image": "docker-public.packages.atlassian.com/sox/atlassian/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable",
                 "memory": 1024,
             }
         }

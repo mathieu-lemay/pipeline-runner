@@ -175,7 +175,7 @@ class DockerServiceRunner(ServiceRunner):
         container = self._client.containers.run(
             self._service.image.name,
             name=self._get_container_name(),
-            command=["runit.sh", "--tls=false"],
+            command=["--tls=false"],
             environment=environment,
             network=self._network_name,
             privileged=True,
@@ -183,8 +183,6 @@ class DockerServiceRunner(ServiceRunner):
             mem_limit=self._get_mem_limit(),
             detach=True,
             healthcheck={
-                "test": ["CMD", "docker", "ps"],
-                "interval": 5_000_000_000,
                 "start_period": 30_000_000_000,
                 "timeout": 1_000_000_000,
             },
@@ -207,9 +205,6 @@ class DockerServiceRunner(ServiceRunner):
     def _get_volumes(self) -> Dict[str, Dict[str, str]]:
         static_files = files(pipeline_runner).joinpath("static")
 
-        with as_file(static_files.joinpath("dind")) as p:
-            dind_script_path = p
-
         with as_file(static_files.joinpath("runit.sh")) as p:
             runit_script_path = p
 
@@ -218,8 +213,6 @@ class DockerServiceRunner(ServiceRunner):
         return {
             cache_volume.name: {"bind": "/var/lib/docker"},
             self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
-            # https://github.com/moby/moby/pull/42331
-            dind_script_path: {"bind": "/usr/local/bin/dind"},
             runit_script_path: {"bind": "/usr/local/bin/runit.sh"},
         }
 

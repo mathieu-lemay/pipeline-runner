@@ -445,8 +445,8 @@ def test_ssh_key_is_present_in_runner():
     assert result.ok
 
 
-def test_pipeline_fails_if_using_buildkit():
+def test_pipeline_supports_buildkit():
     runner = PipelineRunner(PipelineRunRequest("custom.test_docker_buildkit"))
     result = runner.run()
 
-    assert not result.ok
+    assert result.ok
