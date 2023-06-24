@@ -2,13 +2,13 @@ import getpass
 import logging
 import os
 import posixpath
-from typing import Dict
+from typing import Any
 
 from . import __name__ as __project_name__
 
 
 class Config:
-    def __init__(self):
+    def __init__(self) -> None:
         self.color = True
         self.cpu_limits = False
 
@@ -28,7 +28,10 @@ class Config:
 
         self.default_services = {
             "docker": {
-                "image": "docker-public.packages.atlassian.com/sox/atlassian/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable",
+                "image": (
+                    "docker-public.packages.atlassian.com/sox/atlassian"
+                    "/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable"
+                ),
                 "memory": 1024,
             }
         }
@@ -57,7 +60,7 @@ class Config:
         self.log_level = logging.getLevelName(os.getenv("PIPELINE_LOG_LEVEL", "DEBUG").upper())
 
     @property
-    def log_config(self) -> Dict:
+    def log_config(self) -> dict[str, Any]:
         log_handler_name = "colored" if self.color and "NO_COLOR" not in os.environ else "default"
         return {
             "version": 1,

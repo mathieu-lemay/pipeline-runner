@@ -30,3 +30,11 @@ repos:
     rev: 'v0.0.275'
     hooks:
       - id: ruff
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        pass_filenames: false
+        language: system
+        entry: poetry run mypy .

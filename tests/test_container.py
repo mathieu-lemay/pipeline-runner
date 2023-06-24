@@ -1,30 +1,33 @@
 import base64
+from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
+from pipeline_runner.config import Config
 from pipeline_runner.container import ContainerRunner, get_image_authentication
 from pipeline_runner.models import AwsCredentials, Image
 
 
 @pytest.fixture()
-def aws_lib(mocker):
+def aws_lib(mocker: MockerFixture) -> MagicMock:
     lib = mocker.patch("pipeline_runner.container.boto3")
 
     return lib
 
 
 @pytest.fixture()
-def config(mocker):
+def config(mocker: MockerFixture) -> Config:
     return mocker.patch("pipeline_runner.container.config")
 
 
-def test_get_image_authentication_returns_nothing_if_no_auth_defined():
+def test_get_image_authentication_returns_nothing_if_no_auth_defined() -> None:
     image = Image(name="alpine")
 
     assert get_image_authentication(image) is None
 
 
-def test_get_image_authentication_returns_credentials_from_user_and_pass_if_they_are_specified():
+def test_get_image_authentication_returns_credentials_from_user_and_pass_if_they_are_specified() -> None:
     username = "some-username"
     password = "some-password"
 
@@ -36,7 +39,9 @@ def test_get_image_authentication_returns_credentials_from_user_and_pass_if_they
     }
 
 
-def test_get_image_authentication_returns_credentials_from_aws_if_they_are_specified(aws_lib, mocker):
+def test_get_image_authentication_returns_credentials_from_aws_if_they_are_specified(
+    aws_lib: MagicMock, mocker: MockerFixture
+) -> None:
     access_key_id = "my-access-key-id"
     secret_access_key = "my-secret-access-key"
     session_token = "my-session-token"
@@ -64,7 +69,7 @@ def test_get_image_authentication_returns_credentials_from_aws_if_they_are_speci
     }
 
 
-def test_aws_credentials_have_precedence(aws_lib):
+def test_aws_credentials_have_precedence(aws_lib: MagicMock) -> None:
     access_key_id = "my-access-key-id"
     secret_access_key = "my-secret-access-key"
 
@@ -87,7 +92,7 @@ def test_aws_credentials_have_precedence(aws_lib):
     }
 
 
-def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config, mocker):
+def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config: Config, mocker: MockerFixture) -> None:
     runner = ContainerRunner(
         name="container",
         image=mocker.Mock(),
@@ -113,7 +118,7 @@ def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config, mocker):
     assert "cpu_shares" not in kwargs
 
 
-def test_cpu_limits_are_applied_if_config_is_set_to_true(config, mocker):
+def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker: MockerFixture) -> None:
     runner = ContainerRunner(
         name="container",
         image=mocker.Mock(),

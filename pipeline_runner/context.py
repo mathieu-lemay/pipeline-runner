@@ -1,18 +1,20 @@
 import logging
 import os
 import uuid
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 from dotenv import dotenv_values
 from slugify import slugify
 
 from . import utils
 from .config import config
-from .models import CloneSettings, Image, Pipeline, ProjectMetadata, Service, Step
+from .models import CloneSettings, Image, Pipeline, ProjectMetadata, Repository, Service, Step
 from .parse import parse_pipeline_file
-from .repository import Repository
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from .runner import PipelineRunRequest
 
 
 class PipelineRunContext:
@@ -20,14 +22,14 @@ class PipelineRunContext:
         self,
         pipeline_name: str,
         pipeline: Pipeline,
-        caches: Dict[str, str],
-        services: Dict[str, Service],
+        caches: dict[str, str],
+        services: dict[str, Service],
         clone_settings: CloneSettings,
         default_image: Optional[Image],
         project_metadata: ProjectMetadata,
         repository: Repository,
-        env_vars: Optional[Dict[str, str]] = None,
-        selected_steps: Optional[List[str]] = None,
+        env_vars: Optional[dict[str, str]] = None,
+        selected_steps: Optional[list[str]] = None,
     ):
         self.pipeline_name = pipeline_name
         self.pipeline = pipeline
@@ -41,13 +43,13 @@ class PipelineRunContext:
         self.selected_steps = selected_steps or []
 
         self.pipeline_uuid = uuid.uuid4()
-        self.pipeline_variables = {}
+        self.pipeline_variables: dict[str, str] = {}
 
         self._data_directory = self.get_pipeline_data_directory()
         self._cache_directory = utils.get_project_cache_directory(project_metadata.path_slug)
 
     @classmethod
-    def from_run_request(cls, req) -> "PipelineRunContext":
+    def from_run_request(cls, req: "PipelineRunRequest") -> "PipelineRunContext":
         env_vars = cls._load_env_vars(req.env_files)
         spec = parse_pipeline_file(req.pipeline_file_path)
         spec.expand_env_vars(env_vars)
@@ -78,8 +80,8 @@ class PipelineRunContext:
         )
 
     @staticmethod
-    def _load_env_vars(env_files: List[str]) -> Dict[str, str]:
-        envvars = {}
+    def _load_env_vars(env_files: list[str]) -> dict[str, str]:
+        envvars: dict[str, Optional[str]] = {}
         # TODO: Load env file in the repo if exists
         logger.debug("Loading .env file (if exists)")
         envvars.update(dotenv_values(".env"))
@@ -91,12 +93,14 @@ class PipelineRunContext:
             logger.debug("Loading env file: %s", env_file)
             envvars.update(dotenv_values(env_file))
 
-        os.environ.update(envvars)
+        sanitized_env_vars = {k: v or "" for k, v in envvars.items()}
 
-        return envvars
+        os.environ.update(sanitized_env_vars)
+
+        return sanitized_env_vars
 
     @staticmethod
-    def _merge_default_services(services: Dict[str, Service]) -> Dict[str, Service]:
+    def _merge_default_services(services: dict[str, Service]) -> dict[str, Service]:
         for name, definition in config.default_services.items():
             default_service = Service.parse_obj(definition)
 
@@ -114,19 +118,19 @@ class PipelineRunContext:
         return services
 
     @staticmethod
-    def _merge_default_caches(caches: Dict[str, str]) -> Dict[str, str]:
+    def _merge_default_caches(caches: dict[str, str]) -> dict[str, str]:
         all_caches = config.default_caches.copy()
         all_caches.update(caches)
 
         return all_caches
 
-    def get_log_directory(self):
+    def get_log_directory(self) -> str:
         return utils.ensure_directory(os.path.join(self._data_directory, "logs"))
 
-    def get_artifact_directory(self):
+    def get_artifact_directory(self) -> str:
         return utils.ensure_directory(os.path.join(self._data_directory, "artifacts"))
 
-    def get_cache_directory(self):
+    def get_cache_directory(self) -> str:
         return utils.ensure_directory(os.path.join(self._cache_directory, "caches"))
 
     def get_pipeline_data_directory(self) -> str:

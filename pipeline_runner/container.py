@@ -6,17 +6,20 @@ import posixpath
 import sys
 import tarfile
 import uuid
+from io import BufferedReader
 from logging import Logger
 from time import time
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Generator, Iterable, Iterator, Optional, Sequence, Union, cast
 
 import boto3
-import docker.errors
-from docker.models.containers import Container, ExecResult
+import docker.errors  # type: ignore
+from docker import DockerClient
+from docker.constants import DEFAULT_DATA_CHUNK_SIZE  # type: ignore
+from docker.models.containers import Container, ExecResult  # type: ignore
 
-from . import utils
 from .config import config
 from .models import Image, Pipe
+from .utils import escape_shell_string, stringify, wrap_in_shell
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,7 @@ class ContainerRunner:
         network_name: Optional[str],
         repository_path: str,
         data_volume_name: str,
-        env_vars: Dict[str, str],
+        env_vars: dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
         ssh_private_key: Optional[str] = None,
@@ -47,12 +50,16 @@ class ContainerRunner:
         self._client = docker.from_env()
         self._container = None
 
-    def start(self):
+    def start(self) -> None:
         self._start_container()
         self._create_pipeline_directories()
         self._insert_ssh_key_and_config()
 
-    def install_docker_client_if_needed(self, services: Dict[str, Container]):
+    def install_docker_client_if_needed(self, services: dict[str, Container]) -> None:
+        if not self._container:
+            # TODO: Refactor
+            raise Exception("called on uninitialized container")
+
         if "docker" not in services:
             return
 
@@ -65,7 +72,7 @@ class ContainerRunner:
         archive, _ = docker_service.get_archive("/usr/local/bin/docker")
         self._container.put_archive("/usr/local/bin", archive)
 
-    def stop(self):
+    def stop(self) -> None:
         if not self._container:
             return
 
@@ -74,9 +81,9 @@ class ContainerRunner:
 
     def run_script(
         self,
-        script: List[Union[str, Pipe]],
+        script: Sequence[Union[str, Pipe]],
         user: Optional[Union[int, str]] = None,
-        env: Optional[Dict[str, Any]] = None,
+        env: Optional[dict[str, Any]] = None,
         exec_time: bool = False,
     ) -> int:
         csr = ContainerScriptRunnerFactory.get(self._container, script, self._logger, user, env, exec_time)
@@ -84,29 +91,45 @@ class ContainerRunner:
         return csr.run()
 
     def run_command(
-        self, command: Union[str, List[str]], wrap_in_shell: bool = True, user: Optional[Union[int, str]] = None
+        self, command: Union[str, list[str]], shell: bool = True, user: Optional[Union[int, str]] = None
     ) -> ExecResult:
-        command = utils.stringify(command)
+        if not self._container:
+            # TODO: Refactor
+            raise Exception("called on uninitialized container")
 
-        if wrap_in_shell:
-            command = utils.wrap_in_shell(command)
+        command = stringify(command)
+
+        if shell:
+            command = wrap_in_shell(command)
 
         if user is not None:
             user = str(user)
 
         return self._container.exec_run(command, user=user)
 
-    def path_exists(self, path) -> bool:
+    def path_exists(self, path: str) -> bool:
         ret, _ = self.run_command(f'[ -e "$(realpath "{path}")" ]')
-        return ret == 0
+        return cast(int, ret) == 0
 
-    def get_archive(self, *args, **kwargs):
-        return self._container.get_archive(*args, **kwargs)
+    # TODO: Validate Typing
+    def get_archive(
+        self, path: str, chunk_size: int = DEFAULT_DATA_CHUNK_SIZE, encode_stream: bool = False
+    ) -> tuple[Generator[bytes, None, None], dict[str, Any]]:
+        if not self._container:
+            # TODO: Refactor
+            raise Exception("called on uninitialized container")
 
-    def put_archive(self, *args, **kwargs):
-        return self._container.put_archive(*args, **kwargs)
+        return self._container.get_archive(path, chunk_size, encode_stream)
 
-    def _start_container(self):
+    # TODO: Validate Typing
+    def put_archive(self, path: str, data: Union[BufferedReader, bytes]) -> bool:
+        if not self._container:
+            # TODO: Refactor
+            raise Exception("called on uninitialized container")
+
+        return self._container.put_archive(path, data)
+
+    def _start_container(self) -> None:
         pull_image(self._client, self._image)
 
         logger.info("Creating container: %s", self._name)
@@ -120,7 +143,7 @@ class ContainerRunner:
         else:
             opts = {}
 
-        self._container = self._client.containers.run(
+        container = self._client.containers.run(
             self._image.name,
             name=self._name,
             entrypoint="sh",
@@ -135,8 +158,10 @@ class ContainerRunner:
             **opts,
         )
 
-        logger.debug("Created container: %s", self._container.name)
+        logger.debug("Created container: %s", container.name)
         logger.debug("Image Used: %s", self._image.name)
+
+        self._container = container
 
     def get_container_name(self) -> Optional[str]:
         if not self._container:
@@ -144,7 +169,7 @@ class ContainerRunner:
 
         return self._container.name
 
-    def _create_pipeline_directories(self):
+    def _create_pipeline_directories(self) -> None:
         mkdir_cmd = [
             "install",
             "-dD",
@@ -161,7 +186,7 @@ class ContainerRunner:
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
 
-    def _insert_ssh_key_and_config(self):
+    def _insert_ssh_key_and_config(self) -> None:
         if not self._ssh_private_key:
             return
 
@@ -179,7 +204,7 @@ class ContainerRunner:
         if exit_code != 0:
             raise Exception(f"Error creating root ssh config: {output}")
 
-    def _get_volumes(self):
+    def _get_volumes(self) -> dict[str, dict[str, str]]:
         return {
             self._repository_path: {"bind": config.remote_workspace_dir, "mode": "ro"},
             self._data_volume_name: {"bind": config.remote_pipeline_dir},
@@ -190,10 +215,10 @@ class ContainerScriptRunner:
     def __init__(
         self,
         container: Container,
-        script: List[Union[str, Pipe]],
+        script: Sequence[Union[str, Pipe]],
         output_logger: Optional[Logger] = None,
         user: Optional[Union[int, str]] = None,
-        env: Optional[Dict[str, Any]] = None,
+        env: Optional[dict[str, Any]] = None,
     ):
         self._container = container
         self._script = script
@@ -201,20 +226,20 @@ class ContainerScriptRunner:
         self._user = str(user) if user is not None else None
         self._env = env or {}
 
-        if self._logger:
+        if logger_ := self._logger:
 
-            def stdout_print(msg):
-                self._logger.info(msg)
+            def stdout_print(msg: str) -> None:
+                logger_.info(msg)
 
-            def stderr_print(msg):
-                self._logger.error(msg)
+            def stderr_print(msg: str) -> None:
+                logger_.error(msg)
 
         else:
 
-            def stdout_print(msg):
+            def stdout_print(msg: str) -> None:
                 print(msg, end="")
 
-            def stderr_print(msg):
+            def stderr_print(msg: str) -> None:
                 print(msg, end="", file=sys.stderr)
 
         self._stdout_print = stdout_print
@@ -226,7 +251,7 @@ class ContainerScriptRunner:
         self._execute_script_on_container(entrypoint)
         return self._get_exit_code_of_command(exit_code_file_path)
 
-    def _prepare_script_for_remote_execution(self) -> Tuple[str, str]:
+    def _prepare_script_for_remote_execution(self) -> tuple[str, str]:
         script = self._add_traces_to_script()
         exit_code_file_path = posixpath.join(config.temp_dir, f"exit_code-{uuid.uuid4().hex}")
 
@@ -252,14 +277,14 @@ class ContainerScriptRunner:
 
         return wrapper_script_path, exit_code_file_path
 
-    def _execute_script_on_container(self, entrypoint):
+    def _execute_script_on_container(self, entrypoint: str) -> None:
         _, output_stream = self._container.exec_run(
             ["/bin/sh", entrypoint], user=self._user, tty=True, stream=True, demux=True, environment=self._env
         )
 
         self._print_execution_log(output_stream)
 
-    def _print_execution_log(self, output_stream):
+    def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
         for stdout, stderr in output_stream:
             if stdout:
                 self._stdout_print(stdout.decode())
@@ -282,12 +307,12 @@ class ContainerScriptRunner:
         else:
             return exit_code
 
-    def _add_traces_to_script(self):
+    def _add_traces_to_script(self) -> str:
         script_lines = map(self._add_trace_to_script_line, self._script)
 
         return '\nprintf "\\n"\n'.join(line for line in script_lines if line)
 
-    def _add_trace_to_script_line(self, line: Union[str, Pipe]):
+    def _add_trace_to_script_line(self, line: Union[str, Pipe]) -> Optional[str]:
         if isinstance(line, Pipe):
             line = line.as_cmd()
         else:
@@ -299,21 +324,21 @@ class ContainerScriptRunner:
         return f"{self._add_group_separator(line)}\n{line}"
 
     @staticmethod
-    def _add_group_separator(value):
-        value = utils.escape_shell_string(value)
+    def _add_group_separator(value: str) -> str:
+        value = escape_shell_string(value)
 
         return f'printf "\\x1d+ {value}\\n"'
 
     @staticmethod
-    def _wrap_script_in_posix_shell(script):
+    def _wrap_script_in_posix_shell(script: str) -> str:
         return "\n".join(["#! /bin/sh", "set -e", script])
 
     @staticmethod
-    def _wrap_script_in_bash(script):
+    def _wrap_script_in_bash(script: str) -> str:
         return "\n".join(["#! /bin/bash", "set -e", "set +H", script])
 
     @staticmethod
-    def _make_wrapper_script(sh_script_path, bash_script_path, exit_code_file_path):
+    def _make_wrapper_script(sh_script_path: str, bash_script_path: str, exit_code_file_path: str) -> str:
         return "\n".join(
             [
                 "#! /bin/sh",
@@ -329,7 +354,7 @@ class ContainerScriptRunner:
             ]
         )
 
-    def _upload_to_container(self, scripts: Iterable[Tuple[str, str]]):
+    def _upload_to_container(self, scripts: Iterable[tuple[str, str]]) -> None:
         tar_data = io.BytesIO()
 
         with tarfile.open(fileobj=tar_data, mode="w|") as tar:
@@ -350,15 +375,15 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
     def __init__(
         self,
         container: Container,
-        script: List[Union[str, Pipe]],
+        script: Sequence[Union[str, Pipe]],
         output_logger: Optional[Logger] = None,
         user: Optional[Union[int, str]] = None,
-        env: Optional[Dict[str, Any]] = None,
+        env: Optional[dict[str, Any]] = None,
     ):
         super().__init__(container, script, output_logger, user, env)
-        self._timestamp = None
+        self._timestamp: Optional[float] = None
 
-    def _print_execution_log(self, output_stream):
+    def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
         for stdout, stderr in output_stream:
             if stdout:
                 chunks = iter(stdout.decode().split("\x1d"))
@@ -373,7 +398,7 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
 
         self._print_timing()
 
-    def _print_timing(self):
+    def _print_timing(self) -> None:
         now = time()
         if self._timestamp:
             self._stdout_print(f"\n>>> Execution time: {now - self._timestamp:.3f}s\n\n")
@@ -385,12 +410,14 @@ class ContainerScriptRunnerFactory:
     @staticmethod
     def get(
         container: Container,
-        script: List[Union[str, Pipe]],
+        script: Sequence[Union[str, Pipe]],
         output_logger: Optional[Logger] = None,
         user: Optional[Union[int, str]] = None,
-        env: Optional[Dict[str, Any]] = None,
+        env: Optional[dict[str, Any]] = None,
         exec_time: bool = False,
-    ):
+    ) -> ContainerScriptRunner:
+        cls: type[Union[ContainerScriptRunner, ContainerScriptRunnerWithExecTime]]
+
         if exec_time:
             cls = ContainerScriptRunnerWithExecTime
         else:
@@ -402,7 +429,7 @@ class ContainerScriptRunnerFactory:
 _pulled_images = set()
 
 
-def pull_image(client, image):
+def pull_image(client: DockerClient, image: Image) -> None:
     global _pulled_images
 
     if image.name in _pulled_images:
@@ -428,7 +455,7 @@ def pull_image(client, image):
     _pulled_images.add(image.name)
 
 
-def get_image_authentication(image: Image):
+def get_image_authentication(image: Image) -> Optional[dict[str, str]]:
     if image.aws:
         aws_access_key_id = image.aws.access_key_id
         aws_secret_access_key = image.aws.secret_access_key

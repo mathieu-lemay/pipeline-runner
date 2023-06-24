@@ -5,33 +5,38 @@ import logging.config
 import os
 import tarfile
 import time
-import uuid
+from concurrent.futures import Future
+from pathlib import Path
+from typing import Callable, Generator
+from uuid import UUID, uuid4
 
-import docker
+import docker  # type: ignore
 import dotenv
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
+from pytest_mock import MockerFixture
 from tenacity import retry, stop_after_delay, wait_fixed
 
 from pipeline_runner.config import config
-from pipeline_runner.models import ProjectMetadata
+from pipeline_runner.models import ProjectMetadata, Repository
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
-def _cwd():
+def _cwd() -> None:
     dir_ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.chdir(dir_)
 
 
 @pytest.fixture(autouse=True)
-def _log():
+def _log() -> None:
     logging.config.dictConfig(config.log_config)
 
 
 @pytest.fixture()
-def project_path_slug(mocker):
+def project_path_slug(mocker: MockerFixture) -> str:
     slug = "project-path-slug"
     mocker.patch("pipeline_runner.utils.hashify_path", return_value=slug)
 
@@ -39,20 +44,20 @@ def project_path_slug(mocker):
 
 
 @pytest.fixture()
-def project_data_directory(user_data_directory, project_path_slug, mocker):
-    project_data_directory = os.path.join(user_data_directory, project_path_slug)
+def project_data_directory(user_data_directory: Path, project_path_slug: str, mocker: MockerFixture) -> Path:
+    project_data_directory = user_data_directory / project_path_slug
 
-    mocker.patch("pipeline_runner.utils.get_project_data_directory", return_value=project_data_directory)
+    mocker.patch("pipeline_runner.utils.get_project_data_directory", return_value=str(project_data_directory))
 
     return project_data_directory
 
 
 @pytest.fixture()
-def pipeline_data_directory(project_data_directory, mocker):
+def pipeline_data_directory(project_data_directory: Path, mocker: MockerFixture) -> Path:
     build_number = 1
     pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"
 
-    pipeline_data_directory = os.path.join(project_data_directory, "pipelines", f"{build_number}-{pipeline_uuid}")
+    pipeline_data_directory = project_data_directory / "pipelines" / f"{build_number}-{pipeline_uuid}"
 
     mocker.patch(
         "pipeline_runner.context.PipelineRunContext.get_pipeline_data_directory", return_value=pipeline_data_directory
@@ -62,21 +67,23 @@ def pipeline_data_directory(project_data_directory, mocker):
 
 
 @pytest.fixture(autouse=True)
-def artifacts_directory(pipeline_data_directory, mocker):
-    artifacts_directory = os.path.join(pipeline_data_directory, "artifacts")
+def artifacts_directory(pipeline_data_directory: Path, mocker: MockerFixture) -> Path:
+    artifacts_directory = pipeline_data_directory / "artifacts"
     os.makedirs(artifacts_directory)
 
-    mocker.patch("pipeline_runner.context.PipelineRunContext.get_artifact_directory", return_value=artifacts_directory)
+    mocker.patch(
+        "pipeline_runner.context.PipelineRunContext.get_artifact_directory", return_value=str(artifacts_directory)
+    )
 
     return artifacts_directory
 
 
 @pytest.fixture(autouse=True)
-def project_cache_directory(user_cache_directory, mocker):
-    project_cache = os.path.join(user_cache_directory, "caches")
+def project_cache_directory(user_cache_directory: Path, mocker: MockerFixture) -> Generator[Path, None, None]:
+    project_cache = user_cache_directory / "caches"
     os.makedirs(project_cache)
 
-    mocker.patch("pipeline_runner.context.PipelineRunContext.get_cache_directory", return_value=project_cache)
+    mocker.patch("pipeline_runner.context.PipelineRunContext.get_cache_directory", return_value=str(project_cache))
 
     yield project_cache
 
@@ -88,14 +95,14 @@ def project_cache_directory(user_cache_directory, mocker):
         cache_volume.remove()
 
 
-def test_success():
+def test_success() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_success"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_failure():
+def test_failure() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_failure"))
     result = runner.run()
 
@@ -103,7 +110,7 @@ def test_failure():
     assert result.exit_code == 69
 
 
-def test_after_script():
+def test_after_script() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_after_script"))
     result = runner.run()
 
@@ -111,7 +118,7 @@ def test_after_script():
     assert result.exit_code == 2
 
 
-def test_default_cache(project_cache_directory):
+def test_default_cache(project_cache_directory: Path) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_default_cache"))
     result = runner.run()
 
@@ -128,7 +135,7 @@ def test_default_cache(project_cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_cache_alpine(project_cache_directory):
+def test_cache_alpine(project_cache_directory: Path) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_cache_alpine"))
     result = runner.run()
 
@@ -145,7 +152,7 @@ def test_cache_alpine(project_cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_cache_debian(project_cache_directory):
+def test_cache_debian(project_cache_directory: Path) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_cache_debian"))
     result = runner.run()
 
@@ -162,7 +169,7 @@ def test_cache_debian(project_cache_directory):
     assert sorted(files_in_tar) == expected_files
 
 
-def test_invalid_cache(project_cache_directory):
+def test_invalid_cache(project_cache_directory: Path) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_invalid_cache"))
     result = runner.run()
 
@@ -171,7 +178,7 @@ def test_invalid_cache(project_cache_directory):
     assert len(os.listdir(project_cache_directory)) == 0
 
 
-def test_artifacts(artifacts_directory):
+def test_artifacts(artifacts_directory: Path) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_artifacts"))
     result = runner.run()
 
@@ -191,35 +198,35 @@ def test_artifacts(artifacts_directory):
     assert sorted(files) == ["file-name", "valid-folder/a", "valid-folder/b", "valid-folder/sub/c"]
 
 
-def test_deployment():
+def test_deployment() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_deployment_environment"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_service():
+def test_service() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_service"))
     result = runner.run()
 
     assert result.exit_code == 0
 
 
-def test_docker_in_docker():
+def test_docker_in_docker() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_docker_in_docker"))
     result = runner.run()
 
     assert result.exit_code == 0
 
 
-def test_run_as_user():
+def test_run_as_user() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_run_as_user"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_pipeline_variables(artifacts_directory, monkeypatch):
+def test_pipeline_variables(artifacts_directory: Path, monkeypatch: MonkeyPatch) -> None:
     filename = "some-file"
     message = "Hello World!"
     var_with_default_1 = "Overriding default 1"
@@ -255,25 +262,25 @@ def test_pipeline_variables(artifacts_directory, monkeypatch):
         )
 
 
-def test_manual_trigger(artifacts_directory, monkeypatch):
+def test_manual_trigger(artifacts_directory: Path, monkeypatch: MonkeyPatch) -> None:
     r, w = os.pipe()
 
     read_buffer = os.fdopen(r, "r")
     monkeypatch.setattr("sys.stdin", read_buffer)
 
-    setup_done_file = os.path.join(artifacts_directory, "setup_done")
+    setup_done_file = artifacts_directory / "setup_done"
 
-    def _run_pipeline():
+    def _run_pipeline() -> tuple[bool, int]:
         runner = PipelineRunner(PipelineRunRequest("custom.test_manual_trigger"))
         result = runner.run()
 
         return result.ok, result.exit_code
 
     @retry(wait=wait_fixed(0.05), stop=stop_after_delay(5))
-    def _wait_for_setup_done():
-        assert os.path.exists(setup_done_file)
+    def _wait_for_setup_done() -> None:
+        assert setup_done_file.exists()
 
-    def _ensure_still_running(future_, max_wait=5):
+    def _ensure_still_running(future_: Future[tuple[bool, int]], max_wait: int = 5) -> None:
         end = time.time() + max_wait
         while time.time() < end:
             assert not future_.done()
@@ -293,27 +300,29 @@ def test_manual_trigger(artifacts_directory, monkeypatch):
     assert res == (True, 0)
 
 
-def test_parallel_steps():
+def test_parallel_steps() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_parallel_steps"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_environment_variables(artifacts_directory, project_metadata, repository, mocker):
-    pipeline_uuid = "pipeline-uuid"
-    step_uuid = "step-uuid"
+def test_environment_variables(
+    artifacts_directory: Path, project_metadata: ProjectMetadata, repository: Repository, mocker: MockerFixture
+) -> None:
+    pipeline_uuid = uuid4()
+    step_uuid = uuid4()
 
-    def uuid_generator(real_uuid_fn):
+    def uuid_generator(real_uuid_fn: Callable[[], UUID]) -> Generator[UUID, None, None]:
         yield pipeline_uuid
         yield step_uuid
         while True:
             yield real_uuid_fn()
 
-    real_uuid4 = uuid.uuid4
+    real_uuid4 = uuid4
 
-    uuid4 = mocker.patch("uuid.uuid4")
-    uuid4.side_effect = uuid_generator(real_uuid4)
+    uuid4_mock = mocker.patch("uuid.uuid4")
+    uuid4_mock.side_effect = uuid_generator(real_uuid4)
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_environment_variables"))
     result = runner.run()
@@ -353,7 +362,9 @@ def test_environment_variables(artifacts_directory, project_metadata, repository
     assert variables == expected
 
 
-def test_project_metadata_is_generated_if_file_doesnt_exist(project_data_directory, artifacts_directory):
+def test_project_metadata_is_generated_if_file_doesnt_exist(
+    project_data_directory: Path, artifacts_directory: Path
+) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_environment_variables"))
     result = runner.run()
 
@@ -383,20 +394,22 @@ def test_project_metadata_is_generated_if_file_doesnt_exist(project_data_directo
     assert variables == expected
 
 
-def test_project_metadata_is_read_from_file_if_it_exists(project_data_directory, artifacts_directory):
+def test_project_metadata_is_read_from_file_if_it_exists(
+    project_data_directory: Path, artifacts_directory: Path
+) -> None:
     project_metadata_file = os.path.join(project_data_directory, "meta.json")
-    project_metadata = {
+    project_metadata_json = {
         "name": "Some Project",
         "path_slug": "some-project-CAFEBABE",
         "slug": "some-project",
         "key": "SP",
-        "project_uuid": str(uuid.uuid4()),
-        "repo_uuid": str(uuid.uuid4()),
+        "project_uuid": str(uuid4()),
+        "repo_uuid": str(uuid4()),
         "build_number": 68,
     }
 
     with open(project_metadata_file, "w") as f:
-        json.dump(project_metadata, f)
+        json.dump(project_metadata_json, f)
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_environment_variables"))
     result = runner.run()
@@ -406,7 +419,7 @@ def test_project_metadata_is_read_from_file_if_it_exists(project_data_directory,
     pipeline_env_file = os.path.join(artifacts_directory, "variables")
     assert os.path.exists(pipeline_env_file)
 
-    project_metadata = ProjectMetadata.parse_obj(project_metadata)
+    project_metadata = ProjectMetadata.parse_obj(project_metadata_json)
 
     slug = project_metadata.slug
     expected = {
@@ -424,7 +437,7 @@ def test_project_metadata_is_read_from_file_if_it_exists(project_data_directory,
     assert variables == expected
 
 
-def test_pipeline_with_pipe(pipeline_data_directory, project_path_slug, monkeypatch):
+def test_pipeline_with_pipe(pipeline_data_directory: Path, project_path_slug: str, monkeypatch: MonkeyPatch) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_pipe"))
     result = runner.run()
 
@@ -438,14 +451,14 @@ def test_pipeline_with_pipe(pipeline_data_directory, project_path_slug, monkeypa
         assert any(i for i in log_lines if i == expected)
 
 
-def test_ssh_key_is_present_in_runner():
+def test_ssh_key_is_present_in_runner() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_ssh_key"))
     result = runner.run()
 
     assert result.ok
 
 
-def test_pipeline_supports_buildkit():
+def test_pipeline_supports_buildkit() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_docker_buildkit"))
     result = runner.run()
 

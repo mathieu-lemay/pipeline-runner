@@ -21,9 +21,6 @@ jobs:
         with:
           python-version: 3.9
 
-      - name: Lint
-        uses: pre-commit/action@v3.0.0
-
       - name: Install Poetry
         uses: Gr1N/setup-poetry@v8
 
@@ -36,6 +33,9 @@ jobs:
       - name: Install Dependencies
         run: |
           poetry install
+
+      - name: Lint
+        uses: pre-commit/action@v3.0.0
 
       - name: Tests
         run: |

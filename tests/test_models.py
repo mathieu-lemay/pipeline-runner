@@ -1,10 +1,9 @@
 import uuid
 
-from pipeline_runner.models import Pipe
-from pipeline_runner.runner import PipelineResult
+from pipeline_runner.models import Pipe, PipelineResult
 
 
-def test_pipeline_result_ok_returns_true_if_exit_code_is_zero():
+def test_pipeline_result_ok_returns_true_if_exit_code_is_zero() -> None:
     build_number = 33
     pipeline_uuid = uuid.uuid4()
     res = PipelineResult(0, build_number, pipeline_uuid)
@@ -12,7 +11,7 @@ def test_pipeline_result_ok_returns_true_if_exit_code_is_zero():
     assert res.ok
 
 
-def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero():
+def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero() -> None:
     build_number = 33
     pipeline_uuid = uuid.uuid4()
 
@@ -22,19 +21,19 @@ def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero():
         assert res.ok is False
 
 
-def test_pipe_get_image_returns_its_name_as_docker_image():
+def test_pipe_get_image_returns_its_name_as_docker_image() -> None:
     p = Pipe(pipe="foo/bar:1.2.3", variables={})
 
     assert p.get_image() == "foo/bar:1.2.3"
 
 
-def test_pipe_get_image_returns_the_right_docker_image_if_pipe_is_from_atlassian():
+def test_pipe_get_image_returns_the_right_docker_image_if_pipe_is_from_atlassian() -> None:
     p = Pipe(pipe="atlassian/bar:1.2.3", variables={})
 
     assert p.get_image() == "bitbucketpipelines/bar:1.2.3"
 
 
-def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command():
+def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
     p = Pipe(
         pipe="atlassian/foo:1.2.3",
         variables={
