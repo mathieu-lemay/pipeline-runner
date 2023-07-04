@@ -19,7 +19,7 @@ python-slugify = "^8.0.0"
 # Pin boto3 to a specific version to avoid poetry's resolver
 # to go on forever.
 # https://github.com/python-poetry/poetry/issues/7858
-boto3 = "1.26.158"
+boto3 = "^1.26.162"
 GitPython = "^3.1.12"
 python-dotenv = "^1.0.0"
 requests = "^2.31.0"

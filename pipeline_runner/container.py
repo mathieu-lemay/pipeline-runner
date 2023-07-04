@@ -6,6 +6,7 @@ import posixpath
 import sys
 import tarfile
 import uuid
+from importlib.resources import as_file, files
 from io import BufferedReader
 from logging import Logger
 from time import time
@@ -16,6 +17,8 @@ import docker.errors  # type: ignore
 from docker import DockerClient
 from docker.constants import DEFAULT_DATA_CHUNK_SIZE  # type: ignore
 from docker.models.containers import Container, ExecResult  # type: ignore
+
+import pipeline_runner
 
 from .config import config
 from .models import Image, Pipe
@@ -53,7 +56,8 @@ class ContainerRunner:
     def start(self) -> None:
         self._start_container()
         self._create_pipeline_directories()
-        self._insert_ssh_key_and_config()
+        self._insert_ssh_private_key()
+        self._insert_ssh_known_hosts()
 
     def install_docker_client_if_needed(self, services: dict[str, Container]) -> None:
         if not self._container:
@@ -186,7 +190,23 @@ class ContainerRunner:
         if exit_code != 0:
             raise Exception(f"Error creating required directories: {output}")
 
-    def _insert_ssh_key_and_config(self) -> None:
+    def _insert_ssh_private_key(self) -> None:
+        static_files = files(pipeline_runner).joinpath("static")
+
+        with as_file(static_files.joinpath("known_hosts")) as p:
+            known_hosts = p.read_text()
+
+        cmd = " && ".join(
+            [
+                "install -d -m 700 ~/.ssh",
+                f"echo '{known_hosts}' >> ~/.ssh/known_hosts",
+            ]
+        )
+        exit_code, output = self.run_command(cmd, user=0)
+        if exit_code != 0:
+            raise Exception(f"Error creating root ssh config: {output}")
+
+    def _insert_ssh_known_hosts(self) -> None:
         if not self._ssh_private_key:
             return
 
