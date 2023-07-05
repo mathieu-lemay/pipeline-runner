@@ -93,8 +93,20 @@ def main(ctx: click.Context, show_version: bool) -> None:
     default=False,
     help="Enable to enforce cpu limits for the runner. Default: False",
 )
+@click.option(
+    "--ssh/--no-ssh",
+    "expose_ssh_agent",
+    default=False,
+    help="Expose the local ssh agent to the container. Default: False",
+)
 def run(
-    pipeline: Optional[str], repository_path: str, steps: list[str], env_files: list[str], color: bool, cpu_limits: bool
+    pipeline: Optional[str],
+    repository_path: str,
+    steps: list[str],
+    env_files: list[str],
+    color: bool,
+    cpu_limits: bool,
+    expose_ssh_agent: bool,
 ) -> None:
     """
     Runs the pipeline PIPELINE.
@@ -103,6 +115,7 @@ def run(
     """
     config.color = color
     config.cpu_limits = cpu_limits
+    config.expose_ssh_agent = expose_ssh_agent
 
     _init_logger()
 

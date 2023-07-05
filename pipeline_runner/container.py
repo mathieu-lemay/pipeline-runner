@@ -138,6 +138,9 @@ class ContainerRunner:
 
         logger.info("Creating container: %s", self._name)
 
+        volumes = self._get_volumes()
+        environment = self._environment.copy()
+
         if config.cpu_limits:
             opts = {
                 "cpu_period": 100000,
@@ -147,14 +150,23 @@ class ContainerRunner:
         else:
             opts = {}
 
+        if config.expose_ssh_agent:
+            if ssh_sock_path := os.environ.get("SSH_AUTH_SOCK"):
+                logger.info("Mounting ssh agent in container")
+                ssh_sock_path = os.path.realpath(os.path.expanduser(ssh_sock_path))
+                volumes[ssh_sock_path] = {"bind": "/ssh-agent"}
+                environment["SSH_AUTH_SOCK"] = "/ssh-agent"
+            else:
+                logger.warning("No running ssh agent available")
+
         container = self._client.containers.run(
             self._image.name,
             name=self._name,
             entrypoint="sh",
             user=self._image.run_as_user or 0,
             working_dir=config.build_dir,
-            environment=self._environment,
-            volumes=self._get_volumes(),
+            environment=environment,
+            volumes=volumes,
             mem_limit=self._mem_limit,
             network=self._network_name,
             tty=True,

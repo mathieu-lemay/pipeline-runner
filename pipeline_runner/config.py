@@ -11,6 +11,7 @@ class Config:
     def __init__(self) -> None:
         self.color = True
         self.cpu_limits = False
+        self.expose_ssh_agent = False
 
         # TODO: Move some of these things to default definitions or smth
         self.default_image = "atlassian/default-image:latest"

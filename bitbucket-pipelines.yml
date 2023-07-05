@@ -319,6 +319,13 @@ pipelines:
           artifacts:
             - variables
 
+    test_ssh_agent:
+      - step:
+          name: Test ssh agent
+          script:
+            - test -e /ssh-agent || exit 42
+            - test "$(cat /ssh-agent)" == "some-ssh-agent" || exit 1
+
     test_docker_buildkit:
       - step:
           name: Test build docker image with buildkit
