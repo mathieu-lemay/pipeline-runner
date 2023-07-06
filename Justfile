@@ -10,10 +10,10 @@ run-pipeline *args: _deps
         poetry run python -m {{ app }} run {{ args }}
 
 test: _deps
-    poetry run pytest -v tests -m "not integration"
+    poetry run pytest -v tests/unit
 
 integration-tests: _deps
-    poetry run pytest -v tests
+    poetry run pytest -v tests/unit tests/integration
 
 coverage: _deps
     poetry run coverage run -m pytest -v tests

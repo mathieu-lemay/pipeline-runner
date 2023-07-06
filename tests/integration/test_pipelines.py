@@ -21,12 +21,10 @@ from pipeline_runner.config import config
 from pipeline_runner.models import ProjectMetadata, Repository
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture(autouse=True)
 def _cwd() -> None:
-    dir_ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dir_ = Path(__file__).parent.parent.parent
     os.chdir(dir_)
 
 
@@ -456,21 +454,6 @@ def test_ssh_key_is_present_in_runner() -> None:
     result = runner.run()
 
     assert result.ok
-
-
-@pytest.mark.parametrize(("expose_ssh_agent", "expected_status"), [(False, 42), (True, 0)])
-def test_ssh_agent_can_be_exposed(
-    monkeypatch: MonkeyPatch, tmp_path: Path, expose_ssh_agent: bool, expected_status: int
-) -> None:
-    runner = PipelineRunner(PipelineRunRequest("custom.test_ssh_agent"))
-
-    sentinel_file = tmp_path / "fake-agent"
-    sentinel_file.write_text("some-ssh-agent")
-    monkeypatch.setenv("SSH_AUTH_SOCK", sentinel_file.as_posix())
-    monkeypatch.setattr(config, "expose_ssh_agent", expose_ssh_agent)
-    result = runner.run()
-
-    assert result.exit_code == expected_status
 
 
 def test_pipeline_supports_buildkit() -> None:

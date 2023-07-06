@@ -105,7 +105,7 @@ classmethod-decorators = [
 ]
 
 [tool.pytest.ini_options]
-markers = ["integration: Integration tests that run full pipelines."]
+testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
