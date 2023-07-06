@@ -3,14 +3,14 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from pipeline_runner.context import PipelineRunContext
-from pipeline_runner.models import CloneSettings, Image, Pipeline, ProjectMetadata, Repository, Service
+from pipeline_runner.models import CloneSettings, Image, ProjectMetadata, Service
 
 
 def test_get_log_directory_returns_the_right_directory(
     user_data_directory: Path, project_metadata: ProjectMetadata
 ) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository)
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -36,8 +36,8 @@ def test_get_log_directory_returns_the_right_directory(
 def test_get_artifact_directory_returns_the_right_directory(
     user_data_directory: Path, project_metadata: ProjectMetadata
 ) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository)
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -63,8 +63,8 @@ def test_get_artifact_directory_returns_the_right_directory(
 def test_get_pipeline_cache_directory_returns_the_right_directory(
     user_cache_directory: Path, project_metadata: ProjectMetadata
 ) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository)
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -82,8 +82,8 @@ def test_get_pipeline_cache_directory_returns_the_right_directory(
 
 
 def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMetadata) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository)
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -108,8 +108,8 @@ def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMet
 
 
 def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository)
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -134,8 +134,8 @@ def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) 
 
 
 def test_default_caches_are_used(project_metadata: ProjectMetadata) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository)
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",
@@ -164,8 +164,8 @@ def test_default_caches_are_used(project_metadata: ProjectMetadata) -> None:
 
 
 def test_default_caches_can_be_overridden(project_metadata: ProjectMetadata) -> None:
-    pipeline = Mock(spec=Pipeline)
-    repository = Mock(spec=Repository, env_name="some-env")
+    pipeline = Mock()
+    repository = Mock()
 
     prc = PipelineRunContext(
         pipeline_name="custom.test",

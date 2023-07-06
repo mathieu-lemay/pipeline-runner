@@ -106,7 +106,7 @@ class RepositoryCloner:
             self._first_non_none_value(
                 self._step_clone_settings.enabled,
                 self._global_clone_settings.enabled,
-                CloneSettings.construct().enabled,
+                CloneSettings().enabled,
             )
         )
 
@@ -115,7 +115,7 @@ class RepositoryCloner:
             self._first_non_none_value(
                 self._step_clone_settings.lfs,
                 self._global_clone_settings.lfs,
-                CloneSettings.construct().lfs,
+                CloneSettings().lfs,
             )
         )
 
@@ -123,7 +123,7 @@ class RepositoryCloner:
         depth = self._first_non_none_value(
             self._step_clone_settings.depth,
             self._global_clone_settings.depth,
-            CloneSettings.construct().depth,
+            CloneSettings().depth,
         )
 
         return cast(Optional[Union[str, int]], depth)

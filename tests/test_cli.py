@@ -34,39 +34,39 @@ def test_list_pipelines(tmp_path_chdir: Path) -> None:
   default:
     - step:
         script:
-          - true
+          - "true"
 
   custom:
     some-pipeline:
       - step:
           script:
-            - true
+            - "true"
 
     another-pipeline:
       - step:
           script:
-            - true
+            - "true"
 
     yet-another-pipeline:
       - step:
           script:
-            - true
+            - "true"
 
   branches:
     master:
       - step:
           script:
-            - true
+            - "true"
 
     develop:
       - step:
           script:
-            - true
+            - "true"
 
     feature/**:
       - step:
           script:
-            - true
+            - "true"
 """
         )
 

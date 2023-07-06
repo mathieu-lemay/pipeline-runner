@@ -1,6 +1,21 @@
 import uuid
+from typing import Any
 
-from pipeline_runner.models import Pipe, PipelineResult
+import pytest
+from pydantic import ValidationError
+
+from pipeline_runner.models import ParallelStep, Pipe, PipelineResult
+
+
+@pytest.mark.parametrize(("num_items", "is_valid"), [(0, False), (1, False), (2, True)])
+def test_parallel_step_must_contain_at_least_2_items(num_items: int, is_valid: bool) -> None:
+    spec: dict[str, Any] = {"parallel": [{"step": {"script": []}} for _ in range(num_items)]}
+
+    if is_valid:
+        ParallelStep.model_validate(spec)
+    else:
+        with pytest.raises(ValidationError, match="List should have at least 2 items after validation"):
+            ParallelStep.model_validate(spec)
 
 
 def test_pipeline_result_ok_returns_true_if_exit_code_is_zero() -> None:

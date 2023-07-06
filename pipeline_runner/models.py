@@ -1,13 +1,16 @@
 import os.path
 from enum import Enum
+from pathlib import Path
 from string import Template
 from typing import Any, Generic, Iterator, Optional, Sequence, SupportsIndex, TypeVar, Union
 from uuid import UUID, uuid4
 
 from git.repo import Repo
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import Extra, Field, ValidationError, root_validator, validator
-from pydantic.error_wrappers import ErrorWrapper
+from pydantic import ConfigDict, Field, ValidationError
+from pydantic.functional_validators import field_validator, model_validator
+from pydantic.root_model import RootModel
+from pydantic_core import ErrorDetails
 from slugify import slugify
 
 from . import utils
@@ -18,9 +21,7 @@ from .utils import generate_ssh_rsa_key
 class BaseModel(PydanticBaseModel):
     __env_var_expand_fields__: Sequence[str]
 
-    class Config:
-        extra = Extra.forbid
-        allow_population_by_field_name = True
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         for attr in self.__env_var_expand_fields__:
@@ -38,11 +39,11 @@ class BaseModel(PydanticBaseModel):
 class AwsCredentials(BaseModel):
     access_key_id: str = Field(alias="access-key")
     secret_access_key: str = Field(alias="secret-key")
-    oidc_role: Optional[str] = Field(alias="oidc-role")
+    oidc_role: Optional[str] = Field(alias="oidc-role", default=None)
 
     __env_var_expand_fields__: Sequence[str] = ["access_key_id", "secret_access_key", "oidc_role"]
 
-    @validator("oidc_role")
+    @field_validator("oidc_role")
     def oidc_role_not_supported(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
             raise ValueError("aws oidc-role not supported")
@@ -60,6 +61,13 @@ class Image(BaseModel):
 
     __env_var_expand_fields__: Sequence[str] = ["username", "password", "email", "aws"]
 
+    @field_validator("run_as_user", mode="before")
+    def parse_run_as_user(cls, value: Union[str, int]) -> str:
+        if isinstance(value, int):
+            return str(value)
+
+        return value
+
 
 ImageType = Optional[Union[str, Image]]
 
@@ -69,7 +77,7 @@ class Service(BaseModel):
     variables: dict[str, str] = Field(default_factory=dict, alias="environment")
     memory: int = 1024
 
-    @validator("image", pre=True)
+    @field_validator("image", mode="before")
     def convert_str_image_to_object(cls, value: Union[Image, str]) -> Image:
         if isinstance(value, str):
             return Image(name=value)
@@ -88,7 +96,7 @@ class Definitions(BaseModel):
     caches: dict[str, str] = Field(default_factory=dict)
     services: dict[str, Service] = Field(default_factory=dict)
 
-    @validator("services")
+    @field_validator("services")
     def ensure_default_services_have_no_image_and_non_default_services_have_an_image(
         cls, value: dict[str, Service]
     ) -> dict[str, Service]:
@@ -97,10 +105,22 @@ class Definitions(BaseModel):
         for service_name, service in value.items():
             if service_name in config.default_services and service.image is not None:
                 errors.append(
-                    ErrorWrapper(ValueError(f"Default service {service_name} can't have an image"), loc=service_name)
+                    ErrorDetails(
+                        type="ValueError",
+                        msg=f"Default service {service_name} can't have an image",
+                        loc=(service_name,),
+                        input=value,
+                    )
                 )
             elif service_name not in config.default_services and service.image is None:
-                errors.append(ErrorWrapper(ValueError(f"Service {service_name} must have an image"), loc=service_name))
+                errors.append(
+                    ErrorDetails(
+                        type="ValueError",
+                        msg=f"Default service {service_name} must have an image",
+                        loc=(service_name,),
+                        input=value,
+                    )
+                )
 
         if errors:
             raise ValidationError(errors, cls)
@@ -121,7 +141,7 @@ class CloneSettings(BaseModel):
     def empty(cls) -> "CloneSettings":
         return CloneSettings(depth=None, lfs=None, enabled=None)
 
-    @validator("depth")
+    @field_validator("depth")
     def validate_depth(cls, value: Optional[Union[str, int]]) -> Optional[Union[str, int]]:
         if value is None:
             return None
@@ -191,7 +211,7 @@ class Step(BaseModel):
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 
-    @validator("image", pre=True)
+    @field_validator("image", mode="before")
     def convert_str_image_to_object(cls, value: Union[Image, str]) -> Image:
         if isinstance(value, str):
             return Image(name=value)
@@ -229,7 +249,7 @@ class StepWrapper(BaseModel):
 
 
 class ParallelStep(ListWrapper[StepWrapper]):
-    wrapped: list[StepWrapper] = Field(alias="parallel", min_items=2)
+    wrapped: list[StepWrapper] = Field(alias="parallel", min_length=2)
 
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         for s in self.wrapped:
@@ -238,13 +258,13 @@ class ParallelStep(ListWrapper[StepWrapper]):
 
 class Variable(BaseModel):
     name: str
-    default: Optional[str]
-    allowed_values: Optional[list[str]] = Field(alias="allowed-values")
+    default: Optional[str] = None
+    allowed_values: Optional[list[str]] = Field(alias="allowed-values", default=None)
 
-    @root_validator
-    def validate_var_with_allowed_values_must_have_a_default_value(cls, values: dict[str, Any]) -> dict[str, Any]:
-        allowed_values = values["allowed_values"]
-        default = values["default"]
+    @model_validator(mode="after")  # type: ignore[arg-type]
+    def validate_var_with_allowed_values_must_have_a_default_value(cls, model: "Variable") -> "Variable":
+        allowed_values = model.allowed_values
+        default = model.default
 
         if allowed_values:
             if not default:
@@ -256,7 +276,7 @@ class Variable(BaseModel):
             if default not in allowed_values:
                 raise ValueError(f'The variable allowed values list doesn\'t contain a default value "{default}".')
 
-        return values
+        return model
 
 
 class Variables(ListWrapper[Variable]):
@@ -266,10 +286,10 @@ class Variables(ListWrapper[Variable]):
 PipelineElement = Union[StepWrapper, ParallelStep, Variables]
 
 
-class Pipeline(BaseModel):
-    __root__: list[PipelineElement] = Field(min_items=1)
+class Pipeline(RootModel[list[PipelineElement]]):
+    root: list[PipelineElement] = Field(min_length=1)
 
-    @validator("__root__")
+    @field_validator("root")
     def validate_variables_must_be_first_element_of_list_if_present(
         cls, pipeline_items: list[PipelineElement]
     ) -> list[PipelineElement]:
@@ -279,19 +299,19 @@ class Pipeline(BaseModel):
         return pipeline_items
 
     def get_variables(self) -> Variables:
-        if isinstance(self.__root__[0], Variables):
-            return self.__root__[0]
+        if isinstance(self.root[0], Variables):
+            return self.root[0]
 
         return Variables(wrapped=[])
 
     def get_steps(self) -> list[Union[StepWrapper, ParallelStep]]:
-        return [i for i in self.__root__ if not isinstance(i, Variables)]
+        return [i for i in self.root if not isinstance(i, Variables)]
 
     def __iter__(self) -> Iterator[PipelineElement]:  # type: ignore[override]
-        return iter(self.__root__)
+        return iter(self.root)
 
     def __getitem__(self, item: SupportsIndex) -> PipelineElement:
-        return self.__root__[item]
+        return self.root[item]
 
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         for s in self.get_steps():
@@ -316,7 +336,7 @@ class Pipelines(BaseModel):
 
         return pipelines
 
-    @root_validator
+    @model_validator(mode="before")
     def ensure_at_least_one_pipeline(cls, values: dict[str, Any]) -> dict[str, Any]:
         if not any(bool(v) for v in values.values()):
             raise ValueError("There must be at least one pipeline")
@@ -330,14 +350,13 @@ class Pipelines(BaseModel):
 
 class PipelineSpec(BaseModel):
     image: Optional[Image] = None
-    definitions: Definitions = Field(default_factory=Definitions.construct)
+    definitions: Definitions = Field(default_factory=Definitions)
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
     pipelines: Pipelines
 
     __env_var_expand_fields__: Sequence[str] = ["image", "definitions", "pipelines"]
 
-    class Config:
-        extra = Extra.ignore
+    model_config = ConfigDict(extra="ignore")
 
     @property
     def caches(self) -> dict[str, str]:
@@ -353,7 +372,7 @@ class PipelineSpec(BaseModel):
     def get_available_pipelines(self) -> list[str]:
         return list(self.pipelines.get_all().keys())
 
-    @validator("image", pre=True)
+    @field_validator("image", mode="before")
     def convert_str_image_to_object(cls, value: Union[Image, str]) -> Image:
         if isinstance(value, str):
             return Image(name=value)
@@ -376,10 +395,10 @@ class ProjectMetadata(BaseModel):
         path_slug = utils.hashify_path(project_directory)
 
         project_data_dir = utils.get_project_data_directory(path_slug)
-        fp = os.path.join(project_data_dir, "meta.json")
+        meta_file = Path(project_data_dir) / "meta.json"
 
-        if os.path.exists(fp):
-            meta = cls.parse_file(fp)
+        if meta_file.exists():
+            meta = cls.model_validate_json(meta_file.read_text())
         else:
             name = os.path.basename(project_directory)
             slug = slugify(name)
@@ -388,8 +407,7 @@ class ProjectMetadata(BaseModel):
 
         meta.build_number += 1
 
-        with open(fp, "w") as f:
-            f.write(meta.json())
+        meta_file.write_text(meta.model_dump_json())
 
         return meta
 

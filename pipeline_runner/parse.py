@@ -12,4 +12,4 @@ def parse_pipeline_file(file_path: str) -> PipelineSpec:
     with open(file_path) as f:
         pipelines_data = yaml.safe_load(f)
 
-    return PipelineSpec.parse_obj(pipelines_data)
+    return PipelineSpec.model_validate(pipelines_data)

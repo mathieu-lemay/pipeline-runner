@@ -370,13 +370,13 @@ def test_project_metadata_is_generated_if_file_doesnt_exist(
 
     assert result.ok
 
-    project_metadata_file = os.path.join(project_data_directory, "meta.json")
-    assert os.path.exists(project_metadata_file)
+    project_metadata_file = Path(project_data_directory) / "meta.json"
+    assert project_metadata_file.exists()
 
-    pipeline_env_file = os.path.join(artifacts_directory, "variables")
-    assert os.path.exists(pipeline_env_file)
+    pipeline_env_file = Path(artifacts_directory) / "variables"
+    assert pipeline_env_file.exists()
 
-    project_metadata = ProjectMetadata.parse_file(project_metadata_file)
+    project_metadata = ProjectMetadata.model_validate_json(project_metadata_file.read_text())
 
     slug = project_metadata.slug
     expected = {
@@ -419,7 +419,7 @@ def test_project_metadata_is_read_from_file_if_it_exists(
     pipeline_env_file = os.path.join(artifacts_directory, "variables")
     assert os.path.exists(pipeline_env_file)
 
-    project_metadata = ProjectMetadata.parse_obj(project_metadata_json)
+    project_metadata = ProjectMetadata.model_validate(project_metadata_json)
 
     slug = project_metadata.slug
     expected = {

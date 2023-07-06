@@ -23,7 +23,7 @@ from pipeline_runner.models import (
 
 
 def test_parse_empty_definitions() -> None:
-    defs = Definitions.parse_obj({})
+    defs = Definitions.model_validate({})
 
     assert defs.caches == {}
     assert defs.services == {}
@@ -37,12 +37,12 @@ def test_parse_caches() -> None:
 
     value = {"caches": caches}
 
-    defs = Definitions.parse_obj(value)
+    defs = Definitions.model_validate(value)
 
     assert defs.caches == caches
 
 
-def test_parse_services() -> None:
+def test_parse_definitions() -> None:
     services = {
         "docker": {"memory": 3072},
         "postgres": {
@@ -65,7 +65,7 @@ def test_parse_services() -> None:
 
     value = {"services": services}
 
-    defs = Definitions.parse_obj(value)
+    defs = Definitions.model_validate(value)
 
     services = {
         "docker": Service(image=None, variables={}, memory=3072),
@@ -98,7 +98,7 @@ def test_parse_image() -> None:
 
     value = {"name": name, "run-as-user": user}
 
-    image = Image.parse_obj(value)
+    image = Image.model_validate(value)
 
     assert image == Image(name=name, run_as_user="1000")
 
@@ -111,7 +111,7 @@ def test_parse_image_with_credentials() -> None:
 
     value = {"name": name, "username": username, "password": password, "email": email}
 
-    assert Image.parse_obj(value) == Image(name=name, username=username, password=password, email=email)
+    assert Image.model_validate(value) == Image(name=name, username=username, password=password, email=email)
 
 
 def test_parse_image_with_aws_credentials() -> None:
@@ -120,7 +120,7 @@ def test_parse_image_with_aws_credentials() -> None:
     secret_access_key = "secret-access-key"
 
     value = {"name": name, "aws": {"access-key": access_key_id, "secret-key": secret_access_key}}
-    image = Image.parse_obj(value)
+    image = Image.model_validate(value)
 
     assert image == Image(
         name=name, aws=AwsCredentials(access_key_id=access_key_id, secret_access_key=secret_access_key)
@@ -134,7 +134,7 @@ def test_parse_image_with_aws_oidc_role() -> None:
     value = {"name": name, "aws": {"oidc-role": oidc_role}}
 
     with pytest.raises(ValidationError) as exc_info:
-        Image.parse_obj(value)
+        Image.model_validate(value)
 
     assert "aws oidc-role not supported" in str(exc_info.value)
 
@@ -164,7 +164,7 @@ def test_parse_image_with_envvars() -> None:
         "AWS_SECRET_ACCESS_KEY": secret_access_key,
     }
 
-    image = Image.parse_obj(value)
+    image = Image.model_validate(value)
     image.expand_env_vars(env_vars)
 
     expected = Image(
@@ -184,16 +184,11 @@ def test_parse_pipeline_with_steps() -> None:
         {"step": {"name": "Step 2", "script": ["echo 'Step 2'"]}},
     ]
 
-    pipeline = Pipeline.parse_obj(spec)
+    pipeline = Pipeline.model_validate(spec)
 
     step1 = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     step2 = StepWrapper(step=Step(name="Step 2", script=["echo 'Step 2'"]))
-    expected = Pipeline(
-        __root__=[
-            step1,
-            step2,
-        ]
-    )
+    expected = Pipeline(root=[step1, step2])
 
     assert pipeline == expected
 
@@ -209,12 +204,12 @@ def test_parse_pipeline_with_parallel_steps() -> None:
         },
     ]
 
-    pipeline = Pipeline.parse_obj(spec)
+    pipeline = Pipeline.model_validate(spec)
 
     step1 = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     pstep1 = StepWrapper(step=Step(name="Parallel Step 1", script=["echo 'Parallel 1'"]))
     pstep2 = StepWrapper(step=Step(name="Parallel Step 2", script=["echo 'Parallel 2'"]))
-    expected = Pipeline(__root__=[step1, ParallelStep(wrapped=[pstep1, pstep2])])
+    expected = Pipeline(root=[step1, ParallelStep(wrapped=[pstep1, pstep2])])
 
     assert pipeline == expected
 
@@ -225,16 +220,11 @@ def test_parse_pipeline_with_variables() -> None:
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
     ]
 
-    pipeline = Pipeline.parse_obj(spec)
+    pipeline = Pipeline.model_validate(spec)
 
     variables = Variables(wrapped=[Variable(name="foo"), Variable(name="bar")])
     step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
-    expected = Pipeline(
-        __root__=[
-            variables,
-            step,
-        ]
-    )
+    expected = Pipeline(root=[variables, step])
 
     assert pipeline == expected
 
@@ -246,12 +236,14 @@ def test_variables_can_only_be_the_first_element_of_the_pipelines() -> None:
     ]
 
     with pytest.raises(ValidationError) as exc_info:
-        Pipeline.parse_obj(spec)
+        Pipeline.model_validate(spec)
 
-    assert exc_info.value.model == Pipeline
-    assert exc_info.value.errors() == [
-        {"loc": ("__root__",), "msg": "'variables' can only be the first element of the list.", "type": "value_error"}
-    ]
+    assert exc_info.value.title == "Pipeline"
+    assert exc_info.value.error_count() == 1
+
+    assert exc_info.value.errors()[0]["loc"] == ()
+    assert exc_info.value.errors()[0]["msg"] == "Value error, 'variables' can only be the first element of the list."
+    assert exc_info.value.errors()[0]["type"] == "value_error"
 
 
 def test_parse_variables_with_default_values() -> None:
@@ -260,16 +252,11 @@ def test_parse_variables_with_default_values() -> None:
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
     ]
 
-    pipeline = Pipeline.parse_obj(spec)
+    pipeline = Pipeline.model_validate(spec)
 
     variables = Variables(wrapped=[Variable(name="foo", default="foo-value"), Variable(name="bar", default=None)])
     step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
-    expected = Pipeline(
-        __root__=[
-            variables,
-            step,
-        ]
-    )
+    expected = Pipeline(root=[variables, step])
 
     assert pipeline == expected
 
@@ -280,16 +267,11 @@ def test_parse_variables_with_choices() -> None:
         {"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}},
     ]
 
-    pipeline = Pipeline.parse_obj(spec)
+    pipeline = Pipeline.model_validate(spec)
 
     variables = Variables(wrapped=[Variable(name="foo", allowed_values=["a1", "b2", "c3"], default="a1")])
     step = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
-    expected = Pipeline(
-        __root__=[
-            variables,
-            step,
-        ]
-    )
+    expected = Pipeline(root=[variables, step])
 
     assert pipeline == expected
 
@@ -301,17 +283,16 @@ def test_variables_with_choices_must_have_a_default_value() -> None:
     ]
 
     with pytest.raises(ValidationError) as exc_info:
-        Pipeline.parse_obj(spec)
+        Pipeline.model_validate(spec)
 
-    assert exc_info.value.model == Pipeline
-    assert {
-        "loc": ("__root__", 0, "variables", 0, "__root__"),
-        "msg": (
-            "The variable default value is not provided. "
-            "A default value is required if allowed values list is specified."
-        ),
-        "type": "value_error",
-    } in exc_info.value.errors()
+    assert exc_info.value.title == "Pipeline"
+    expected_msg = (
+        "Value error, The variable default value is not provided. "
+        "A default value is required if allowed values list is specified."
+    )
+    assert any(
+        e["msg"] == expected_msg and e["loc"] == (0, "Variables", "variables", 0) for e in exc_info.value.errors()
+    )
 
 
 def test_variables_with_choices_must_have_a_default_value_that_is_part_of_the_choices() -> None:
@@ -321,20 +302,19 @@ def test_variables_with_choices_must_have_a_default_value_that_is_part_of_the_ch
     ]
 
     with pytest.raises(ValidationError) as exc_info:
-        Pipeline.parse_obj(spec)
+        Pipeline.model_validate(spec)
 
-    assert exc_info.value.model == Pipeline
-    assert {
-        "loc": ("__root__", 0, "variables", 0, "__root__"),
-        "msg": 'The variable allowed values list doesn\'t contain a default value "d".',
-        "type": "value_error",
-    } in exc_info.value.errors()
+    assert exc_info.value.title == "Pipeline"
+    expected_msg = 'Value error, The variable allowed values list doesn\'t contain a default value "d".'
+    assert any(
+        e["msg"] == expected_msg and e["loc"] == (0, "Variables", "variables", 0) for e in exc_info.value.errors()
+    )
 
 
 def test_parse_step_with_default_values() -> None:
     spec = {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}
 
-    step = Step.parse_obj(spec)
+    step = Step.model_validate(spec)
 
     assert step == Step(name="Step 1", script=["cat /etc/os-release", "exit 0"])
 
@@ -342,7 +322,7 @@ def test_parse_step_with_default_values() -> None:
 def test_parse_step_with_manual_trigger() -> None:
     spec = {"script": [], "trigger": "manual"}
 
-    step = Step.parse_obj(spec)
+    step = Step.model_validate(spec)
 
     assert step.trigger == Trigger.Manual
 
@@ -350,7 +330,7 @@ def test_parse_step_with_manual_trigger() -> None:
 def test_parse_step_with_double_size() -> None:
     spec = {"script": [], "size": "2x"}
 
-    step = Step.parse_obj(spec)
+    step = Step.model_validate(spec)
 
     assert step.size == StepSize.Double
 
@@ -389,7 +369,7 @@ def test_parse_step_with_pipes() -> None:
         ],
     }
 
-    parsed = Step.parse_obj(spec)
+    parsed = Step.model_validate(spec)
 
     pipe_a = Pipe(
         pipe="atlassian/trigger-pipeline:4.2.1",
@@ -451,7 +431,7 @@ def test_parse_pipeline_with_env_vars() -> None:
         "PASSWORD": password,
     }
 
-    parsed = PipelineSpec.parse_obj(spec)
+    parsed = PipelineSpec.model_validate(spec)
     parsed.expand_env_vars(variables)
 
     expected = {
@@ -556,4 +536,4 @@ def test_parse_pipeline_with_env_vars() -> None:
         },
     }
 
-    assert parsed.dict(by_alias=True) == expected
+    assert parsed.model_dump(by_alias=True) == expected

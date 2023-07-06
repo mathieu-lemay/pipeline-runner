@@ -102,7 +102,7 @@ class PipelineRunContext:
     @staticmethod
     def _merge_default_services(services: dict[str, Service]) -> dict[str, Service]:
         for name, definition in config.default_services.items():
-            default_service = Service.parse_obj(definition)
+            default_service = Service.model_validate(definition)
 
             if name in services:
                 service = services[name]
