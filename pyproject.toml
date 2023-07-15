@@ -16,10 +16,10 @@ PyYAML = "^6.0"
 docker = "^6.0.0"
 click = "^8.0.1"
 python-slugify = "^8.0.0"
-# Pin boto3 to a specific version to avoid poetry's resolver
+# Keep boto3 to a recent version to avoid poetry's resolver
 # to go on forever.
 # https://github.com/python-poetry/poetry/issues/7858
-boto3 = "^1.27.1"
+boto3 = "^1.28.3"
 GitPython = "^3.1.12"
 python-dotenv = "^1.0.0"
 requests = "^2.31.0"
@@ -27,7 +27,7 @@ coloredlogs = "^15.0"
 pyfzf = "^0.3.0"
 pydantic = "^2.0"
 appdirs = "^1.4.4"
-cryptography = "^41.0.1"
+cryptography = "^41.0.2"
 tenacity = "^8.0.1"
 
 [tool.poetry.group.dev.dependencies]
