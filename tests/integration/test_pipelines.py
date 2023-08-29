@@ -5,12 +5,12 @@ import logging.config
 import os
 import tarfile
 import time
+from collections.abc import Callable, Generator
 from concurrent.futures import Future
 from pathlib import Path
-from typing import Callable, Generator
 from uuid import UUID, uuid4
 
-import docker  # type: ignore
+import docker  # type: ignore[import]
 import dotenv
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
@@ -186,11 +186,8 @@ def test_artifacts(artifacts_directory: Path) -> None:
     files = []
 
     for root, ds, fs in os.walk(artifacts_directory):
-        for d in ds:
-            directories.append(os.path.relpath(os.path.join(root, d), artifacts_directory))
-
-        for f in fs:
-            files.append(os.path.relpath(os.path.join(root, f), artifacts_directory))
+        directories += [os.path.relpath(os.path.join(root, d), artifacts_directory) for d in ds]
+        files += [os.path.relpath(os.path.join(root, f), artifacts_directory) for f in fs]
 
     assert sorted(directories) == ["valid-folder", "valid-folder/sub"]
     assert sorted(files) == ["file-name", "valid-folder/a", "valid-folder/b", "valid-folder/sub/c"]
@@ -435,7 +432,7 @@ def test_project_metadata_is_read_from_file_if_it_exists(
     assert variables == expected
 
 
-def test_pipeline_with_pipe(pipeline_data_directory: Path, project_path_slug: str, monkeypatch: MonkeyPatch) -> None:
+def test_pipeline_with_pipe(pipeline_data_directory: Path, project_path_slug: str) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_pipe"))
     result = runner.run()
 

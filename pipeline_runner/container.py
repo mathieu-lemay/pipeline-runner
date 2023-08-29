@@ -6,17 +6,18 @@ import posixpath
 import sys
 import tarfile
 import uuid
+from collections.abc import Generator, Iterable, Iterator, Sequence
 from importlib.resources import as_file, files
 from io import BufferedReader
 from logging import Logger
 from time import time
-from typing import Any, Generator, Iterable, Iterator, Optional, Sequence, Union, cast
+from typing import Any, cast
 
 import boto3
-import docker.errors  # type: ignore
+import docker.errors  # type: ignore[import]
 from docker import DockerClient
-from docker.constants import DEFAULT_DATA_CHUNK_SIZE  # type: ignore
-from docker.models.containers import Container, ExecResult  # type: ignore
+from docker.constants import DEFAULT_DATA_CHUNK_SIZE  # type: ignore[import]
+from docker.models.containers import Container, ExecResult  # type: ignore[import]
 
 import pipeline_runner
 
@@ -32,14 +33,14 @@ class ContainerRunner:
         self,
         name: str,
         image: Image,
-        network_name: Optional[str],
+        network_name: str | None,
         repository_path: str,
         data_volume_name: str,
         env_vars: dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
-        ssh_private_key: Optional[str] = None,
-    ):
+        ssh_private_key: str | None = None,
+    ) -> None:
         self._name = name
         self._image = image
         self._network_name = network_name
@@ -54,7 +55,7 @@ class ContainerRunner:
         self._container = None
 
     def start(self) -> None:
-        self._start_container()
+        self.start_container()
         self._create_pipeline_directories()
         self._insert_ssh_private_key()
         self._insert_ssh_known_hosts()
@@ -85,18 +86,17 @@ class ContainerRunner:
 
     def run_script(
         self,
-        script: Sequence[Union[str, Pipe]],
-        user: Optional[Union[int, str]] = None,
-        env: Optional[dict[str, Any]] = None,
+        script: Sequence[str | Pipe],
+        user: int | str | None = None,
+        env: dict[str, Any] | None = None,
+        *,
         exec_time: bool = False,
     ) -> int:
-        csr = ContainerScriptRunnerFactory.get(self._container, script, self._logger, user, env, exec_time)
+        csr = ContainerScriptRunnerFactory.get(self._container, script, self._logger, user, env, exec_time=exec_time)
 
         return csr.run()
 
-    def run_command(
-        self, command: Union[str, list[str]], shell: bool = True, user: Optional[Union[int, str]] = None
-    ) -> ExecResult:
+    def run_command(self, command: str | list[str], user: int | str | None = None, *, shell: bool = True) -> ExecResult:
         if not self._container:
             # TODO: Refactor
             raise Exception("called on uninitialized container")
@@ -117,7 +117,7 @@ class ContainerRunner:
 
     # TODO: Validate Typing
     def get_archive(
-        self, path: str, chunk_size: int = DEFAULT_DATA_CHUNK_SIZE, encode_stream: bool = False
+        self, path: str, chunk_size: int = DEFAULT_DATA_CHUNK_SIZE, *, encode_stream: bool = False
     ) -> tuple[Generator[bytes, None, None], dict[str, Any]]:
         if not self._container:
             # TODO: Refactor
@@ -126,14 +126,14 @@ class ContainerRunner:
         return self._container.get_archive(path, chunk_size, encode_stream)
 
     # TODO: Validate Typing
-    def put_archive(self, path: str, data: Union[BufferedReader, bytes]) -> bool:
+    def put_archive(self, path: str, data: BufferedReader | bytes) -> bool:
         if not self._container:
             # TODO: Refactor
             raise Exception("called on uninitialized container")
 
         return self._container.put_archive(path, data)
 
-    def _start_container(self) -> None:
+    def start_container(self) -> None:
         pull_image(self._client, self._image)
 
         logger.info("Creating container: %s", self._name)
@@ -141,14 +141,7 @@ class ContainerRunner:
         volumes = self._get_volumes()
         environment = self._environment.copy()
 
-        if config.cpu_limits:
-            opts = {
-                "cpu_period": 100000,
-                "cpu_quota": 400000,
-                "cpu_shares": 4096,
-            }
-        else:
-            opts = {}
+        opts = {"cpu_period": 100000, "cpu_quota": 400000, "cpu_shares": 4096} if config.cpu_limits else {}
 
         if config.expose_ssh_agent:
             if ssh_sock_path := os.environ.get("SSH_AUTH_SOCK"):
@@ -179,7 +172,7 @@ class ContainerRunner:
 
         self._container = container
 
-    def get_container_name(self) -> Optional[str]:
+    def get_container_name(self) -> str | None:
         if not self._container:
             return None
 
@@ -247,11 +240,11 @@ class ContainerScriptRunner:
     def __init__(
         self,
         container: Container,
-        script: Sequence[Union[str, Pipe]],
-        output_logger: Optional[Logger] = None,
-        user: Optional[Union[int, str]] = None,
-        env: Optional[dict[str, Any]] = None,
-    ):
+        script: Sequence[str | Pipe],
+        output_logger: Logger | None = None,
+        user: int | str | None = None,
+        env: dict[str, Any] | None = None,
+    ) -> None:
         self._container = container
         self._script = script
         self._logger = output_logger
@@ -269,10 +262,10 @@ class ContainerScriptRunner:
         else:
 
             def stdout_print(msg: str) -> None:
-                print(msg, end="")
+                print(msg, end="")  # noqa: T201: `print` found
 
             def stderr_print(msg: str) -> None:
-                print(msg, end="", file=sys.stderr)
+                print(msg, end="", file=sys.stderr)  # noqa: T201: `print` found
 
         self._stdout_print = stdout_print
         self._stderr_print = stderr_print
@@ -344,11 +337,8 @@ class ContainerScriptRunner:
 
         return '\nprintf "\\n"\n'.join(line for line in script_lines if line)
 
-    def _add_trace_to_script_line(self, line: Union[str, Pipe]) -> Optional[str]:
-        if isinstance(line, Pipe):
-            line = line.as_cmd()
-        else:
-            line = line.strip()
+    def _add_trace_to_script_line(self, line: str | Pipe) -> str | None:
+        line = line.as_cmd() if isinstance(line, Pipe) else line.strip()
 
         if not line:
             return None
@@ -363,11 +353,11 @@ class ContainerScriptRunner:
 
     @staticmethod
     def _wrap_script_in_posix_shell(script: str) -> str:
-        return "\n".join(["#! /bin/sh", "set -e", script])
+        return f"#! /bin/sh\nset -e\n{script}"
 
     @staticmethod
     def _wrap_script_in_bash(script: str) -> str:
-        return "\n".join(["#! /bin/bash", "set -e", "set +H", script])
+        return f"#! /bin/bash\nset -e\nset +H\n{script}"
 
     @staticmethod
     def _make_wrapper_script(sh_script_path: str, bash_script_path: str, exit_code_file_path: str) -> str:
@@ -407,13 +397,13 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
     def __init__(
         self,
         container: Container,
-        script: Sequence[Union[str, Pipe]],
-        output_logger: Optional[Logger] = None,
-        user: Optional[Union[int, str]] = None,
-        env: Optional[dict[str, Any]] = None,
-    ):
+        script: Sequence[str | Pipe],
+        output_logger: Logger | None = None,
+        user: int | str | None = None,
+        env: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(container, script, output_logger, user, env)
-        self._timestamp: Optional[float] = None
+        self._timestamp: float | None = None
 
     def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
         for stdout, stderr in output_stream:
@@ -442,18 +432,16 @@ class ContainerScriptRunnerFactory:
     @staticmethod
     def get(
         container: Container,
-        script: Sequence[Union[str, Pipe]],
-        output_logger: Optional[Logger] = None,
-        user: Optional[Union[int, str]] = None,
-        env: Optional[dict[str, Any]] = None,
+        script: Sequence[str | Pipe],
+        output_logger: Logger | None = None,
+        user: int | str | None = None,
+        env: dict[str, Any] | None = None,
+        *,
         exec_time: bool = False,
     ) -> ContainerScriptRunner:
-        cls: type[Union[ContainerScriptRunner, ContainerScriptRunnerWithExecTime]]
+        cls: type[ContainerScriptRunner | ContainerScriptRunnerWithExecTime]
 
-        if exec_time:
-            cls = ContainerScriptRunnerWithExecTime
-        else:
-            cls = ContainerScriptRunner
+        cls = ContainerScriptRunnerWithExecTime if exec_time else ContainerScriptRunner
 
         return cls(container, script, output_logger, user, env)
 
@@ -462,8 +450,6 @@ _pulled_images = set()
 
 
 def pull_image(client: DockerClient, image: Image) -> None:
-    global _pulled_images
-
     if image.name in _pulled_images:
         logger.info("Image already pulled: %s", image.name)
         return
@@ -487,7 +473,7 @@ def pull_image(client: DockerClient, image: Image) -> None:
     _pulled_images.add(image.name)
 
 
-def get_image_authentication(image: Image) -> Optional[dict[str, str]]:
+def get_image_authentication(image: Image) -> dict[str, str] | None:
     if image.aws:
         aws_access_key_id = image.aws.access_key_id
         aws_secret_access_key = image.aws.secret_access_key

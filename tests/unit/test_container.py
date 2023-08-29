@@ -11,9 +11,7 @@ from pipeline_runner.models import AwsCredentials, Image
 
 @pytest.fixture()
 def aws_lib(mocker: MockerFixture) -> MagicMock:
-    lib = mocker.patch("pipeline_runner.container.boto3")
-
-    return lib
+    return mocker.patch("pipeline_runner.container.boto3")
 
 
 @pytest.fixture()
@@ -108,7 +106,7 @@ def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config: Config, mo
 
     config.cpu_limits = False
 
-    runner._start_container()
+    runner.start_container()
 
     assert docker_client_mock.containers.run.call_count == 1
     _, kwargs = docker_client_mock.containers.run.call_args
@@ -134,7 +132,7 @@ def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker:
 
     config.cpu_limits = True
 
-    runner._start_container()
+    runner.start_container()
 
     assert docker_client_mock.containers.run.call_count == 1
     _, kwargs = docker_client_mock.containers.run.call_args

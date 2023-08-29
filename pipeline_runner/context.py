@@ -1,14 +1,22 @@
 import logging
 import os
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from dotenv import dotenv_values
 from slugify import slugify
 
 from . import utils
 from .config import config
-from .models import CloneSettings, Image, Pipeline, ProjectMetadata, Repository, Service, Step
+from .models import (
+    CloneSettings,
+    Image,
+    Pipeline,
+    ProjectMetadata,
+    Repository,
+    Service,
+    Step,
+)
 from .parse import parse_pipeline_file
 
 logger = logging.getLogger(__name__)
@@ -25,12 +33,12 @@ class PipelineRunContext:
         caches: dict[str, str],
         services: dict[str, Service],
         clone_settings: CloneSettings,
-        default_image: Optional[Image],
+        default_image: Image | None,
         project_metadata: ProjectMetadata,
         repository: Repository,
-        env_vars: Optional[dict[str, str]] = None,
-        selected_steps: Optional[list[str]] = None,
-    ):
+        env_vars: dict[str, str] | None = None,
+        selected_steps: list[str] | None = None,
+    ) -> None:
         self.pipeline_name = pipeline_name
         self.pipeline = pipeline
         self.caches = self._merge_default_caches(caches)
@@ -81,7 +89,7 @@ class PipelineRunContext:
 
     @staticmethod
     def _load_env_vars(env_files: list[str]) -> dict[str, str]:
-        envvars: dict[str, Optional[str]] = {}
+        envvars: dict[str, str | None] = {}
         # TODO: Load env file in the repo if exists
         logger.debug("Loading .env file (if exists)")
         envvars.update(dotenv_values(".env"))
@@ -145,9 +153,9 @@ class StepRunContext:
         self,
         step: Step,
         pipeline_run_context: PipelineRunContext,
-        parallel_step_index: Optional[int] = None,
-        parallel_step_count: Optional[int] = None,
-    ):
+        parallel_step_index: int | None = None,
+        parallel_step_count: int | None = None,
+    ) -> None:
         self.step = step
         self.pipeline_ctx = pipeline_run_context
         self.slug = f"{pipeline_run_context.project_metadata.path_slug}-step-{slugify(step.name)}"

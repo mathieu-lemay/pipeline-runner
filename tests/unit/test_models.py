@@ -8,7 +8,7 @@ from pipeline_runner.models import ParallelStep, Pipe, PipelineResult
 
 
 @pytest.mark.parametrize(("num_items", "is_valid"), [(0, False), (1, False), (2, True)])
-def test_parallel_step_must_contain_at_least_2_items(num_items: int, is_valid: bool) -> None:
+def test_parallel_step_must_contain_at_least_2_items(num_items: int, is_valid: bool) -> None:  # noqa: FBT001
     spec: dict[str, Any] = {"parallel": [{"step": {"script": []}} for _ in range(num_items)]}
 
     if is_valid:

@@ -16,23 +16,26 @@ repos:
       - id: poetry-lock
         args: ["--check"]
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
+  - repo: local
     hooks:
-      - id: isort
+      - id: ruff
+        name: ruff (isort)
+        pass_filenames: false
+        language: system
+        entry: poetry run ruff --select=I --fix .
 
   - repo: https://github.com/psf/black
     rev: 23.3.0
     hooks:
       - id: black
 
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: 'v0.0.275'
-    hooks:
-      - id: ruff
-
   - repo: local
     hooks:
+      - id: ruff
+        name: ruff
+        pass_filenames: false
+        language: system
+        entry: poetry run ruff .
       - id: mypy
         name: mypy
         pass_filenames: false

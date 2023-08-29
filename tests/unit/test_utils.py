@@ -1,10 +1,10 @@
 import tarfile
 from io import BytesIO
 from pathlib import Path
-from typing import Union
 
 import pytest
 
+from pipeline_runner.errors import NegativeIntegerError
 from pipeline_runner.utils import (
     PathTraversalError,
     ensure_directory,
@@ -36,7 +36,7 @@ def test_ensure_directory(tmp_path: Path) -> None:
         (["foo", "bar", "baz"], "foo bar baz"),
     ],
 )
-def test_stringify(value: Union[str, list[str]], expected: str) -> None:
+def test_stringify(value: str | list[str], expected: str) -> None:
     assert stringify(value) == expected
 
 
@@ -76,7 +76,7 @@ def test_get_human_readable_size(value: int, expected: str) -> None:
 
 
 def test_get_human_readable_size_raises_for_negative() -> None:
-    with pytest.raises(ValueError, match="size must be positive"):
+    with pytest.raises(NegativeIntegerError):
         get_human_readable_size(-1)
 
 
@@ -125,6 +125,8 @@ def test_safe_extract_tar_raises_on_files_outside_of_dir(tmp_path: Path) -> None
 
     tar_file_obj.seek(0)
 
-    with tarfile.open(fileobj=tar_file_obj, mode="r|") as tar:
-        with pytest.raises(PathTraversalError):
-            safe_extract_tar(tar, str(tmp_path))
+    with (
+        tarfile.open(fileobj=tar_file_obj, mode="r|") as tar,
+        pytest.raises(PathTraversalError),
+    ):
+        safe_extract_tar(tar, str(tmp_path))

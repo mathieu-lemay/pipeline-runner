@@ -56,7 +56,7 @@ class Config:
         # TODO: Generate them per project
         self.owner_uuid = "e07413cc-dcd9-4c68-aa2e-08e296b1a8af"
 
-        self.bitbucket_build_number = os.getenv("BITBUCKET_BUILD_NUMBER", 0)
+        self.bitbucket_build_number = os.getenv("BITBUCKET_BUILD_NUMBER", "0")
 
         self.log_level = logging.getLevelName(os.getenv("PIPELINE_LOG_LEVEL", "DEBUG").upper())
 
