@@ -3,10 +3,10 @@ import logging.config
 import os
 import shutil
 import sys
+from importlib.metadata import version
 from typing import Optional
 
 import click
-import pkg_resources
 from pyfzf import FzfPrompt  # type: ignore
 
 from . import utils
@@ -53,7 +53,7 @@ def _prompt_for_pipeline(pipeline_file: str) -> Optional[str]:
 @click.pass_context
 def main(ctx: click.Context, show_version: bool) -> None:
     if show_version:
-        print(f"Pipeline Runner {pkg_resources.get_distribution('bitbucket_pipeline_runner').version}")
+        print(f"Pipeline Runner {version('bitbucket_pipeline_runner')}")
         ctx.exit()
 
     if not ctx.invoked_subcommand:

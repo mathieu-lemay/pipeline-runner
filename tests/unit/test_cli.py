@@ -1,8 +1,8 @@
 import os
 import re
+from importlib.metadata import version
 from pathlib import Path
 
-import pkg_resources
 from click.testing import CliRunner
 
 from pipeline_runner.cli import main
@@ -22,7 +22,7 @@ def test_show_version() -> None:
     # noinspection PyTypeChecker
     result = runner.invoke(main, ["--version"])
 
-    expected = f"Pipeline Runner {pkg_resources.get_distribution('bitbucket_pipeline_runner').version}\n"
+    expected = f"Pipeline Runner {version('bitbucket_pipeline_runner')}\n"
     assert result.exit_code == 0
     assert result.output == expected
 
