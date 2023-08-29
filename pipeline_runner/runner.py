@@ -3,10 +3,9 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from time import time as ts
-from typing import Optional, Union
 
-import docker  # type: ignore
-from docker.models.networks import Network  # type: ignore
+import docker  # type: ignore[import]
+from docker.models.networks import Network  # type: ignore[import]
 
 from . import utils
 from .artifacts import ArtifactManager
@@ -14,7 +13,16 @@ from .cache import CacheManager
 from .config import config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
-from .models import Image, ParallelStep, Pipe, PipelineResult, Step, StepWrapper, Trigger, Variable
+from .models import (
+    Image,
+    ParallelStep,
+    Pipe,
+    PipelineResult,
+    Step,
+    StepWrapper,
+    Trigger,
+    Variable,
+)
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -25,10 +33,10 @@ class PipelineRunRequest:
     def __init__(
         self,
         pipeline_name: str,
-        repository_path: Optional[str] = None,
-        selected_steps: Optional[list[str]] = None,
-        env_files: Optional[list[str]] = None,
-    ):
+        repository_path: str | None = None,
+        selected_steps: list[str] | None = None,
+        env_files: list[str] | None = None,
+    ) -> None:
         self.pipeline_name = pipeline_name
         self.selected_steps = selected_steps or []
         self.env_files = env_files or []
@@ -40,7 +48,7 @@ class PipelineRunRequest:
 
 
 class PipelineRunner:
-    def __init__(self, pipeline_run_request: PipelineRunRequest):
+    def __init__(self, pipeline_run_request: PipelineRunRequest) -> None:
         self._ctx = PipelineRunContext.from_run_request(pipeline_run_request)
         self._pipeline = self._ctx.pipeline
 
@@ -92,7 +100,7 @@ class PipelineRunner:
         else:
             var = sys.stdin.readline()
             if not var:
-                raise IOError("Unable to read from stdin")
+                raise OSError("Unable to read from stdin")
 
         return var.rstrip()
 
@@ -110,18 +118,18 @@ class PipelineRunner:
 
 class BaseStepRunner(ABC):
     @abstractmethod
-    def run(self) -> Optional[int]:
+    def run(self) -> int | None:
         """Run the step."""
 
 
 class StepRunner(BaseStepRunner):
-    def __init__(self, step_run_context: StepRunContext):
+    def __init__(self, step_run_context: StepRunContext) -> None:
         self._ctx = step_run_context
         self._step = step_run_context.step
 
         self._docker_client = docker.from_env()
-        self._services_manager: Optional[ServicesManager] = None
-        self._container_runner: Optional[ContainerRunner] = None
+        self._services_manager: ServicesManager | None = None
+        self._container_runner: ContainerRunner | None = None
 
         self._container_name = self._ctx.slug
         self._data_volume_name = f"{self._container_name}-data"
@@ -130,7 +138,7 @@ class StepRunner(BaseStepRunner):
         )
 
     # TODO: Decomplexify
-    def run(self) -> Optional[int]:
+    def run(self) -> int | None:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return None
@@ -198,8 +206,8 @@ class StepRunner(BaseStepRunner):
                 logger.error("Step '%s': FAIL", self._step.name)
 
             self._build_teardown(exit_code)
-        except Exception as e:
-            logger.exception("Error during pipeline execution: %s", e)
+        except Exception:
+            logger.exception("Error during pipeline execution")
             exit_code = 1
         finally:
             if self._services_manager:
@@ -237,9 +245,7 @@ class StepRunner(BaseStepRunner):
 
     def _create_network(self) -> Network:
         name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
-        network = self._docker_client.networks.create(name, driver="bridge")
-
-        return network
+        return self._docker_client.networks.create(name, driver="bridge")
 
     def _get_step_env_vars(self) -> dict[str, str]:
         env_vars = self._get_bitbucket_env_vars()
@@ -396,11 +402,11 @@ class StepRunner(BaseStepRunner):
 
 
 class ParallelStepRunner(BaseStepRunner):
-    def __init__(self, parallel_step: ParallelStep, pipeline_run_context: PipelineRunContext):
+    def __init__(self, parallel_step: ParallelStep, pipeline_run_context: PipelineRunContext) -> None:
         self._parallel_step = parallel_step
         self._pipeline_ctx = pipeline_run_context
 
-    def run(self) -> Optional[int]:
+    def run(self) -> int | None:
         return_code = 0
         step_count = len(self._parallel_step)
 
@@ -418,10 +424,10 @@ class ParallelStepRunner(BaseStepRunner):
 class StepRunnerFactory:
     @staticmethod
     def get(
-        step: Union[Step, StepWrapper, ParallelStep],
+        step: Step | StepWrapper | ParallelStep,
         pipeline_run_context: PipelineRunContext,
-        parallel_step_index: Optional[int] = None,
-        parallel_step_count: Optional[int] = None,
+        parallel_step_index: int | None = None,
+        parallel_step_count: int | None = None,
     ) -> BaseStepRunner:
         if isinstance(step, ParallelStep):
             return ParallelStepRunner(step, pipeline_run_context)

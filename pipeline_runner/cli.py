@@ -4,10 +4,11 @@ import os
 import shutil
 import sys
 from importlib.metadata import version
-from typing import Optional
 
 import click
-from pyfzf import FzfPrompt  # type: ignore
+from pyfzf import FzfPrompt  # type: ignore[import]
+
+from pipeline_runner.errors import InvalidPipelineError
 
 from . import utils
 from .config import config
@@ -27,7 +28,7 @@ def _get_pipelines_list(pipeline_file: str) -> list[str]:
     return pipelines_definition.get_available_pipelines()
 
 
-def _prompt_for_pipeline(pipeline_file: str) -> Optional[str]:
+def _prompt_for_pipeline(pipeline_file: str) -> str | None:
     pipeline = None
     pipelines = _get_pipelines_list(pipeline_file)
 
@@ -51,13 +52,13 @@ def _prompt_for_pipeline(pipeline_file: str) -> Optional[str]:
     help="Print project version and exit.",
 )
 @click.pass_context
-def main(ctx: click.Context, show_version: bool) -> None:
+def main(ctx: click.Context, *, show_version: bool) -> None:
     if show_version:
-        print(f"Pipeline Runner {version('bitbucket_pipeline_runner')}")
+        click.echo(f"Pipeline Runner {version('bitbucket_pipeline_runner')}")
         ctx.exit()
 
     if not ctx.invoked_subcommand:
-        print(ctx.get_help())
+        click.echo(ctx.get_help())
         ctx.exit(1)
 
 
@@ -100,10 +101,11 @@ def main(ctx: click.Context, show_version: bool) -> None:
     help="Expose the local ssh agent to the container. Default: False",
 )
 def run(
-    pipeline: Optional[str],
+    pipeline: str | None,
     repository_path: str,
     steps: list[str],
     env_files: list[str],
+    *,
     color: bool,
     cpu_limits: bool,
     expose_ssh_agent: bool,
@@ -131,8 +133,8 @@ def run(
     runner = PipelineRunner(req)
     try:
         runner.run()
-    except Exception as e:
-        logger.exception(str(e))
+    except Exception:
+        logger.exception("Error running pipeline")
         sys.exit(1)
 
 
@@ -148,7 +150,7 @@ def run(
     default=True,
     help="Enable colored output",
 )
-def list_(repository_path: str, color: bool) -> None:
+def list_(repository_path: str, *, color: bool) -> None:
     """
     List the available pipelines.
     """
@@ -168,7 +170,7 @@ def list_(repository_path: str, color: bool) -> None:
     "--repository-path",
     help="Path to the git repository. Defaults to current directory.",
 )
-def parse(pipeline: Optional[str], repository_path: str) -> None:
+def parse(pipeline: str | None, repository_path: str) -> None:
     """
     Parse the pipeline file.
     """
@@ -179,10 +181,10 @@ def parse(pipeline: Optional[str], repository_path: str) -> None:
     if pipeline:
         parsed = pipelines_definition.get_pipeline(pipeline)
         if not parsed:
-            raise ValueError(f"Invalid pipeline: {pipeline}")
-        print(parsed.json(indent=2))
+            raise InvalidPipelineError(pipeline)
+        click.echo(parsed.json(indent=2))
     else:
-        print(pipelines_definition.json(indent=2))
+        click.echo(pipelines_definition.json(indent=2))
 
 
 @main.command()
@@ -194,8 +196,8 @@ def cache(action: str) -> None:
 
     projects = sorted(os.listdir(cache_dir))
     if action == "list":
-        print("Caches:")
-        print("\n".join(f"\t{p}" for p in projects))
+        click.echo("Caches:")
+        click.echo("\n".join(f"\t{p}" for p in projects))
     elif action == "clear":
         for p in projects:
             shutil.rmtree(os.path.join(cache_dir, p))

@@ -3,9 +3,10 @@ import hashlib
 import logging
 import os
 import sys
+from collections.abc import Iterator
 from logging import Logger
 from tarfile import TarFile
-from typing import IO, Iterator, Union
+from typing import IO
 
 from appdirs import user_cache_dir, user_data_dir
 from cryptography.hazmat.primitives import serialization
@@ -13,8 +14,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from slugify import slugify
 
 from . import APP_NAME
+from .errors import NegativeIntegerError
 
 logger = logging.getLogger(__name__)
+
+ONE_KB = 1024
 
 
 def get_output_logger(output_directory: str, name: str) -> Logger:
@@ -59,7 +63,7 @@ def ensure_directory(path: str) -> str:
     return path
 
 
-def stringify(value: Union[str, list[str]], sep: str = " ") -> str:
+def stringify(value: str | list[str], sep: str = " ") -> str:
     if isinstance(value, list):
         value = sep.join(value)
 
@@ -75,19 +79,19 @@ def escape_shell_string(value: str) -> str:
 
 def get_human_readable_size(value: int) -> str:
     if value < 0:
-        raise ValueError("size must be positive")
+        raise NegativeIntegerError
 
     num: float = value
     for unit in ["B", "KiB", "MiB", "GiB"]:
-        if num < 1024:
+        if num < ONE_KB:
             return f"{num:3.1f}{unit}"
 
-        num /= 1024
+        num /= ONE_KB
 
     return f"{num:.1f}TiB"
 
 
-def wrap_in_shell(command: Union[str, list[str]], stop_on_error: bool = True) -> list[str]:
+def wrap_in_shell(command: str | list[str], *, stop_on_error: bool = True) -> list[str]:
     command = stringify(command)
 
     wrapped = ["sh"]
@@ -155,8 +159,8 @@ class FileStreamer(IO[bytes]):
                 self._grow_chunk()
             rv = self._chunk[:n]
             self._chunk = self._chunk[n:]
-            return rv
         except StopIteration:
             rv = self._chunk
             self._has_more_data = False
-            return rv
+
+        return rv

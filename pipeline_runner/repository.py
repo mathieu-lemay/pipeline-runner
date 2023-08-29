@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, TypeVar, Union, cast
+from typing import TypeVar, cast
 
 from .config import config
 from .models import CloneSettings, Image, Repository
@@ -17,11 +17,11 @@ class RepositoryCloner:
         step_clone_settings: CloneSettings,
         global_clone_settings: CloneSettings,
         environment: dict[str, str],
-        user: Optional[Union[int, str]],
+        user: int | str | None,
         parent_container_name: str,
         data_volume_name: str,
         output_logger: logging.Logger,
-    ):
+    ) -> None:
         self._repository = repository
         self._step_clone_settings = step_clone_settings
         self._global_clone_settings = global_clone_settings
@@ -119,15 +119,15 @@ class RepositoryCloner:
             )
         )
 
-    def _get_clone_depth(self) -> Optional[Union[str, int]]:
+    def _get_clone_depth(self) -> str | int | None:
         depth = self._first_non_none_value(
             self._step_clone_settings.depth,
             self._global_clone_settings.depth,
             CloneSettings().depth,
         )
 
-        return cast(Optional[Union[str, int]], depth)
+        return cast(str | int | None, depth)
 
     @staticmethod
-    def _first_non_none_value(*args: Optional[T]) -> Optional[T]:
+    def _first_non_none_value(*args: T | None) -> T | None:
         return next((v for v in args if v is not None), None)

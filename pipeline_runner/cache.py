@@ -2,7 +2,6 @@ import logging
 import os.path
 from tempfile import NamedTemporaryFile
 from time import time as ts
-from typing import Optional, Union
 
 from . import utils
 from .config import config
@@ -14,7 +13,7 @@ DOCKER_IMAGES_ARCHIVE_FILE_NAME = "images.tar"
 
 
 class CacheManager:
-    def __init__(self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str]):
+    def __init__(self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str]) -> None:
         self._container = container
         self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
@@ -35,7 +34,7 @@ class CacheManager:
 class CacheRestore:
     def __init__(
         self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
-    ):
+    ) -> None:
         self._container = container
         self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
@@ -51,7 +50,7 @@ class CacheRestore:
         self._upload_cache(cache_file)
         self._restore_cache()
 
-    def _get_local_cache_file(self) -> Optional[str]:
+    def _get_local_cache_file(self) -> str | None:
         local_cache_archive_path = get_local_cache_archive_path(self._cache_directory, self._cache_name)
         if not os.path.exists(local_cache_archive_path):
             return None
@@ -121,12 +120,9 @@ class CacheRestoreFactory:
     def get(
         container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
     ) -> CacheRestore:
-        cls: type[Union[CacheRestore, NullCacheRestore]]
+        cls: type[CacheRestore | NullCacheRestore]
 
-        if cache_name == "docker":
-            cls = NullCacheRestore
-        else:
-            cls = CacheRestore
+        cls = NullCacheRestore if cache_name == "docker" else CacheRestore
 
         return cls(container, cache_directory, cache_definitions, cache_name)
 
@@ -134,7 +130,7 @@ class CacheRestoreFactory:
 class CacheSave:
     def __init__(
         self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
-    ):
+    ) -> None:
         self._container = container
         self._cache_directory = cache_directory
         self._cache_definitions = cache_definitions
@@ -183,8 +179,8 @@ class CacheSave:
                 for chunk in data:
                     size += len(chunk)
                     f.write(chunk)
-            except Exception as e:  # noqa: BLE001: Do not catch blind exception: `Exception`
-                logger.error("Error getting cache from container: %s: %s", self._cache_name, e)
+            except Exception:
+                logger.exception("Error getting cache from container: %s", self._cache_name)
                 os.unlink(f.name)
                 return
             else:
@@ -206,12 +202,9 @@ class CacheSaveFactory:
     def get(
         container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
     ) -> CacheSave:
-        cls: type[Union[CacheSave, NullCacheSave]]
+        cls: type[CacheSave | NullCacheSave]
 
-        if cache_name == "docker":
-            cls = NullCacheSave
-        else:
-            cls = CacheSave
+        cls = NullCacheSave if cache_name == "docker" else CacheSave
 
         return cls(container, cache_directory, cache_definitions, cache_name)
 

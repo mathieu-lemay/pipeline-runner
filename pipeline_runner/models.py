@@ -1,8 +1,9 @@
 import os.path
+from collections.abc import Iterator, Sequence
 from enum import Enum
 from pathlib import Path
 from string import Template
-from typing import Any, Generic, Iterator, Optional, Sequence, SupportsIndex, TypeVar, Union
+from typing import Any, Generic, SupportsIndex, TypeVar
 from uuid import UUID, uuid4
 
 from git.repo import Repo
@@ -39,12 +40,12 @@ class BaseModel(PydanticBaseModel):
 class AwsCredentials(BaseModel):
     access_key_id: str = Field(alias="access-key")
     secret_access_key: str = Field(alias="secret-key")
-    oidc_role: Optional[str] = Field(alias="oidc-role", default=None)
+    oidc_role: str | None = Field(alias="oidc-role", default=None)
 
     __env_var_expand_fields__: Sequence[str] = ["access_key_id", "secret_access_key", "oidc_role"]
 
     @field_validator("oidc_role")
-    def oidc_role_not_supported(cls, v: Optional[str]) -> Optional[str]:
+    def oidc_role_not_supported(cls, v: str | None) -> str | None:
         if v is not None:
             raise ValueError("aws oidc-role not supported")
 
@@ -53,32 +54,32 @@ class AwsCredentials(BaseModel):
 
 class Image(BaseModel):
     name: str
-    username: Optional[str] = None
-    password: Optional[str] = None
-    email: Optional[str] = None
-    run_as_user: Optional[str] = Field(None, alias="run-as-user")
-    aws: Optional[AwsCredentials] = None
+    username: str | None = None
+    password: str | None = None
+    email: str | None = None
+    run_as_user: str | None = Field(None, alias="run-as-user")
+    aws: AwsCredentials | None = None
 
     __env_var_expand_fields__: Sequence[str] = ["username", "password", "email", "aws"]
 
     @field_validator("run_as_user", mode="before")
-    def parse_run_as_user(cls, value: Union[str, int]) -> str:
+    def parse_run_as_user(cls, value: str | int) -> str:
         if isinstance(value, int):
             return str(value)
 
         return value
 
 
-ImageType = Optional[Union[str, Image]]
+ImageType = Image | str | None
 
 
 class Service(BaseModel):
-    image: Optional[Image] = None
+    image: Image | None = None
     variables: dict[str, str] = Field(default_factory=dict, alias="environment")
     memory: int = 1024
 
     @field_validator("image", mode="before")
-    def convert_str_image_to_object(cls, value: Union[Image, str]) -> Image:
+    def convert_str_image_to_object(cls, value: Image | str) -> Image:
         if isinstance(value, str):
             return Image(name=value)
 
@@ -133,16 +134,16 @@ class Definitions(BaseModel):
 
 
 class CloneSettings(BaseModel):
-    depth: Optional[Union[str, int]] = 50
-    lfs: Optional[bool] = False
-    enabled: Optional[bool] = True
+    depth: str | int | None = 50
+    lfs: bool | None = False
+    enabled: bool | None = True
 
     @classmethod
     def empty(cls) -> "CloneSettings":
         return CloneSettings(depth=None, lfs=None, enabled=None)
 
     @field_validator("depth")
-    def validate_depth(cls, value: Optional[Union[str, int]]) -> Optional[Union[str, int]]:
+    def validate_depth(cls, value: str | int | None) -> str | int | None:
         if value is None:
             return None
 
@@ -151,7 +152,8 @@ class CloneSettings(BaseModel):
                 return 0
 
             raise ValueError(f"Not a valid value: {value}. Valid values are: ['full']")
-        elif isinstance(value, int):
+
+        if isinstance(value, int):
             if value <= 0:
                 raise ValueError(f"depth {value} is not a positive integer")
 
@@ -161,11 +163,15 @@ class CloneSettings(BaseModel):
 
 
 class Trigger(str, Enum):
+    __slots__ = ()
+
     Automatic = "automatic"
     Manual = "manual"
 
 
 class StepSize(str, Enum):
+    __slots__ = ()
+
     Simple = "1x"
     Double = "2x"
 
@@ -197,22 +203,22 @@ class Pipe(BaseModel):
 
 class Step(BaseModel):
     name: str = "<unnamed>"
-    script: list[Union[str, Pipe]]
-    image: Optional[Image] = None
+    script: list[str | Pipe]
+    image: Image | None = None
     caches: list[str] = Field(default_factory=list)
     services: list[str] = Field(default_factory=list)
     artifacts: list[str] = Field(default_factory=list)
-    after_script: list[Union[str, Pipe]] = Field(default_factory=list, alias="after-script")
+    after_script: list[str | Pipe] = Field(default_factory=list, alias="after-script")
     size: StepSize = StepSize.Simple
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
-    deployment: Optional[str] = None
+    deployment: str | None = None
     trigger: Trigger = Trigger.Automatic
-    max_time: Optional[int] = Field(None, alias="max-time")
+    max_time: int | None = Field(None, alias="max-time")
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 
     @field_validator("image", mode="before")
-    def convert_str_image_to_object(cls, value: Union[Image, str]) -> Image:
+    def convert_str_image_to_object(cls, value: Image | str) -> Image:
         if isinstance(value, str):
             return Image(name=value)
 
@@ -241,11 +247,11 @@ class StepWrapper(BaseModel):
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         self.step.expand_env_vars(variables)
 
-    def __getattr__(self, item: str) -> Any:
+    def __getattr__(self, item: str) -> Any:  # noqa: ANN401: Dynamically typed expressions (typing.Any) are disallowed
         if item in self.__dict__:
             return self.__dict__[item]
-        else:
-            return getattr(self.step, item)
+
+        return getattr(self.step, item)
 
 
 class ParallelStep(ListWrapper[StepWrapper]):
@@ -258,8 +264,8 @@ class ParallelStep(ListWrapper[StepWrapper]):
 
 class Variable(BaseModel):
     name: str
-    default: Optional[str] = None
-    allowed_values: Optional[list[str]] = Field(alias="allowed-values", default=None)
+    default: str | None = None
+    allowed_values: list[str] | None = Field(alias="allowed-values", default=None)
 
     @model_validator(mode="after")  # type: ignore[arg-type]
     def validate_var_with_allowed_values_must_have_a_default_value(cls, model: "Variable") -> "Variable":
@@ -283,7 +289,7 @@ class Variables(ListWrapper[Variable]):
     wrapped: list[Variable] = Field(alias="variables")
 
 
-PipelineElement = Union[StepWrapper, ParallelStep, Variables]
+PipelineElement = StepWrapper | ParallelStep | Variables
 
 
 class Pipeline(RootModel[list[PipelineElement]]):
@@ -304,7 +310,7 @@ class Pipeline(RootModel[list[PipelineElement]]):
 
         return Variables(wrapped=[])
 
-    def get_steps(self) -> list[Union[StepWrapper, ParallelStep]]:
+    def get_steps(self) -> list[StepWrapper | ParallelStep]:
         return [i for i in self.root if not isinstance(i, Variables)]
 
     def __iter__(self) -> Iterator[PipelineElement]:  # type: ignore[override]
@@ -319,14 +325,14 @@ class Pipeline(RootModel[list[PipelineElement]]):
 
 
 class Pipelines(BaseModel):
-    default: Optional[Pipeline] = None
+    default: Pipeline | None = None
     branches: dict[str, Pipeline] = Field(default_factory=dict)
     pull_requests: dict[str, Pipeline] = Field(default_factory=dict, alias="pull-requests")
     custom: dict[str, Pipeline] = Field(default_factory=dict)
 
     def get_all(self) -> dict[str, Pipeline]:
         pipelines = {}
-        for attr in self.__annotations__.keys():
+        for attr in self.__annotations__:
             value = getattr(self, attr)
             if isinstance(value, Pipeline):
                 pipelines[attr] = value
@@ -349,7 +355,7 @@ class Pipelines(BaseModel):
 
 
 class PipelineSpec(BaseModel):
-    image: Optional[Image] = None
+    image: Image | None = None
     definitions: Definitions = Field(default_factory=Definitions)
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
     pipelines: Pipelines
@@ -366,14 +372,14 @@ class PipelineSpec(BaseModel):
     def services(self) -> dict[str, Service]:
         return self.definitions.services
 
-    def get_pipeline(self, name: str) -> Optional[Pipeline]:
+    def get_pipeline(self, name: str) -> Pipeline | None:
         return self.pipelines.get_all().get(name)
 
     def get_available_pipelines(self) -> list[str]:
         return list(self.pipelines.get_all().keys())
 
     @field_validator("image", mode="before")
-    def convert_str_image_to_object(cls, value: Union[Image, str]) -> Image:
+    def convert_str_image_to_object(cls, value: Image | str) -> Image:
         if isinstance(value, str):
             return Image(name=value)
 
@@ -413,7 +419,7 @@ class ProjectMetadata(BaseModel):
 
 
 class Repository:
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         self.path = path
         self._git_repo = Repo(path)
 
@@ -425,7 +431,7 @@ class Repository:
 
 
 class PipelineResult:
-    def __init__(self, exit_code: int, build_number: int, pipeline_uuid: UUID):
+    def __init__(self, exit_code: int, build_number: int, pipeline_uuid: UUID) -> None:
         self.exit_code = exit_code
         self.build_number = build_number
         self.pipeline_uuid = pipeline_uuid

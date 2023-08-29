@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class ArtifactManager:
-    def __init__(self, container: ContainerRunner, artifact_directory: str, step_uuid: UUID):
+    def __init__(self, container: ContainerRunner, artifact_directory: str, step_uuid: UUID) -> None:
         self._container = container
         self._artifact_directory = artifact_directory
         self._step_uuid = step_uuid

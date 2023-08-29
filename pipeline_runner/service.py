@@ -1,11 +1,10 @@
 import logging
 from importlib.resources import as_file, files
-from typing import Union
 
-import docker  # type: ignore
+import docker  # type: ignore[import]
 from docker import DockerClient
-from docker.models.containers import Container  # type: ignore
-from docker.models.volumes import Volume  # type: ignore
+from docker.models.containers import Container  # type: ignore[import]
+from docker.models.volumes import Volume  # type: ignore[import]
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
@@ -13,6 +12,7 @@ import pipeline_runner
 
 from .config import config
 from .container import ContainerScriptRunner, pull_image
+from .errors import InvalidServiceError
 from .models import Service
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class ServicesManager:
         shared_data_volume_name: str,
         repository_slug: str,
         pipeline_cache_directory: str,
-    ):
+    ) -> None:
         self._services_by_name = self._get_services(service_names, service_definitions)
         self._memory_multiplier = memory_multiplier
         self._shared_data_volume_name = shared_data_volume_name
@@ -66,8 +66,8 @@ class ServicesManager:
         for s, sr in self._service_runners.items():
             try:
                 sr.stop()
-            except Exception as e:
-                logger.exception("Error removing service '%s': %s", s, e)
+            except Exception:  # noqa: PERF203: try-except within a loop incurs performance overhead
+                logger.exception("Error removing service '%s'", s)
 
     def get_services_containers(self) -> dict[str, Container]:
         return {name: runner.container for name, runner in self._service_runners.items()}
@@ -80,7 +80,7 @@ class ServicesManager:
         services = {}
         for service_name in service_names:
             if service_name not in service_definitions:
-                raise ValueError(f"Invalid service: {service_name}")
+                raise InvalidServiceError(service_name)
 
             services[service_name] = service_definitions[service_name]
 
@@ -90,9 +90,10 @@ class ServicesManager:
         requested_mem = self.get_memory_usage()
         available_mem = self._get_service_containers_memory_limit()
         if requested_mem > available_mem:
-            raise ValueError(
+            msg = (
                 f"Not enough memory to run all services. Requested: {requested_mem}MiB / Available: {available_mem}MiB"
             )
+            raise ValueError(msg)
 
     def _get_service_containers_memory_limit(self) -> int:
         return config.total_memory_limit * self._memory_multiplier - config.build_container_minimum_memory
@@ -108,7 +109,7 @@ class ServiceRunner:
         shared_data_volume_name: str,
         project_slug: str,
         pipeline_cache_directory: str,
-    ):
+    ) -> None:
         self._client = docker_client
         self._service_name = service_name
         self._service = service
@@ -130,7 +131,8 @@ class ServiceRunner:
 
     def start(self) -> None:
         if not self._service.image:
-            raise ValueError("Service has no image.")
+            msg = "Service has no image."
+            raise ValueError(msg)
 
         logger.info("Starting service: %s", self._service_name)
         pull_image(self._client, self._service.image)
@@ -140,9 +142,10 @@ class ServiceRunner:
 
     def _start_container(self) -> Container:
         if not self._service.image:
-            raise ValueError("Service has no image.")
+            msg = "Service has no image."
+            raise ValueError(msg)
 
-        container = self._client.containers.run(
+        return self._client.containers.run(
             self._service.image.name,
             name=self._get_container_name(),
             environment=self._service.variables,
@@ -150,8 +153,6 @@ class ServiceRunner:
             mem_limit=self._get_mem_limit(),
             detach=True,
         )
-
-        return container
 
     def _ensure_container_ready(self, container: Container) -> None:
         pass
@@ -161,7 +162,7 @@ class ServiceRunner:
 
     def stop(self) -> None:
         if not self._container:
-            # TODO: Refactor
+            # TODO: Refactor to remove illegal state.
             raise Exception("called on uninitialized service")
 
         logger.info("Removing service: %s", self._service_name)
@@ -185,7 +186,7 @@ class DockerServiceRunner(ServiceRunner):
         environment = self._service.variables
         environment["DOCKER_TLS_CERTDIR"] = ""
 
-        container = self._client.containers.run(
+        return self._client.containers.run(
             self._service.image.name,
             name=self._get_container_name(),
             command=["--tls=false"],
@@ -201,8 +202,6 @@ class DockerServiceRunner(ServiceRunner):
             },
         )
 
-        return container
-
     @retry(wait=wait_fixed(1), stop=stop_after_delay(30), retry=retry_if_exception_type(ServiceNotReadyError))
     def _ensure_container_ready(self, container: Container) -> None:
         # Refresh container to ensure we have its health status
@@ -210,10 +209,11 @@ class DockerServiceRunner(ServiceRunner):
         health = container.attrs["State"]["Health"]["Status"]
         if health == "healthy":
             return
-        elif health == "unhealthy":
-            raise ServiceUnhealthyError()
-        else:
-            raise ServiceNotReadyError()
+
+        if health == "unhealthy":
+            raise ServiceUnhealthyError
+
+        raise ServiceNotReadyError
 
     def _get_volumes(self) -> dict[str, dict[str, str]]:
         static_files = files(pipeline_runner).joinpath("static")
@@ -269,12 +269,9 @@ class ServiceRunnerFactory:
         repository_slug: str,
         pipeline_cache_directory: str,
     ) -> ServiceRunner:
-        cls: type[Union[ServiceRunner, DockerServiceRunner]]
+        cls: type[ServiceRunner | DockerServiceRunner]
 
-        if service_name == "docker":
-            cls = DockerServiceRunner
-        else:
-            cls = ServiceRunner
+        cls = DockerServiceRunner if service_name == "docker" else ServiceRunner
 
         return cls(
             docker_client,
