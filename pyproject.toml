@@ -35,7 +35,6 @@ pytest = "^7.0.1"
 pytest-mock = "^3.5.1"
 coverage = { version = "^7.0.1", extras = ["toml"] }
 mypy = "^1.4.0"
-ruff = "^0.0.286"
 types-appdirs = "^1.4.3.5"
 types-setuptools = "^68.0.0.0"
 types-pyyaml = "^6.0.12.10"
