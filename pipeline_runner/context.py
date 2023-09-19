@@ -7,7 +7,7 @@ from dotenv import dotenv_values
 from slugify import slugify
 
 from . import utils
-from .config import config
+from .config import DEFAULT_CACHES, DEFAULT_SERVICES
 from .models import (
     CloneSettings,
     Image,
@@ -109,7 +109,7 @@ class PipelineRunContext:
 
     @staticmethod
     def _merge_default_services(services: dict[str, Service]) -> dict[str, Service]:
-        for name, definition in config.default_services.items():
+        for name, definition in DEFAULT_SERVICES.items():
             default_service = Service.model_validate(definition)
 
             if name in services:
@@ -127,7 +127,7 @@ class PipelineRunContext:
 
     @staticmethod
     def _merge_default_caches(caches: dict[str, str]) -> dict[str, str]:
-        all_caches = config.default_caches.copy()
+        all_caches = DEFAULT_CACHES.copy()
         all_caches.update(caches)
 
         return all_caches

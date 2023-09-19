@@ -10,7 +10,7 @@ from docker.models.networks import Network  # type: ignore[import]
 from . import utils
 from .artifacts import ArtifactManager
 from .cache import CacheManager
-from .config import config
+from .config import DEFAULT_IMAGE, config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
 from .models import (
@@ -241,7 +241,7 @@ class StepRunner(BaseStepRunner):
         if self._ctx.pipeline_ctx.default_image:
             return self._ctx.pipeline_ctx.default_image
 
-        return Image(name=config.default_image)
+        return Image(name=DEFAULT_IMAGE)
 
     def _create_network(self) -> Network:
         name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"

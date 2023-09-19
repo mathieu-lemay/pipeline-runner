@@ -8,14 +8,13 @@ from uuid import UUID, uuid4
 
 from git.repo import Repo
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import ConfigDict, Field, ValidationError
-from pydantic.functional_validators import field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 from pydantic.root_model import RootModel
 from pydantic_core import ErrorDetails
 from slugify import slugify
 
 from . import utils
-from .config import config
+from .config import DEFAULT_SERVICES
 from .utils import generate_ssh_rsa_key
 
 
@@ -104,7 +103,7 @@ class Definitions(BaseModel):
         errors = []
 
         for service_name, service in value.items():
-            if service_name in config.default_services and service.image is not None:
+            if service_name in DEFAULT_SERVICES and service.image is not None:
                 errors.append(
                     ErrorDetails(
                         type="ValueError",
@@ -113,7 +112,7 @@ class Definitions(BaseModel):
                         input=value,
                     )
                 )
-            elif service_name not in config.default_services and service.image is None:
+            elif service_name not in DEFAULT_SERVICES and service.image is None:
                 errors.append(
                     ErrorDetails(
                         type="ValueError",

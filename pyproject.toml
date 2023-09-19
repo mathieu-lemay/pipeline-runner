@@ -19,13 +19,14 @@ python-slugify = "^8.0.0"
 # Keep boto3 to a recent version to avoid poetry's resolver
 # to go on forever.
 # https://github.com/python-poetry/poetry/issues/7858
-boto3 = "^1.28.36"
+boto3 = "^1.28.50"
 GitPython = "^3.1.12"
 python-dotenv = "^1.0.0"
 requests = "^2.31.0"
 coloredlogs = "^15.0"
 pyfzf = "^0.3.0"
 pydantic = "^2.0"
+pydantic-settings = "^2.0.3"
 appdirs = "^1.4.4"
 cryptography = "^41.0.2"
 tenacity = "^8.0.1"
@@ -87,8 +88,8 @@ ignore = [
 classmethod-decorators = [
     "classmethod",
     "pydantic.validator",
-    "pydantic.functional_validators.field_validator",
-    "pydantic.functional_validators.model_validator",
+    "pydantic.field_validator",
+    "pydantic.model_validator",
     "pydantic.root_validator"
 ]
 

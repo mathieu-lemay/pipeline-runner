@@ -1,64 +1,70 @@
 import getpass
 import logging
 import os
-import posixpath
-from typing import Any
+from collections.abc import Mapping
+from types import MappingProxyType
+from typing import Any, Final, cast
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
 
 from . import __name__ as __project_name__
 
+DEFAULT_IMAGE: Final[str] = "atlassian/default-image:latest"
 
-class Config:
-    def __init__(self) -> None:
-        self.color = True
-        self.cpu_limits = False
-        self.expose_ssh_agent = False
+DEFAULT_CACHES: Final[dict[str, str]] = {
+    "composer": "~/.composer/cache",
+    "dotnetcore": "~/.nuget/packages",
+    "gradle": "~/.gradle/caches ",
+    "ivy2": "~/.ivy2/cache",
+    "maven": "~/.m2/repository",
+    "node": "node_modules",
+    "pip": "~/.cache/pip",
+    "sbt": "~/.sbt",
+}
 
-        # TODO: Move some of these things to default definitions or smth
-        self.default_image = "atlassian/default-image:latest"
-
-        self.default_caches = {
-            "composer": "~/.composer/cache",
-            "dotnetcore": "~/.nuget/packages",
-            "gradle": "~/.gradle/caches ",
-            "ivy2": "~/.ivy2/cache",
-            "maven": "~/.m2/repository",
-            "node": "node_modules",
-            "pip": "~/.cache/pip",
-            "sbt": "~/.sbt",
+DEFAULT_SERVICES: Mapping[str, Any] = MappingProxyType(
+    {
+        "docker": {
+            "image": (
+                "docker-public.packages.atlassian.com/sox/atlassian"
+                "/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable"
+            ),
+            "memory": 1024,
         }
+    }
+)
 
-        self.default_services = {
-            "docker": {
-                "image": (
-                    "docker-public.packages.atlassian.com/sox/atlassian"
-                    "/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable"
-                ),
-                "memory": 1024,
-            }
-        }
 
-        self.remote_base_dir = "/opt/atlassian"
-        self.remote_workspace_dir = os.path.join(self.remote_base_dir, "workspace")
-        self.remote_pipeline_dir = os.path.join(self.remote_base_dir, "pipelines", "agent")
-        self.build_dir = posixpath.join(self.remote_pipeline_dir, "build")
-        self.scripts_dir = posixpath.join(self.remote_pipeline_dir, "scripts")
-        self.temp_dir = posixpath.join(self.remote_pipeline_dir, "temp")
-        self.caches_dir = posixpath.join(self.remote_pipeline_dir, "caches")
-        self.ssh_key_dir = posixpath.join(self.remote_pipeline_dir, "ssh")
+class Config(BaseSettings):
+    color: bool = True
+    cpu_limits: bool = False
+    expose_ssh_agent: bool = False
 
-        self.username = getpass.getuser()
+    username: str = Field(default_factory=getpass.getuser)
 
-        self.total_memory_limit = 4096
-        self.build_container_minimum_memory = 1024
-        self.service_container_default_memory_limit = 1024
+    total_memory_limit: int = 4096
+    build_container_minimum_memory: int = 1024
+    service_container_default_memory_limit: int = 1024
 
-        # Randomly Generated
-        # TODO: Generate them per project
-        self.owner_uuid = "e07413cc-dcd9-4c68-aa2e-08e296b1a8af"
+    # TODO: Generate them per project
+    owner_uuid: str = "e07413cc-dcd9-4c68-aa2e-08e296b1a8af"
 
-        self.bitbucket_build_number = os.getenv("BITBUCKET_BUILD_NUMBER", "0")
+    bitbucket_build_number: int = 0
+    log_level: str = Field(alias="PIPELINE_LOG_LEVEL", default="DEBUG")
 
-        self.log_level = logging.getLevelName(os.getenv("PIPELINE_LOG_LEVEL", "DEBUG").upper())
+    remote_base_dir: str = "/opt/atlassian"
+    remote_workspace_dir: str = "/opt/atlassian/workspace"
+    remote_pipeline_dir: str = "/opt/atlassian/pipelines/agent"
+    build_dir: str = "/opt/atlassian/pipelines/agent/build"
+    scripts_dir: str = "/opt/atlassian/pipelines/agent/scripts"
+    temp_dir: str = "/opt/atlassian/pipelines/agent/temp"
+    caches_dir: str = "/opt/atlassian/pipelines/agent/caches"
+    ssh_key_dir: str = "/opt/atlassian/pipelines/agent/ssh"
+
+    @field_validator("log_level")
+    def validate_log_level(cls, value: str) -> str:
+        return cast(str, logging.getLevelName(value.upper()))
 
     @property
     def log_config(self) -> dict[str, Any]:
@@ -66,7 +72,7 @@ class Config:
         return {
             "version": 1,
             "loggers": {
-                __project_name__: {"handlers": [log_handler_name], "level": config.log_level},
+                __project_name__: {"handlers": [log_handler_name], "level": self.log_level},
                 "docker": {"handlers": ["default"], "level": "INFO"},
             },
             "handlers": {
