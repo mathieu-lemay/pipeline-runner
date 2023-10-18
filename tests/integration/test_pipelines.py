@@ -10,7 +10,7 @@ from concurrent.futures import Future
 from pathlib import Path
 from uuid import UUID, uuid4
 
-import docker  # type: ignore[import]
+import docker  # type: ignore[import-untyped]
 import dotenv
 import pytest
 from _pytest.monkeypatch import MonkeyPatch

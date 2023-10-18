@@ -4,8 +4,8 @@ import sys
 from abc import ABC, abstractmethod
 from time import time as ts
 
-import docker  # type: ignore[import]
-from docker.models.networks import Network  # type: ignore[import]
+import docker  # type: ignore[import-untyped]
+from docker.models.networks import Network  # type: ignore[import-untyped]
 
 from . import utils
 from .artifacts import ArtifactManager

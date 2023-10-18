@@ -1,10 +1,10 @@
 import logging
 from importlib.resources import as_file, files
 
-import docker  # type: ignore[import]
+import docker  # type: ignore[import-untyped]
 from docker import DockerClient
-from docker.models.containers import Container  # type: ignore[import]
-from docker.models.volumes import Volume  # type: ignore[import]
+from docker.models.containers import Container  # type: ignore[import-untyped]
+from docker.models.volumes import Volume  # type: ignore[import-untyped]
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 

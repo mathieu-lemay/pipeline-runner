@@ -6,7 +6,7 @@ import sys
 from importlib.metadata import version
 
 import click
-from pyfzf import FzfPrompt  # type: ignore[import]
+from pyfzf import FzfPrompt  # type: ignore[import-untyped]
 
 from pipeline_runner.errors import InvalidPipelineError
 
