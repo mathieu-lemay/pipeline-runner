@@ -108,4 +108,5 @@ source = ["pipeline_runner", "tests"]
 exclude_lines = ["pragma: no cover", "raise NotImplementedError"]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
