@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bitbucket-pipeline-runner"
-version = "0.3.9"
+version = "0.3.10"
 description = "Run a bitbucket pipeline locally"
 authors = ["Mathieu Lemay <acidrain1@gmail.com>"]
 license = "MIT"
