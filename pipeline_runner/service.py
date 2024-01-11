@@ -206,14 +206,14 @@ class DockerServiceRunner(ServiceRunner):
     def _ensure_container_ready(self, container: Container) -> None:
         # Refresh container to ensure we have its health status
         container = self._client.containers.get(container.name)
-        health = container.attrs["State"]["Health"]["Status"]
-        if health == "healthy":
-            return
 
-        if health == "unhealthy":
-            raise ServiceUnhealthyError
-
-        raise ServiceNotReadyError
+        match container.health:
+            case "healthy":
+                return
+            case "unhealthy":
+                raise ServiceUnhealthyError
+            case _:
+                raise ServiceNotReadyError
 
     def _get_volumes(self) -> dict[str, dict[str, str]]:
         static_files = files(pipeline_runner).joinpath("static")
