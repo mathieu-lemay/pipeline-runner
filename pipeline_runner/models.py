@@ -93,6 +93,8 @@ class Service(BaseModel):
 
 
 class Definitions(BaseModel):
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
     caches: dict[str, str] = Field(default_factory=dict)
     services: dict[str, Service] = Field(default_factory=dict)
 
