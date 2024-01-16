@@ -1,6 +1,8 @@
+from textwrap import dedent
 from typing import Any
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from pipeline_runner.config import config
@@ -537,3 +539,36 @@ def test_parse_pipeline_with_env_vars() -> None:
     }
 
     assert parsed.model_dump(by_alias=True) == expected
+
+
+def test_parse_pipeline_with_anchors() -> None:
+    yaml_str = dedent(
+        """
+        ---
+        definitions:
+          steps:
+            - step: &build-test
+                name: Build and test
+                script:
+                  - mvn package
+                artifacts:
+                  - target/**
+
+        pipelines:
+          branches:
+            develop:
+              - step: *build-test
+            main:
+              - step: *build-test
+        """
+    )
+
+    pipelines_data = yaml.safe_load(yaml_str)
+    model = PipelineSpec.model_validate(pipelines_data)
+
+    steps = model.pipelines.branches["develop"].get_steps()
+    assert len(steps) == 1
+    assert isinstance(steps[0], StepWrapper)
+    assert steps[0].step.name == "Build and test"
+
+    assert model.pipelines.branches["develop"] == model.pipelines.branches["main"]

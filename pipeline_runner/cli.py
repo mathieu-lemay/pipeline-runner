@@ -182,9 +182,9 @@ def parse(pipeline: str | None, repository_path: str) -> None:
         parsed = pipelines_definition.get_pipeline(pipeline)
         if not parsed:
             raise InvalidPipelineError(pipeline)
-        click.echo(parsed.json(indent=2))
+        click.echo(parsed.model_dump_json(indent=2))
     else:
-        click.echo(pipelines_definition.json(indent=2))
+        click.echo(pipelines_definition.model_dump_json(indent=2))
 
 
 @main.command()
