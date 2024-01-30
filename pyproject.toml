@@ -38,6 +38,7 @@ types-setuptools = "^69.0.0.0"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 types-boto3 = "^1.0.2"
+faker = "^22.6.0"
 
 [tool.poetry.scripts]
 pipeline-runner = 'pipeline_runner.cli:main'

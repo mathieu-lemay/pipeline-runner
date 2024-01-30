@@ -392,6 +392,7 @@ class ProjectMetadata(BaseModel):
     path_slug: str
     slug: str
     key: str
+    owner_uuid: UUID = Field(default_factory=uuid4)
     project_uuid: UUID = Field(default_factory=uuid4)
     repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: int = 0

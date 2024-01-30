@@ -16,7 +16,7 @@ repos:
         args: ["--lock"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.8
+    rev: v0.1.15
     hooks:
       - id: ruff
         args: [--fix, --fixable=I, --exit-non-zero-on-fix]

@@ -1,12 +1,18 @@
 import os.path
 from collections.abc import Generator
 from pathlib import Path
+from time import time
 
 import pytest
 from _pytest.fixtures import FixtureRequest
 from pytest_mock import MockerFixture
 
 from pipeline_runner.models import ProjectMetadata, Repository
+
+
+@pytest.fixture(autouse=True)
+def faker_seed() -> float:
+    return time()
 
 
 @pytest.fixture(autouse=True)

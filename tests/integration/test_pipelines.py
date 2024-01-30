@@ -345,7 +345,7 @@ def test_environment_variables(
         "BITBUCKET_REPO_FULL_NAME": f"{slug}/{slug}",
         "BITBUCKET_REPO_IS_PRIVATE": "true",
         "BITBUCKET_REPO_OWNER": config.username,
-        "BITBUCKET_REPO_OWNER_UUID": config.owner_uuid,
+        "BITBUCKET_REPO_OWNER_UUID": str(project_metadata.owner_uuid),
         "BITBUCKET_REPO_SLUG": slug,
         "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
         "BITBUCKET_STEP_UUID": str(step_uuid),

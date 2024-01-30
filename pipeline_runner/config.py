@@ -47,10 +47,6 @@ class Config(BaseSettings):
     build_container_minimum_memory: int = 1024
     service_container_default_memory_limit: int = 1024
 
-    # TODO: Generate them per project
-    owner_uuid: str = "e07413cc-dcd9-4c68-aa2e-08e296b1a8af"
-
-    bitbucket_build_number: int = 0
     log_level: str = Field(alias="PIPELINE_LOG_LEVEL", default="DEBUG")
 
     remote_base_dir: str = "/opt/atlassian"
