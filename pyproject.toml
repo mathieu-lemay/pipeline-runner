@@ -39,12 +39,10 @@ types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 types-boto3 = "^1.0.2"
 faker = "^22.6.0"
+pytest-cov = "^4.1.0"
 
 [tool.poetry.scripts]
 pipeline-runner = 'pipeline_runner.cli:main'
-
-[tool.black]
-line-length = 120
 
 [tool.mypy]
 namespace_packages=true
@@ -99,11 +97,10 @@ classmethod-decorators = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/integration", "tests"]
 
 [tool.coverage.run]
 branch = true
-source = ["pipeline_runner", "tests"]
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "raise NotImplementedError"]

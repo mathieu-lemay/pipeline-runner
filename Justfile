@@ -10,14 +10,7 @@ run-pipeline *args: _deps
         poetry run python -m {{ app }} run {{ args }}
 
 test: _deps
-    poetry run pytest -v tests/unit
-
-integration-tests: _deps
-    poetry run pytest -v tests/unit tests/integration
-
-coverage: _deps
-    poetry run coverage run -m pytest -v tests
-    poetry run coverage report
+    poetry run pytest --verbosity=1 --cov --cov-append --cov-report=term-missing:skip-covered --cov-fail-under=85
 
 lint:
     pre-commit run --all
