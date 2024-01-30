@@ -25,11 +25,11 @@ pyfzf = "^0.3.0"
 pydantic = "^2.0"
 pydantic-settings = "^2.0.3"
 appdirs = "^1.4.4"
-cryptography = "^41.0.2"
+cryptography = "^42.0.2"
 tenacity = "^8.0.1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.0.1"
+pytest = "^8.0.0"
 pytest-mock = "^3.5.1"
 coverage = { version = "^7.0.1", extras = ["toml"] }
 mypy = "^1.4.0"
