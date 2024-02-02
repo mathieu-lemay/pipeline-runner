@@ -61,6 +61,8 @@ warn_untyped_fields = true
 target-version = "py310"
 exclude = [".venv"]
 line-length = 120
+
+[tool.ruff.lint]
 select = [
     "ALL"
 ]
@@ -80,7 +82,7 @@ ignore = [
     "TRY003",  # Avoid specifying long messages outside the exception class
 ]
 
-[tool.ruff.pep8-naming]
+[tool.ruff.lint.pep8-naming]
 classmethod-decorators = [
     "classmethod",
     "pydantic.validator",
@@ -89,7 +91,7 @@ classmethod-decorators = [
     "pydantic.root_validator"
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "tests/*" = [
     "PLR2004",  # Magic value used in comparison
     "S101",  # Use of `assert` detected
