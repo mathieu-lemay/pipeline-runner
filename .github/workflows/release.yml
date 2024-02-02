@@ -2,7 +2,7 @@
 # https://eugene-babichenko.github.io/blog/2020/05/09/github-actions-cross-platform-auto-releases/
 # https://github.com/BurntSushi/ripgrep/blob/master/.github/workflows/release.yml
 
-name: release
+name: Release
 
 on:
   push:
@@ -10,31 +10,17 @@ on:
       - "[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
-  create-release:
-    name: Create release
+  build:
+    name: Build Package
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create-release.outputs.upload_url }}
-    steps:
-      - name: Create release
-        id: create-release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
 
-  build-release:
-    name: build-release
-    needs: ['create-release']
-    runs-on: ubuntu-latest
+    outputs:
+      git_branch: ${{ steps.git_info.outputs.GIT_BRANCH }}
+      git_tag: ${{ steps.git_info.outputs.GIT_TAG }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
@@ -48,29 +34,51 @@ jobs:
           echo "GIT_TAG=${GITHUB_REF#refs/tags/}" >> "${GITHUB_OUTPUT}"
 
       - name: Build package
-        run: |
-          poetry build
+        run: poetry build
 
-      - name: Upload release archive
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Save build
+        uses: actions/upload-artifact@v4
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}.tar.gz
-          asset_content_type: application/gzip
+          name: dist
+          path: dist/
 
-      - name: Upload wheel
-        uses: actions/upload-release-asset@v1.0.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  create-release:
+    name: Create Github Release
+    runs-on: ubuntu-latest
+    needs: ["build"]
+
+    steps:
+      - name: Retrieve build
+        uses: actions/download-artifact@v4
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}-py3-none-any.whl
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.git_info.outputs.GIT_TAG }}-py3-none-any.whl
-          asset_content_type: application/zip
+          name: dist
+          path: dist/
 
-      - name: Upload package to PyPI
-        run: |
-          poetry publish --username __token__ --password "${{ secrets.PYPI_TOKEN }}"
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Release ${{ needs.build.outputs.GIT_TAG }}
+          files: |
+            ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}.tar.gz
+            ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}-py3-none-any.whl
+
+  publish:
+    name: Publish Package to PyPI
+    runs-on: ubuntu-latest
+    needs: ["build"]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/bitbucket-pipeline-runner
+    permissions:
+      id-token: write  # Needed for publishing to PyPI with OIDC
+
+    steps:
+      - name: Retrieve build
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

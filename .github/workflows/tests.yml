@@ -2,9 +2,6 @@ name: Tests
 
 on:
   push:
-    branches: ["master"]
-
-  pull_request:
     branches: ["*"]
 
 jobs:
@@ -35,7 +32,9 @@ jobs:
           poetry install
 
       - name: Install Just
-        uses: extractions/setup-just@v1
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just
 
       - name: Lint
         uses: pre-commit/action@v3.0.0
