@@ -71,8 +71,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ steps.build.outputs.GIT_TAG }}.tar.gz
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.build.outputs.GIT_TAG }}.tar.gz
+          asset_name: bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}.tar.gz
+          asset_path: ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}.tar.gz
           asset_content_type: application/gzip
 
       - name: Upload wheel
@@ -81,8 +81,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ steps.build.outputs.GIT_TAG }}-py3-none-any.whl
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ steps.build.outputs.GIT_TAG }}-py3-none-any.whl
+          asset_name: bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}-py3-none-any.whl
+          asset_path: ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}-py3-none-any.whl
           asset_content_type: application/zip
 
   publish:
