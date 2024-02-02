@@ -48,42 +48,19 @@ jobs:
     needs: ["build"]
 
     steps:
-      - name: Create Release
-        id: create-release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
       - name: Retrieve build
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Upload release archive
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}.tar.gz
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload wheel
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_name: bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}-py3-none-any.whl
-          asset_path: ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}-py3-none-any.whl
-          asset_content_type: application/zip
+          files: |
+            ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}.tar.gz
+            ./dist/bitbucket_pipeline_runner-${{ needs.build.outputs.GIT_TAG }}-py3-none-any.whl
 
   publish:
     name: Publish Package to PyPI
