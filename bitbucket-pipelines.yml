@@ -82,7 +82,7 @@ pipelines:
     test_cache_debian:
       - step:
           name: Create Cache
-          image: debian:buster
+          image: debian:bookworm-slim
           caches:
             - service1
           script:
