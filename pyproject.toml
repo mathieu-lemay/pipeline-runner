@@ -25,7 +25,7 @@ pyfzf = "^0.3.0"
 pydantic = "^2.0"
 pydantic-settings = "^2.0.3"
 appdirs = "^1.4.4"
-cryptography = "^42.0.2"
+cryptography = "^42.0.5"
 tenacity = "^8.0.1"
 
 [tool.poetry.group.dev.dependencies]
