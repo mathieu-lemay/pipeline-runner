@@ -1,3 +1,4 @@
+import logging
 import os.path
 from collections.abc import Generator
 from pathlib import Path
@@ -5,6 +6,7 @@ from time import time
 
 import pytest
 from _pytest.fixtures import FixtureRequest
+from _pytest.logging import LogCaptureFixture
 from pytest_mock import MockerFixture
 
 from pipeline_runner.models import ProjectMetadata, Repository
@@ -13,6 +15,12 @@ from pipeline_runner.models import ProjectMetadata, Repository
 @pytest.fixture(autouse=True)
 def faker_seed() -> float:
     return time()
+
+
+@pytest.fixture()
+def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
+    caplog.set_level(logging.DEBUG)
+    return caplog
 
 
 @pytest.fixture(autouse=True)
