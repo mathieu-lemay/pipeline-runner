@@ -2,6 +2,10 @@ definitions:
   caches:
     service1: ~/.cache/service1
     invalid: $HOME/.cache/non-existing-folder
+    custom:
+      key:
+        files: ["custom-cache-key"]
+      path: ~/.cache/custom
   services:
     postgres:
       image: postgres:alpine
@@ -109,6 +113,16 @@ pipelines:
             - invalid
           script:
             - exit 0
+
+    test_custom_cache:
+      - step:
+          name: Test Custom Cache
+          caches:
+            - custom
+          script:
+            - export CACHE_DIR=$HOME/.cache/custom
+            - mkdir -p "${CACHE_DIR}"
+            - dd if=/dev/random of=${CACHE_DIR}/file bs=2048 count=1
 
     test_artifacts:
       - step:

@@ -11,3 +11,8 @@ class InvalidServiceError(ValueError):
 class NegativeIntegerError(ValueError):
     def __init__(self) -> None:
         super().__init__("value must be a positive integer")
+
+
+class InvalidCacheKeyError(ValueError):
+    def __init__(self, name: str) -> None:
+        super().__init__(f'Cache "{name}": Cache key files could not be found')

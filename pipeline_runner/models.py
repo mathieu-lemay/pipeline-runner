@@ -92,10 +92,25 @@ class Service(BaseModel):
             self.variables[k] = Template(v).substitute(variables)
 
 
+class CacheKey(BaseModel):
+    files: list[str]
+
+
+class Cache(BaseModel):
+    key: CacheKey
+    path: str
+
+    def __hash__(self) -> int:
+        return (*self.key.files, self.path).__hash__()
+
+
+CacheType = Cache | str
+
+
 class Definitions(BaseModel):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    caches: dict[str, str] = Field(default_factory=dict)
+    caches: dict[str, CacheType] = Field(default_factory=dict)
     services: dict[str, Service] = Field(default_factory=dict)
 
     @field_validator("services")
@@ -366,7 +381,7 @@ class PipelineSpec(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     @property
-    def caches(self) -> dict[str, str]:
+    def caches(self) -> dict[str, CacheType]:
         return self.definitions.caches
 
     @property

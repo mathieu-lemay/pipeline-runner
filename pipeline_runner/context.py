@@ -10,6 +10,7 @@ from slugify import slugify
 from . import utils
 from .config import DEFAULT_CACHES, DEFAULT_SERVICES
 from .models import (
+    CacheType,
     CloneSettings,
     Image,
     Pipeline,
@@ -31,7 +32,7 @@ class PipelineRunContext:
         self,
         pipeline_name: str,
         pipeline: Pipeline,
-        caches: dict[str, str],
+        caches: dict[str, CacheType],
         services: dict[str, Service],
         clone_settings: CloneSettings,
         default_image: Image | None,
@@ -127,7 +128,7 @@ class PipelineRunContext:
         return services
 
     @staticmethod
-    def _merge_default_caches(caches: Mapping[str, str]) -> dict[str, str]:
+    def _merge_default_caches(caches: Mapping[str, CacheType]) -> dict[str, CacheType]:
         all_caches = DEFAULT_CACHES.copy()
         all_caches.update(caches)
 
