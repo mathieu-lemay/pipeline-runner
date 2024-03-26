@@ -1,3 +1,4 @@
+import glob
 import hashlib
 import logging
 import os.path
@@ -313,15 +314,15 @@ def compute_cache_key(cache_name: str, cache: CacheType, repository: Repository)
     is_valid = False
     hasher = hashlib.sha256()
 
-    for file in cache.key.files:
-        fp = os.path.join(repository.path, file)
-        if not os.path.isfile(fp):
-            continue
+    for key_file in cache.key.files:
+        for fp in glob.glob(os.path.join(repository.path, key_file), recursive=True):
+            if not os.path.isfile(fp):
+                continue
 
-        is_valid = True
+            is_valid = True
 
-        with open(fp, "rb") as f:
-            hasher.update(f.read())
+            with open(fp, "rb") as f:
+                hasher.update(f.read())
 
     if not is_valid:
         raise InvalidCacheKeyError(cache_name)

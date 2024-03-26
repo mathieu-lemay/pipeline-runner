@@ -112,6 +112,43 @@ def test_compute_cache_key_for_custom_cache(tmp_path: Path, faker: Faker) -> Non
     assert compute_cache_key(cache_name, cache, repository) == f"{cache_name}-{expected_hash}"
 
 
+def test_compute_cache_key_for_custom_cache_supports_glob_patterns(tmp_path: Path, faker: Faker) -> None:
+    repository = Mock(Repository, path=tmp_path.as_posix())
+    cache_name = faker.pystr()
+
+    file1 = tmp_path / faker.file_name(extension="txt")
+    file1.parent.mkdir(parents=True, exist_ok=True)
+    file1.write_text("a")
+
+    file2 = tmp_path / "foo" / faker.file_name(extension="txt")
+    file2.parent.mkdir(parents=True, exist_ok=True)
+    file2.write_text("a")
+
+    file3 = tmp_path / "foo" / "bar" / faker.file_name(extension="txt")
+    file3.parent.mkdir(parents=True, exist_ok=True)
+    file3.write_text("a")
+
+    file4 = tmp_path / "foo" / "baz" / faker.file_name(extension="txt")
+    file4.parent.mkdir(parents=True, exist_ok=True)
+    file4.write_text("a")
+
+    ignoreme = tmp_path / "foo" / faker.file_name(extension="json")
+    ignoreme.parent.mkdir(parents=True, exist_ok=True)
+    ignoreme.write_text("b")
+
+    cache = Cache(
+        key=CacheKey(files=["**/*.txt"]),
+        path=faker.file_path(extension=""),
+    )
+
+    # Only the 4 files containing 'a' should be found
+    hasher = hashlib.sha256()
+    hasher.update(b"aaaa")
+    expected_hash = hasher.hexdigest()
+
+    assert compute_cache_key(cache_name, cache, repository) == f"{cache_name}-{expected_hash}"
+
+
 def test_compute_cache_key_for_custom_cache_is_computed_only_once(tmp_path: Path, faker: Faker) -> None:
     repository = Mock(Repository, path=tmp_path.as_posix())
     cache_name = faker.pystr()
