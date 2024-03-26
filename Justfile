@@ -28,4 +28,4 @@ clean:
     rm -f .make.* .coverage
 
 @_deps:
-    [[ ! -f .make.poetry || poetry.lock -nt .make.poetry ]] && ( poetry install --sync; touch .make.poetry ) || true
+    [ ! -f .make.poetry ] || [ poetry.lock -nt .make.poetry ] && ( poetry install --sync; touch .make.poetry ) || true
