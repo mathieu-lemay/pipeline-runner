@@ -11,3 +11,8 @@ class InvalidServiceError(ValueError):
 class NegativeIntegerError(ValueError):
     def __init__(self) -> None:
         super().__init__("value must be a positive integer")
+
+
+class UnsupportedCacheError(ValueError):
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Custom caches are not supported: {name}")

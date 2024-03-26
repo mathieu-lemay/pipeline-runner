@@ -10,6 +10,18 @@ from pytest_mock import MockerFixture
 
 from pipeline_runner.cache import CacheSave, get_local_cache_archive_path
 from pipeline_runner.container import ContainerRunner
+from pipeline_runner.errors import UnsupportedCacheError
+from pipeline_runner.models import Cache
+
+
+def test_custom_caches_are_not_supported() -> None:
+    container = Mock(ContainerRunner)
+    cache_directory = "some-directory"
+    cache_name = "some-cache"
+    cache_definitions = {cache_name: Mock(Cache)}
+
+    with pytest.raises(UnsupportedCacheError, match=f"Custom caches are not supported: {cache_name}"):
+        CacheSave(container, cache_directory, cache_definitions, cache_name)
 
 
 def test_cache_is_created_if_it_does_not_exist(tmp_path: Path, mocker: MockerFixture, faker: Faker) -> None:

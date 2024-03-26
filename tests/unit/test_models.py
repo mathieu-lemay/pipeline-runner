@@ -10,7 +10,7 @@ from faker import Faker
 from pydantic import ValidationError
 
 from pipeline_runner import utils
-from pipeline_runner.models import ParallelStep, Pipe, PipelineResult, ProjectMetadata
+from pipeline_runner.models import Cache, CacheKey, Definitions, ParallelStep, Pipe, PipelineResult, ProjectMetadata
 
 
 @pytest.fixture()
@@ -20,6 +20,36 @@ def ssh_rsa_key() -> str:
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     )
     return private_key.decode()
+
+
+def test_cache_supports_static_name() -> None:
+    spec: dict[str, Any] = {"caches": {"some-cache": "some-path"}}
+
+    caches = Definitions.model_validate(spec).caches
+
+    assert caches == {"some-cache": "some-path"}
+
+
+def test_cache_supports_custom_keys() -> None:
+    spec: dict[str, Any] = {
+        "caches": {
+            "better-cache": {
+                "key": {
+                    "files": ["file1.txt", "file2.txt"],
+                },
+                "path": "some-path",
+            }
+        },
+    }
+
+    caches = Definitions.model_validate(spec).caches
+
+    assert caches == {
+        "better-cache": Cache(
+            key=CacheKey(files=["file1.txt", "file2.txt"]),
+            path="some-path",
+        )
+    }
 
 
 @pytest.mark.parametrize(("num_items", "is_valid"), [(0, False), (1, False), (2, True)])

@@ -8,6 +8,8 @@ from time import time as ts
 from . import utils
 from .config import config
 from .container import ContainerRunner
+from .errors import UnsupportedCacheError
+from .models import Cache, CacheType
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ CACHE_TTL = timedelta(days=7)
 
 class CacheManager:
     def __init__(
-        self, container: ContainerRunner, local_cache_directory: str, cache_definitions: Mapping[str, str]
+        self, container: ContainerRunner, local_cache_directory: str, cache_definitions: Mapping[str, CacheType]
     ) -> None:
         self._container = container
         self._local_cache_directory = local_cache_directory
@@ -41,7 +43,7 @@ class CacheRestore:
         self,
         container: ContainerRunner,
         cache_directory: str,
-        cache_definitions: Mapping[str, str],
+        cache_definitions: Mapping[str, CacheType],
         cache_name: str,
     ) -> None:
         self._container = container
@@ -127,7 +129,7 @@ class NullCacheRestore(CacheRestore):
 class CacheRestoreFactory:
     @staticmethod
     def get(
-        container: ContainerRunner, cache_directory: str, cache_definitions: Mapping[str, str], cache_name: str
+        container: ContainerRunner, cache_directory: str, cache_definitions: Mapping[str, CacheType], cache_name: str
     ) -> CacheRestore:
         cls: type[CacheRestore | NullCacheRestore]
 
@@ -141,13 +143,17 @@ class CacheSave:
         self,
         container: ContainerRunner,
         local_cache_directory: str,
-        cache_definitions: Mapping[str, str],
+        cache_definitions: Mapping[str, CacheType],
         cache_name: str,
     ) -> None:
         self._container = container
         self._local_cache_directory = local_cache_directory
         self._cache_definitions = cache_definitions
         self._cache_name = cache_name
+
+        # TODO: remove
+        if cache_name in cache_definitions and isinstance(cache_definitions[cache_name], Cache):
+            raise UnsupportedCacheError(cache_name)
 
     def save(self) -> None:
         local_cache_archive_path = get_local_cache_archive_path(self._local_cache_directory, self._cache_name)
@@ -227,7 +233,7 @@ class CacheSaveFactory:
     def get(
         container: ContainerRunner,
         local_cache_directory: str,
-        cache_definitions: Mapping[str, str],
+        cache_definitions: Mapping[str, CacheType],
         cache_name: str,
     ) -> CacheSave:
         cls: type[CacheSave | NullCacheSave]
@@ -245,7 +251,13 @@ def get_remote_temp_directory(cache_name: str) -> str:
     return os.path.join(config.caches_dir, cache_name)
 
 
-def sanitize_remote_path(path: str) -> str:
+def sanitize_remote_path(cache: CacheType) -> str:
+    match cache:
+        case str():
+            path = cache
+        case Cache():
+            path = cache.path
+
     if path.startswith("~"):
         path = path.replace("~", "$HOME", 1)
 

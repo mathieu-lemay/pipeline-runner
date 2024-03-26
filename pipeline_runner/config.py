@@ -3,16 +3,19 @@ import logging
 import os
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 from . import __name__ as __project_name__
 
+if TYPE_CHECKING:
+    from .models import CacheType
+
 DEFAULT_IMAGE: Final[str] = "atlassian/default-image:latest"
 
-DEFAULT_CACHES: Final[dict[str, str]] = {
+DEFAULT_CACHES: Final[dict[str, "CacheType"]] = {
     "composer": "~/.composer/cache",
     "dotnetcore": "~/.nuget/packages",
     "gradle": "~/.gradle/caches ",

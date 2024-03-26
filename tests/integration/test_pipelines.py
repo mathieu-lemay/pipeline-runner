@@ -176,6 +176,13 @@ def test_invalid_cache(project_cache_directory: Path) -> None:
     assert len(os.listdir(project_cache_directory)) == 0
 
 
+def test_custom_cache() -> None:
+    runner = PipelineRunner(PipelineRunRequest("custom.test_custom_cache"))
+    result = runner.run()
+
+    assert not result.ok
+
+
 def test_artifacts(artifacts_directory: Path) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_artifacts"))
     result = runner.run()
