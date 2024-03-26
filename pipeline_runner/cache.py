@@ -1,15 +1,17 @@
+import hashlib
 import logging
 import os.path
 from collections.abc import Mapping
 from datetime import datetime, timedelta
+from functools import lru_cache
 from tempfile import NamedTemporaryFile
 from time import time as ts
 
 from . import utils
 from .config import config
 from .container import ContainerRunner
-from .errors import UnsupportedCacheError
-from .models import Cache, CacheType
+from .errors import InvalidCacheKeyError
+from .models import Cache, CacheType, Repository
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +21,14 @@ CACHE_TTL = timedelta(days=7)
 
 class CacheManager:
     def __init__(
-        self, container: ContainerRunner, local_cache_directory: str, cache_definitions: Mapping[str, CacheType]
+        self,
+        container: ContainerRunner,
+        repository: Repository,
+        local_cache_directory: str,
+        cache_definitions: Mapping[str, CacheType],
     ) -> None:
         self._container = container
+        self._repository = repository
         self._local_cache_directory = local_cache_directory
         self._cache_definitions = cache_definitions
 
@@ -29,12 +36,16 @@ class CacheManager:
 
     def upload(self, cache_names: list[str]) -> None:
         for name in cache_names:
-            cu = CacheRestoreFactory.get(self._container, self._local_cache_directory, self._cache_definitions, name)
+            cu = CacheRestoreFactory.get(
+                self._container, self._repository, self._local_cache_directory, self._cache_definitions, name
+            )
             cu.restore()
 
     def download(self, cache_names: list[str]) -> None:
         for name in cache_names:
-            cd = CacheSaveFactory.get(self._container, self._local_cache_directory, self._cache_definitions, name)
+            cd = CacheSaveFactory.get(
+                self._container, self._repository, self._local_cache_directory, self._cache_definitions, name
+            )
             cd.save()
 
 
@@ -42,14 +53,19 @@ class CacheRestore:
     def __init__(
         self,
         container: ContainerRunner,
+        repository: Repository,
         cache_directory: str,
         cache_definitions: Mapping[str, CacheType],
         cache_name: str,
     ) -> None:
+        cache_definition = cache_definitions[cache_name]
+
         self._container = container
+        self._repository = repository
         self._cache_directory = cache_directory
-        self._cache_definitions = cache_definitions
+        self._cache_definition = cache_definition
         self._cache_name = cache_name
+        self._cache_key = compute_cache_key(cache_name, cache_definition, repository)
 
     def restore(self) -> None:
         cache_file = self._get_local_cache_file()
@@ -62,7 +78,7 @@ class CacheRestore:
         self._restore_cache()
 
     def _get_local_cache_file(self) -> str | None:
-        local_cache_archive_path = get_local_cache_archive_path(self._cache_directory, self._cache_name)
+        local_cache_archive_path = get_local_cache_archive_path(self._cache_directory, self._cache_key)
         if not os.path.exists(local_cache_archive_path):
             return None
 
@@ -100,7 +116,7 @@ class CacheRestore:
 
     def _restore_cache(self) -> None:
         temp_dir = get_remote_temp_directory(self._cache_name)
-        target_dir = sanitize_remote_path(self._cache_definitions[self._cache_name])
+        target_dir = sanitize_remote_path(self._cache_definition)
 
         logger.info("Cache '%s': Restoring", self._cache_name)
 
@@ -129,31 +145,35 @@ class NullCacheRestore(CacheRestore):
 class CacheRestoreFactory:
     @staticmethod
     def get(
-        container: ContainerRunner, cache_directory: str, cache_definitions: Mapping[str, CacheType], cache_name: str
+        container: ContainerRunner,
+        repository: Repository,
+        cache_directory: str,
+        cache_definitions: Mapping[str, CacheType],
+        cache_name: str,
     ) -> CacheRestore:
         cls: type[CacheRestore | NullCacheRestore]
 
         cls = NullCacheRestore if cache_name == "docker" else CacheRestore
 
-        return cls(container, cache_directory, cache_definitions, cache_name)
+        return cls(container, repository, cache_directory, cache_definitions, cache_name)
 
 
 class CacheSave:
     def __init__(
         self,
         container: ContainerRunner,
+        repository: Repository,
         local_cache_directory: str,
         cache_definitions: Mapping[str, CacheType],
         cache_name: str,
     ) -> None:
+        cache_definition = cache_definitions[cache_name]
         self._container = container
+        self._repository = repository
         self._local_cache_directory = local_cache_directory
-        self._cache_definitions = cache_definitions
+        self._cache_definition = cache_definition
         self._cache_name = cache_name
-
-        # TODO: remove
-        if cache_name in cache_definitions and isinstance(cache_definitions[cache_name], Cache):
-            raise UnsupportedCacheError(cache_name)
+        self._cache_key = compute_cache_key(cache_name, cache_definition, repository)
 
     def save(self) -> None:
         local_cache_archive_path = get_local_cache_archive_path(self._local_cache_directory, self._cache_name)
@@ -174,7 +194,7 @@ class CacheSave:
         return mtime < (datetime.now() - CACHE_TTL).timestamp()
 
     def _prepare(self) -> str:
-        remote_dir = sanitize_remote_path(self._cache_definitions[self._cache_name])
+        remote_dir = sanitize_remote_path(self._cache_definition)
         target_dir = get_remote_temp_directory(self._cache_name)
 
         logger.info("Cache '%s': Preparing", self._cache_name)
@@ -232,6 +252,7 @@ class CacheSaveFactory:
     @staticmethod
     def get(
         container: ContainerRunner,
+        repository: Repository,
         local_cache_directory: str,
         cache_definitions: Mapping[str, CacheType],
         cache_name: str,
@@ -240,7 +261,7 @@ class CacheSaveFactory:
 
         cls = NullCacheSave if cache_name == "docker" else CacheSave
 
-        return cls(container, local_cache_directory, cache_definitions, cache_name)
+        return cls(container, repository, local_cache_directory, cache_definitions, cache_name)
 
 
 def get_local_cache_archive_path(cache_directory: str, cache_name: str) -> str:
@@ -262,3 +283,27 @@ def sanitize_remote_path(cache: CacheType) -> str:
         path = path.replace("~", "$HOME", 1)
 
     return path
+
+
+@lru_cache
+def compute_cache_key(cache_name: str, cache: CacheType, repository: Repository) -> str:
+    if isinstance(cache, str):
+        return cache_name
+
+    is_valid = False
+    hasher = hashlib.sha256()
+
+    for file in cache.key.files:
+        fp = os.path.join(repository.path, file)
+        if not os.path.isfile(fp):
+            continue
+
+        is_valid = True
+
+        with open(fp, "rb") as f:
+            hasher.update(f.read())
+
+    if not is_valid:
+        raise InvalidCacheKeyError(cache_name)
+
+    return f"{cache_name}-{hasher.hexdigest()}"

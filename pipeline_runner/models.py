@@ -100,6 +100,9 @@ class Cache(BaseModel):
     key: CacheKey
     path: str
 
+    def __hash__(self) -> int:
+        return (*self.key.files, self.path).__hash__()
+
 
 CacheType = Cache | str
 

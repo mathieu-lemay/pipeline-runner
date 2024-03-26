@@ -13,6 +13,6 @@ class NegativeIntegerError(ValueError):
         super().__init__("value must be a positive integer")
 
 
-class UnsupportedCacheError(ValueError):
+class InvalidCacheKeyError(ValueError):
     def __init__(self, name: str) -> None:
-        super().__init__(f"Custom caches are not supported: {name}")
+        super().__init__(f'Cache "{name}": Cache key files could not be found')

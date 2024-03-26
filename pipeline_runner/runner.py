@@ -342,7 +342,10 @@ class StepRunner(BaseStepRunner):
             raise Exception("called on uninitialized runner")
 
         cm = CacheManager(
-            self._container_runner, self._ctx.pipeline_ctx.get_cache_directory(), self._ctx.pipeline_ctx.caches
+            self._container_runner,
+            self._ctx.pipeline_ctx.repository,
+            self._ctx.pipeline_ctx.get_cache_directory(),
+            self._ctx.pipeline_ctx.caches,
         )
         cm.upload(self._step.caches)
 
@@ -379,6 +382,7 @@ class StepRunner(BaseStepRunner):
         if exit_code == 0:
             cm = CacheManager(
                 self._container_runner,
+                self._ctx.pipeline_ctx.repository,
                 self._ctx.pipeline_ctx.get_cache_directory(),
                 self._ctx.pipeline_ctx.caches,
             )
