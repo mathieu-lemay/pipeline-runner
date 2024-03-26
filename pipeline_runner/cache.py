@@ -138,6 +138,16 @@ class CacheRestore:
 
 
 class NullCacheRestore(CacheRestore):
+    def __init__(
+        self,
+        _container: ContainerRunner,
+        _repository: Repository,
+        _local_cache_directory: str,
+        _cache_definitions: Mapping[str, CacheType],
+        cache_name: str,
+    ) -> None:
+        self._cache_name = cache_name
+
     def restore(self) -> None:
         logger.info("Cache '%s': Ignoring", self._cache_name)
 
@@ -176,7 +186,7 @@ class CacheSave:
         self._cache_key = compute_cache_key(cache_name, cache_definition, repository)
 
     def save(self) -> None:
-        local_cache_archive_path = get_local_cache_archive_path(self._local_cache_directory, self._cache_name)
+        local_cache_archive_path = get_local_cache_archive_path(self._local_cache_directory, self._cache_key)
 
         if not self._cache_should_be_updated(local_cache_archive_path):
             logger.info("You already have a '%s' cache so we won't create it again", self._cache_name)
@@ -244,6 +254,16 @@ class CacheSave:
 
 
 class NullCacheSave(CacheSave):
+    def __init__(
+        self,
+        _container: ContainerRunner,
+        _repository: Repository,
+        _local_cache_directory: str,
+        _cache_definitions: Mapping[str, CacheType],
+        cache_name: str,
+    ) -> None:
+        self._cache_name = cache_name
+
     def save(self) -> None:
         logger.info("Cache '%s': Ignoring", self._cache_name)
 

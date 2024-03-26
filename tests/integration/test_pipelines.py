@@ -1,4 +1,5 @@
 import concurrent.futures
+import hashlib
 import io
 import json
 import logging.config
@@ -13,10 +14,13 @@ from uuid import UUID, uuid4
 import docker  # type: ignore[import-untyped]
 import dotenv
 import pytest
+from _pytest.config import Config as PytestConfig
 from _pytest.monkeypatch import MonkeyPatch
+from faker import Faker
 from pytest_mock import MockerFixture
 from tenacity import retry, stop_after_delay, wait_fixed
 
+from pipeline_runner.cache import compute_cache_key
 from pipeline_runner.config import config
 from pipeline_runner.models import ProjectMetadata, Repository
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
@@ -91,6 +95,15 @@ def project_cache_directory(user_cache_directory: Path, mocker: MockerFixture) -
     )
     if cache_volume:
         cache_volume.remove()
+
+
+@pytest.fixture()
+def custom_cache_key_file(pytestconfig: PytestConfig) -> Generator[Path, None, None]:
+    path = pytestconfig.rootpath / "custom-cache-key"
+
+    yield path
+
+    path.unlink(missing_ok=True)
 
 
 def test_success() -> None:
@@ -176,11 +189,31 @@ def test_invalid_cache(project_cache_directory: Path) -> None:
     assert len(os.listdir(project_cache_directory)) == 0
 
 
-def test_custom_cache() -> None:
+def test_custom_cache(project_cache_directory: Path, custom_cache_key_file: Path, faker: Faker) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_custom_cache"))
-    result = runner.run()
+    cache_name = "custom"
 
-    assert not result.ok
+    file_data = faker.pystr()
+    custom_cache_key_file.write_text(file_data)
+    expected_hash = _sha256hash(file_data.encode())
+
+    result = runner.run()
+    assert result.ok
+
+    assert (project_cache_directory / f"{cache_name}-{expected_hash}.tar").exists()
+
+    # Updating the key file should create a new cach
+    file_data = faker.pystr()
+    custom_cache_key_file.write_text(file_data)
+    expected_hash = _sha256hash(file_data.encode())
+
+    # Clear the lru cache to simulate an entirely new run.
+    compute_cache_key.cache_clear()
+
+    result = runner.run()
+    assert result.ok
+
+    assert (project_cache_directory / f"{cache_name}-{expected_hash}.tar").exists()
 
 
 def test_artifacts(artifacts_directory: Path) -> None:
@@ -465,3 +498,10 @@ def test_pipeline_supports_buildkit() -> None:
     result = runner.run()
 
     assert result.ok
+
+
+def _sha256hash(data: bytes) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(data)
+
+    return hasher.hexdigest()

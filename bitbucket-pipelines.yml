@@ -4,8 +4,8 @@ definitions:
     invalid: $HOME/.cache/non-existing-folder
     custom:
       key:
-        files: ["file1"]
-      path: some-path
+        files: ["custom-cache-key"]
+      path: ~/.cache/custom
   services:
     postgres:
       image: postgres:alpine
@@ -120,7 +120,9 @@ pipelines:
           caches:
             - custom
           script:
-            - exit 0
+            - export CACHE_DIR=$HOME/.cache/custom
+            - mkdir -p "${CACHE_DIR}"
+            - dd if=/dev/random of=${CACHE_DIR}/file bs=2048 count=1
 
     test_artifacts:
       - step:
