@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from dotenv import dotenv_values
@@ -126,7 +127,7 @@ class PipelineRunContext:
         return services
 
     @staticmethod
-    def _merge_default_caches(caches: dict[str, str]) -> dict[str, str]:
+    def _merge_default_caches(caches: Mapping[str, str]) -> dict[str, str]:
         all_caches = DEFAULT_CACHES.copy()
         all_caches.update(caches)
 

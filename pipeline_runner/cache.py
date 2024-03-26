@@ -1,5 +1,7 @@
 import logging
 import os.path
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 from time import time as ts
 
@@ -10,30 +12,37 @@ from .container import ContainerRunner
 logger = logging.getLogger(__name__)
 
 DOCKER_IMAGES_ARCHIVE_FILE_NAME = "images.tar"
+CACHE_TTL = timedelta(days=7)
 
 
 class CacheManager:
-    def __init__(self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str]) -> None:
+    def __init__(
+        self, container: ContainerRunner, local_cache_directory: str, cache_definitions: Mapping[str, str]
+    ) -> None:
         self._container = container
-        self._cache_directory = cache_directory
+        self._local_cache_directory = local_cache_directory
         self._cache_definitions = cache_definitions
 
         self._ignored_caches = {"docker"}
 
     def upload(self, cache_names: list[str]) -> None:
         for name in cache_names:
-            cu = CacheRestoreFactory.get(self._container, self._cache_directory, self._cache_definitions, name)
+            cu = CacheRestoreFactory.get(self._container, self._local_cache_directory, self._cache_definitions, name)
             cu.restore()
 
     def download(self, cache_names: list[str]) -> None:
         for name in cache_names:
-            cd = CacheSaveFactory.get(self._container, self._cache_directory, self._cache_definitions, name)
+            cd = CacheSaveFactory.get(self._container, self._local_cache_directory, self._cache_definitions, name)
             cd.save()
 
 
 class CacheRestore:
     def __init__(
-        self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
+        self,
+        container: ContainerRunner,
+        cache_directory: str,
+        cache_definitions: Mapping[str, str],
+        cache_name: str,
     ) -> None:
         self._container = container
         self._cache_directory = cache_directory
@@ -118,7 +127,7 @@ class NullCacheRestore(CacheRestore):
 class CacheRestoreFactory:
     @staticmethod
     def get(
-        container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
+        container: ContainerRunner, cache_directory: str, cache_definitions: Mapping[str, str], cache_name: str
     ) -> CacheRestore:
         cls: type[CacheRestore | NullCacheRestore]
 
@@ -129,18 +138,34 @@ class CacheRestoreFactory:
 
 class CacheSave:
     def __init__(
-        self, container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
+        self,
+        container: ContainerRunner,
+        local_cache_directory: str,
+        cache_definitions: Mapping[str, str],
+        cache_name: str,
     ) -> None:
         self._container = container
-        self._cache_directory = cache_directory
+        self._local_cache_directory = local_cache_directory
         self._cache_definitions = cache_definitions
         self._cache_name = cache_name
 
     def save(self) -> None:
-        remote_cache_directory = self._prepare()
+        local_cache_archive_path = get_local_cache_archive_path(self._local_cache_directory, self._cache_name)
 
-        local_cache_archive_path = get_local_cache_archive_path(self._cache_directory, self._cache_name)
+        if not self._cache_should_be_updated(local_cache_archive_path):
+            logger.info("You already have a '%s' cache so we won't create it again", self._cache_name)
+            return
+
+        remote_cache_directory = self._prepare()
         self._download(remote_cache_directory, local_cache_archive_path)
+
+    @staticmethod
+    def _cache_should_be_updated(local_cache_archive_path: str) -> bool:
+        if not os.path.exists(local_cache_archive_path):
+            return True
+
+        mtime = os.path.getmtime(local_cache_archive_path)
+        return mtime < (datetime.now() - CACHE_TTL).timestamp()
 
     def _prepare(self) -> str:
         remote_dir = sanitize_remote_path(self._cache_definitions[self._cache_name])
@@ -171,7 +196,7 @@ class CacheSave:
 
         t = ts()
 
-        with NamedTemporaryFile(dir=self._cache_directory, delete=False) as f:
+        with NamedTemporaryFile(dir=self._local_cache_directory, delete=False) as f:
             try:
                 logger.debug("Downloading cache folder '%s' to '%s'", src, f.name)
                 data, _ = self._container.get_archive(src)
@@ -200,13 +225,16 @@ class NullCacheSave(CacheSave):
 class CacheSaveFactory:
     @staticmethod
     def get(
-        container: ContainerRunner, cache_directory: str, cache_definitions: dict[str, str], cache_name: str
+        container: ContainerRunner,
+        local_cache_directory: str,
+        cache_definitions: Mapping[str, str],
+        cache_name: str,
     ) -> CacheSave:
         cls: type[CacheSave | NullCacheSave]
 
         cls = NullCacheSave if cache_name == "docker" else CacheSave
 
-        return cls(container, cache_directory, cache_definitions, cache_name)
+        return cls(container, local_cache_directory, cache_definitions, cache_name)
 
 
 def get_local_cache_archive_path(cache_directory: str, cache_name: str) -> str:

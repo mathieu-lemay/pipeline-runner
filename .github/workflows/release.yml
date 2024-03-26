@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install Poetry
-        uses: Gr1N/setup-poetry@v8
+        uses: Gr1N/setup-poetry@v9
 
       - name: Get info on commit
         id: git_info

@@ -10,7 +10,7 @@ run-pipeline *args: _deps
         poetry run python -m {{ app }} run {{ args }}
 
 test: _deps
-    poetry run pytest --verbosity=1 --cov --cov-append --cov-report=term-missing:skip-covered --cov-fail-under=85
+    poetry run pytest --verbosity=1 --cov --cov-append --cov-report=term-missing:skip-covered --cov-fail-under=90
 
 lint:
     pre-commit run --all

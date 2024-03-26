@@ -16,7 +16,7 @@ PyYAML = "^6.0"
 docker = "^7.0.0"
 click = "^8.0.1"
 python-slugify = "^8.0.0"
-boto3 = "^1.28.65"
+boto3 = "^1.34.64"
 GitPython = "^3.1.12"
 python-dotenv = "^1.0.0"
 requests = "^2.31.0"
@@ -38,7 +38,7 @@ types-setuptools = "^69.0.0.0"
 types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 types-boto3 = "^1.0.2"
-faker = "^22.6.0"
+faker = "^24.2.0"
 pytest-cov = "^4.1.0"
 
 [tool.poetry.scripts]
@@ -69,6 +69,7 @@ select = [
 ignore = [
     "COM",  # flake8-commas
     "D",  # pydocstyle
+    "DTZ",  # flake8-datetimez
     "FIX",  # flake8-fixme
     "PTH",  # flake8-use-pathlib
     "TD",  # flake8-todos
@@ -93,6 +94,7 @@ classmethod-decorators = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [
+    "FBT001",  # Boolean-typed positional argument in function definition
     "PLR2004",  # Magic value used in comparison
     "S101",  # Use of `assert` detected
     "S105",  # Possible hardcoded password
