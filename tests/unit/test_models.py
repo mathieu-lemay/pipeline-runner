@@ -81,6 +81,47 @@ def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero() -> None:
         assert res.ok is False
 
 
+def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
+    p = Pipe(
+        pipe="atlassian/foo:1.2.3",
+        variables={
+            "FOO": "BAR",
+            "BAZ": '[{"some": "json with \'single-quotes\'", "more": "json with line\nbreak"}]',
+            "ENV": "${SOME_ENVVAR}",
+            "EXTRA_ARGS": ["a", "b"],
+        },
+    )
+
+    assert p.as_cmd() == (
+        "docker run --rm "
+        '-e FOO="BAR" '
+        '-e BAZ="[{\\"some\\": \\"json with \'single-quotes\'\\", \\"more\\": \\"json with line\nbreak\\"}]" '
+        '-e ENV="${SOME_ENVVAR}" '
+        '-e EXTRA_ARGS_0="a" '
+        '-e EXTRA_ARGS_1="b" '
+        '-e EXTRA_ARGS_COUNT="2" '
+        "bitbucketpipelines/foo:1.2.3"
+    )
+
+
+def test_pipe_expand_variables_expands_list_variables() -> None:
+    p = Pipe(
+        pipe="atlassian/foo:1.2.3",
+        variables={
+            "STRING_VARIABLE": "some-string,with-commas",
+            "LIST_VARIABLE": ["list", "of", "values"],
+        },
+    )
+
+    assert p.expand_variables() == {
+        "STRING_VARIABLE": "some-string,with-commas",
+        "LIST_VARIABLE_0": "list",
+        "LIST_VARIABLE_1": "of",
+        "LIST_VARIABLE_2": "values",
+        "LIST_VARIABLE_COUNT": "3",
+    }
+
+
 def test_pipe_get_image_returns_its_name_as_docker_image() -> None:
     p = Pipe(pipe="foo/bar:1.2.3", variables={})
 
@@ -91,23 +132,6 @@ def test_pipe_get_image_returns_the_right_docker_image_if_pipe_is_from_atlassian
     p = Pipe(pipe="atlassian/bar:1.2.3", variables={})
 
     assert p.get_image() == "bitbucketpipelines/bar:1.2.3"
-
-
-def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
-    p = Pipe(
-        pipe="atlassian/foo:1.2.3",
-        variables={
-            "FOO": "BAR",
-            "BAZ": '[{"some": "json with \'single-quotes\'", "more": "json with line\nbreak"}]',
-            "ENV": "${SOME_ENVVAR}",
-        },
-    )
-
-    assert p.as_cmd() == (
-        'docker run --rm -e FOO="BAR" '
-        '-e BAZ="[{\\"some\\": \\"json with \'single-quotes\'\\", \\"more\\": \\"json with line\nbreak\\"}]" '
-        '-e ENV="${SOME_ENVVAR}" bitbucketpipelines/foo:1.2.3'
-    )
 
 
 def test_project_metadata_load_from_file_generates_new_metadata_if_not_exists(
