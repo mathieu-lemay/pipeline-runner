@@ -197,14 +197,30 @@ class StepSize(str, Enum):
 
 class Pipe(BaseModel):
     pipe: str
-    variables: dict[str, str] = Field(default_factory=dict)
+    variables: dict[str, str | list[str]] = Field(default_factory=dict)
 
     def as_cmd(self) -> str:
         cmd = "docker run --rm"
-        if self.variables:
-            cmd += " " + " ".join(f'-e {k}="{self._escape_value(v)}"' for k, v in self.variables.items())
+
+        variables = self.expand_variables()
+        if variables:
+            cmd += " " + " ".join(f'-e {k}="{self._escape_value(v)}"' for k, v in variables.items())
 
         return f"{cmd} {self.get_image()}"
+
+    def expand_variables(self) -> dict[str, str]:
+        expanded_variables = {}
+
+        for key, value in self.variables.items():
+            if isinstance(value, list):
+                for i, v in enumerate(value):
+                    expanded_variables[f"{key}_{i}"] = v
+
+                expanded_variables[f"{key}_COUNT"] = str(len(value))
+            else:
+                expanded_variables[key] = value
+
+        return expanded_variables
 
     @staticmethod
     def _escape_value(v: str) -> str:
