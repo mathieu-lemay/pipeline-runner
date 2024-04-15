@@ -200,13 +200,22 @@ class Pipe(BaseModel):
     variables: dict[str, str | list[str]] = Field(default_factory=dict)
 
     def as_cmd(self) -> str:
-        cmd = "docker run --rm"
+        cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--volume=/opt/atlassian/pipelines/agent/build:/opt/atlassian/pipelines/agent/build",
+            "--volume=/opt/atlassian/pipelines/agent/ssh:/opt/atlassian/pipelines/agent/ssh:ro",
+            "--volume=/opt/atlassian/pipelines/bin/docker:/usr/local/bin/docker:ro",
+        ]
 
         variables = self.expand_variables()
         if variables:
-            cmd += " " + " ".join(f'-e {k}="{self._escape_value(v)}"' for k, v in variables.items())
+            cmd += [f'-e {k}="{self._escape_value(v)}"' for k, v in variables.items()]
 
-        return f"{cmd} {self.get_image()}"
+        cmd.append(self.get_image())
+
+        return " ".join(cmd)
 
     def expand_variables(self) -> dict[str, str]:
         expanded_variables = {}

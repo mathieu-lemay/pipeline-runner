@@ -216,6 +216,7 @@ class ContainerRunner:
             return
 
         private_key_file_path = os.path.join(config.ssh_key_dir, "id_rsa")
+        known_hosts_file_path = os.path.join(config.ssh_key_dir, "known_hosts")
 
         cmd = " && ".join(
             [
@@ -223,6 +224,9 @@ class ContainerRunner:
                 f'echo "IdentityFile {private_key_file_path}\nServerAliveInterval 180" > ~/.ssh/config',
                 f"install -m 600 /dev/null {private_key_file_path}",
                 f'echo "{self._ssh_private_key}" > {private_key_file_path}',
+                # The default ssh key with open perms readable by alt uids
+                f"install -m 644 {private_key_file_path} {private_key_file_path}_tmp",
+                f"install -m 644 /dev/null {known_hosts_file_path}",
             ]
         )
         exit_code, output = self.run_command(cmd, user=0)

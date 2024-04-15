@@ -329,7 +329,14 @@ pipelines:
               ServerAliveInterval 180
               EOF
             - test "$(sha256sum /tmp/ssh-conf | cut -d ' ' -f 1)" == "$(sha256sum ~/.ssh/config | cut -d ' ' -f 1)"
+
             - ssh-keygen -l -f /opt/atlassian/pipelines/agent/ssh/id_rsa
+            - test "$(stat -c '%a' /opt/atlassian/pipelines/agent/ssh/id_rsa)" == "600"
+
+            - |-
+              test "$(sha256sum /opt/atlassian/pipelines/agent/ssh/id_rsa | cut -d ' ' -f 1)" \
+                == "$(sha256sum /opt/atlassian/pipelines/agent/ssh/id_rsa_tmp | cut -d ' ' -f 1)"
+            - test "$(stat -c '%a' /opt/atlassian/pipelines/agent/ssh/id_rsa_tmp)" == "644"
           artifacts:
             - variables
 

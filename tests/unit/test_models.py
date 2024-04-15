@@ -94,6 +94,9 @@ def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
 
     assert p.as_cmd() == (
         "docker run --rm "
+        "--volume=/opt/atlassian/pipelines/agent/build:/opt/atlassian/pipelines/agent/build "
+        "--volume=/opt/atlassian/pipelines/agent/ssh:/opt/atlassian/pipelines/agent/ssh:ro "
+        "--volume=/opt/atlassian/pipelines/bin/docker:/usr/local/bin/docker:ro "
         '-e FOO="BAR" '
         '-e BAZ="[{\\"some\\": \\"json with \'single-quotes\'\\", \\"more\\": \\"json with line\nbreak\\"}]" '
         '-e ENV="${SOME_ENVVAR}" '
