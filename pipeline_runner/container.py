@@ -144,7 +144,14 @@ class ContainerRunner:
         opts = {"cpu_period": 100000, "cpu_quota": 400000, "cpu_shares": 4096} if config.cpu_limits else {}
 
         if config.expose_ssh_agent:
-            if ssh_sock_path := os.environ.get("SSH_AUTH_SOCK"):
+            ssh_sock_path = None
+
+            if docker_is_docker_desktop(self._client):
+                ssh_sock_path = "/run/host-services/ssh-auth.sock"
+            elif os.environ.get("SSH_AUTH_SOCK"):
+                ssh_sock_path = os.environ["SSH_AUTH_SOCK"]
+
+            if ssh_sock_path:
                 logger.info("Mounting ssh agent in container")
                 ssh_sock_path = os.path.realpath(os.path.expanduser(ssh_sock_path))
                 volumes[ssh_sock_path] = {"bind": "/ssh-agent"}
@@ -470,7 +477,7 @@ def pull_image(client: DockerClient, image: Image) -> None:
             raise
     except docker.errors.APIError:
         if client.images.get(image.name):
-            logger.warning("Error fetching new version of image, falling back to curent one: %s", image.name)
+            logger.warning("Error fetching new version of image, falling back to current one: %s", image.name)
         else:
             raise
 
@@ -509,3 +516,14 @@ def get_image_authentication(image: Image) -> dict[str, str] | None:
         }
 
     return None
+
+
+def docker_is_docker_desktop(client: DockerClient) -> bool:
+    platform_name: str
+
+    try:
+        platform_name = client.version()["Platform"]["Name"]
+    except KeyError:
+        platform_name = ""
+
+    return platform_name.startswith("Docker Desktop ")
