@@ -144,17 +144,11 @@ class ContainerRunner:
         opts = {"cpu_period": 100000, "cpu_quota": 400000, "cpu_shares": 4096} if config.cpu_limits else {}
 
         if config.expose_ssh_agent:
-            ssh_sock_path = None
+            ssh_agent_socket_path = get_ssh_agent_socket_path(self._client)
 
-            if docker_is_docker_desktop(self._client):
-                ssh_sock_path = "/run/host-services/ssh-auth.sock"
-            elif os.environ.get("SSH_AUTH_SOCK"):
-                ssh_sock_path = os.environ["SSH_AUTH_SOCK"]
-
-            if ssh_sock_path:
+            if ssh_agent_socket_path:
                 logger.info("Mounting ssh agent in container")
-                ssh_sock_path = os.path.realpath(os.path.expanduser(ssh_sock_path))
-                volumes[ssh_sock_path] = {"bind": "/ssh-agent"}
+                volumes[ssh_agent_socket_path] = {"bind": "/ssh-agent"}
                 environment["SSH_AUTH_SOCK"] = "/ssh-agent"
             else:
                 logger.warning("No running ssh agent available")
@@ -516,6 +510,20 @@ def get_image_authentication(image: Image) -> dict[str, str] | None:
         }
 
     return None
+
+
+def get_ssh_agent_socket_path(client: DockerClient) -> str | None:
+    ssh_sock_path: str | None
+
+    if docker_is_docker_desktop(client):
+        logger.debug("Using docker desktop's host service ssh agent")
+        ssh_sock_path = "/run/host-services/ssh-auth.sock"
+    elif ssh_sock_path := os.environ.get("SSH_AUTH_SOCK"):
+        logger.debug("Using ssh agent specified by $SSH_AUTH_SOCK")
+    else:
+        return None
+
+    return os.path.realpath(os.path.expanduser(ssh_sock_path))
 
 
 def docker_is_docker_desktop(client: DockerClient) -> bool:
