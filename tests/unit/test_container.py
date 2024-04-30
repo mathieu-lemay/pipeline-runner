@@ -162,7 +162,7 @@ def test_get_ssh_agent_socket_path_returns_nothing_if_none_is_found(
     docker_is_docker_desktop_mock: MagicMock,
 ) -> None:
     client = MagicMock(DockerClient)
-    monkeypatch.delenv("SSH_AUTH_SOCK")
+    monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
     docker_is_docker_desktop_mock.return_value = False
 
     assert get_ssh_agent_socket_path(client) is None
@@ -174,7 +174,7 @@ def test_get_ssh_agent_socket_path_returns_docker_desktops_host_service_agent(
     caplog: LogCaptureFixture,
 ) -> None:
     client = MagicMock(DockerClient)
-    monkeypatch.delenv("SSH_AUTH_SOCK")
+    monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
     docker_is_docker_desktop_mock.return_value = True
 
     assert get_ssh_agent_socket_path(client) == "/run/host-services/ssh-auth.sock"
