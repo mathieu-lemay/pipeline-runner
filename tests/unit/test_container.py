@@ -219,6 +219,7 @@ def test_get_ssh_agent_socket_path_returns_expanded_real_path(
 @pytest.mark.parametrize(
     ("platform_name", "expected"),
     [
+        (None, False),
         ("", False),
         ("Docker Engine - Community", False),
         ("Docker DesktopButNotReally", False),
@@ -228,6 +229,10 @@ def test_get_ssh_agent_socket_path_returns_expanded_real_path(
 def test_docker_is_docker_desktop(platform_name: str | None, expected: bool) -> None:
     client = MagicMock(DockerClient)
 
-    client.version.return_value = {"Platform": {"Name": platform_name}}
+    if platform_name is not None:
+        client.version.return_value = {"Platform": {"Name": platform_name}}
+    else:
+        # It seems that the Platform and Name keys are always present, but make sure we handle it if they are not.
+        client.version.return_value = {"Platform": {}}
 
     assert docker_is_docker_desktop(client) == expected
