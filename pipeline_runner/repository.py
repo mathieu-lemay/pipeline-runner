@@ -54,6 +54,12 @@ class RepositoryCloner:
         runner.start()
 
         try:
+            exec_result = runner.run_command(
+                f"git config --system --add safe.directory '{config.remote_workspace_dir}/.git'", user=0
+            )
+            if exec_result.exit_code:
+                raise Exception("Error setting up repository")
+
             clone_script = self._get_clone_script()
             exit_code = runner.run_script(clone_script)
 
