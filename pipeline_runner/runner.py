@@ -146,6 +146,9 @@ class StepRunner(BaseStepRunner):
         logger.info("Running step: %s", self._step.name)
         logger.debug("Step ID: %s", self._ctx.step_uuid)
 
+        if self._step.condition is not None:
+            logger.warning("Ignoring condition on step: %s", self._step.name)
+
         if self._step.trigger == Trigger.Manual:
             input("Press enter to run step ")
 
