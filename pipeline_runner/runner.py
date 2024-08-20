@@ -229,10 +229,11 @@ class StepRunner(BaseStepRunner):
         return exit_code
 
     def _should_run(self) -> bool:
-        if self._ctx.pipeline_ctx.selected_steps and self._step.name not in self._ctx.pipeline_ctx.selected_steps:
-            return False
+        if not self._ctx.pipeline_ctx.selected_steps:
+            # No step selection means we run everything
+            return True
 
-        return True
+        return self._step.name in self._ctx.pipeline_ctx.selected_steps
 
     def _get_image(self) -> Image:
         if self._step.image:

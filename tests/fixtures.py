@@ -17,7 +17,7 @@ def faker_seed() -> float:
     return time()
 
 
-@pytest.fixture()
+@pytest.fixture
 def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     caplog.set_level(logging.DEBUG)
     return caplog
@@ -43,7 +43,7 @@ def user_data_directory(tmp_path: Path, mocker: MockerFixture) -> Path:
     return data_dir
 
 
-@pytest.fixture()
+@pytest.fixture
 def project_metadata(mocker: MockerFixture) -> ProjectMetadata:
     project_metadata = ProjectMetadata(
         name="SomeNiceProject",
@@ -58,14 +58,14 @@ def project_metadata(mocker: MockerFixture) -> ProjectMetadata:
     return project_metadata
 
 
-@pytest.fixture()
+@pytest.fixture
 def repository() -> Repository:
     from pipeline_runner import __file__ as root_file
 
     return Repository(os.path.dirname(os.path.dirname(root_file)))
 
 
-@pytest.fixture()
+@pytest.fixture
 def tmp_path_chdir(request: FixtureRequest, tmp_path: Path) -> Generator[Path, None, None]:
     """Get a temporary path and change current working directory to it."""
     os.chdir(tmp_path)
