@@ -479,6 +479,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                         "deployment": None,
                         "trigger": Trigger.Automatic,
                         "max-time": None,
+                        "condition": None,
                     },
                 },
                 {
@@ -504,6 +505,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
                                 "max-time": None,
+                                "condition": None,
                             }
                         },
                         {
@@ -527,6 +529,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
                                 "max-time": None,
+                                "condition": None,
                             }
                         },
                     ],

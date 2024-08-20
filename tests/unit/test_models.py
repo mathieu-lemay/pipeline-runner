@@ -10,10 +10,19 @@ from faker import Faker
 from pydantic import ValidationError
 
 from pipeline_runner import utils
-from pipeline_runner.models import Cache, CacheKey, Definitions, ParallelStep, Pipe, PipelineResult, ProjectMetadata
+from pipeline_runner.models import (
+    Cache,
+    CacheKey,
+    Definitions,
+    ParallelStep,
+    Pipe,
+    PipelineResult,
+    ProjectMetadata,
+    Step,
+)
 
 
-@pytest.fixture()
+@pytest.fixture
 def ssh_rsa_key() -> str:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_key = key.private_bytes(
@@ -135,6 +144,52 @@ def test_pipe_get_image_returns_the_right_docker_image_if_pipe_is_from_atlassian
     p = Pipe(pipe="atlassian/bar:1.2.3", variables={})
 
     assert p.get_image() == "bitbucketpipelines/bar:1.2.3"
+
+
+def test_step_condition_is_optional() -> None:
+    spec: dict[str, Any] = {"script": []}
+
+    step = Step.model_validate(spec)
+
+    assert step.condition is None
+
+
+def test_step_condition_must_include_changesets() -> None:
+    spec: dict[str, Any] = {"script": [], "condition": {}}
+
+    with pytest.raises(ValidationError) as err_ctx:
+        Step.model_validate(spec)
+
+    error = next((e for e in err_ctx.value.errors() if e["loc"] == ("condition", "changesets")), None)
+    assert error is not None
+    assert error["type"] == "missing"
+
+
+@pytest.mark.parametrize(
+    ("changesets", "expected_error_type"),
+    [
+        ({}, "missing"),
+        ({"includePaths": []}, "too_short"),
+        ({"includePaths": ["a-path"]}, None),
+        ({"includePaths": ["a-path", "another-path"]}, None),
+    ],
+)
+def test_step_condition_changesets_must_contain_at_least_one_include_path(
+    changesets: dict[str, Any], expected_error_type: str | None
+) -> None:
+    spec: dict[str, Any] = {"script": [], "condition": {"changesets": changesets}}
+
+    if expected_error_type is not None:
+        with pytest.raises(ValidationError) as err_ctx:
+            Step.model_validate(spec)
+
+        error = next(
+            (e for e in err_ctx.value.errors() if e["loc"] == ("condition", "changesets", "includePaths")), None
+        )
+        assert error is not None
+        assert error["type"] == expected_error_type
+    else:
+        Step.model_validate(spec)
 
 
 def test_project_metadata_load_from_file_generates_new_metadata_if_not_exists(

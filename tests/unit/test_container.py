@@ -19,17 +19,17 @@ from pipeline_runner.container import (
 from pipeline_runner.models import AwsCredentials, Image
 
 
-@pytest.fixture()
+@pytest.fixture
 def aws_lib(mocker: MockerFixture) -> MagicMock:
     return mocker.patch("pipeline_runner.container.boto3")
 
 
-@pytest.fixture()
+@pytest.fixture
 def config(mocker: MockerFixture) -> Config:
     return mocker.patch("pipeline_runner.container.config")
 
 
-@pytest.fixture()
+@pytest.fixture
 def docker_is_docker_desktop_mock(mocker: MockerFixture) -> Callable[[DockerClient], bool]:
     return mocker.patch("pipeline_runner.container.docker_is_docker_desktop")
 

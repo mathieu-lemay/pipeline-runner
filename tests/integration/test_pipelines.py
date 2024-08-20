@@ -37,7 +37,7 @@ def _log() -> None:
     logging.config.dictConfig(config.log_config)
 
 
-@pytest.fixture()
+@pytest.fixture
 def project_path_slug(mocker: MockerFixture) -> str:
     slug = "project-path-slug"
     mocker.patch("pipeline_runner.utils.hashify_path", return_value=slug)
@@ -45,7 +45,7 @@ def project_path_slug(mocker: MockerFixture) -> str:
     return slug
 
 
-@pytest.fixture()
+@pytest.fixture
 def project_data_directory(user_data_directory: Path, project_path_slug: str, mocker: MockerFixture) -> Path:
     project_data_directory = user_data_directory / project_path_slug
 
@@ -54,7 +54,7 @@ def project_data_directory(user_data_directory: Path, project_path_slug: str, mo
     return project_data_directory
 
 
-@pytest.fixture()
+@pytest.fixture
 def pipeline_data_directory(project_data_directory: Path, mocker: MockerFixture) -> Path:
     build_number = 1
     pipeline_uuid = "cafebabe-beef-dead-1337-123456789012"
@@ -97,7 +97,7 @@ def project_cache_directory(user_cache_directory: Path, mocker: MockerFixture) -
         cache_volume.remove()
 
 
-@pytest.fixture()
+@pytest.fixture
 def custom_cache_key_file(pytestconfig: PytestConfig) -> Generator[Path, None, None]:
     path = pytestconfig.rootpath / "custom-cache-key"
 

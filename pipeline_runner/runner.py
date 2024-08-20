@@ -138,13 +138,16 @@ class StepRunner(BaseStepRunner):
         )
 
     # TODO: Decomplexify
-    def run(self) -> int | None:
+    def run(self) -> int | None:  # noqa: C901: Too complex (>10)
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return None
 
         logger.info("Running step: %s", self._step.name)
         logger.debug("Step ID: %s", self._ctx.step_uuid)
+
+        if self._step.condition is not None:
+            logger.warning("Ignoring condition on step: %s", self._step.name)
 
         if self._step.trigger == Trigger.Manual:
             input("Press enter to run step ")
@@ -229,10 +232,11 @@ class StepRunner(BaseStepRunner):
         return exit_code
 
     def _should_run(self) -> bool:
-        if self._ctx.pipeline_ctx.selected_steps and self._step.name not in self._ctx.pipeline_ctx.selected_steps:
-            return False
+        if not self._ctx.pipeline_ctx.selected_steps:
+            # No step selection means we run everything
+            return True
 
-        return True
+        return self._step.name in self._ctx.pipeline_ctx.selected_steps
 
     def _get_image(self) -> Image:
         if self._step.image:
