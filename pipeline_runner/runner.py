@@ -138,7 +138,7 @@ class StepRunner(BaseStepRunner):
         )
 
     # TODO: Decomplexify
-    def run(self) -> int | None:
+    def run(self) -> int | None:  # noqa: C901: Too complex (>10)
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return None
