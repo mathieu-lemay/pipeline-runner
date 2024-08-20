@@ -195,6 +195,14 @@ class StepSize(str, Enum):
         return {self.Simple: 1, self.Double: 2}[self]
 
 
+class Changesets(BaseModel):
+    include_paths: list[str] = Field(alias="includePaths", min_length=1)
+
+
+class Condition(BaseModel):
+    changesets: Changesets
+
+
 class Pipe(BaseModel):
     pipe: str
     variables: dict[str, str | list[str]] = Field(default_factory=dict)
@@ -255,6 +263,7 @@ class Step(BaseModel):
     deployment: str | None = None
     trigger: Trigger = Trigger.Automatic
     max_time: int | None = Field(None, alias="max-time")
+    condition: Condition | None = None
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 
