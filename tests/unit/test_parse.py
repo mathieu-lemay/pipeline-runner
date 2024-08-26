@@ -579,6 +579,8 @@ def test_parse_pipeline_with_env_vars() -> None:
             "branches": {},
             "pull-requests": {},
             "custom": {},
+            "tags": {},
+            "bookmarks": {},
         },
     }
 
