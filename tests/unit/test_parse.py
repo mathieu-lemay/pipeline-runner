@@ -13,6 +13,7 @@ from pipeline_runner.models import (
     ParallelStep,
     Pipe,
     Pipeline,
+    Pipelines,
     PipelineSpec,
     Service,
     Step,
@@ -178,6 +179,46 @@ def test_parse_image_with_envvars() -> None:
     )
 
     assert image == expected
+
+
+def test_parse_all_types_of_pipelines() -> None:
+    steps = [{"step": {"name": "Step 1", "script": ["cat /etc/os-release", "exit 0"]}}]
+    spec = {
+        "pipelines": {
+            "default": steps,
+            "custom": {
+                "custom1": steps,
+            },
+            "branches": {
+                "branch1": steps,
+            },
+            "pull-requests": {
+                "pr1": steps,
+            },
+            "tags": {
+                "tag1": steps,
+            },
+            "bookmarks": {
+                "bookmark1": steps,
+            },
+        }
+    }
+
+    pipelines = PipelineSpec.model_validate(spec)
+
+    expected_pipeline = Pipeline(root=[StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))])
+    expected_pipelines = PipelineSpec(
+        pipelines=Pipelines(
+            default=expected_pipeline,
+            branches={"branch1": expected_pipeline},
+            pull_requests={"pr1": expected_pipeline},
+            custom={"custom1": expected_pipeline},
+            tags={"tag1": expected_pipeline},
+            bookmarks={"bookmark1": expected_pipeline},
+        ),
+    )
+
+    assert pipelines == expected_pipelines
 
 
 def test_parse_pipeline_with_steps() -> None:

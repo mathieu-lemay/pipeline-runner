@@ -379,6 +379,8 @@ class Pipelines(BaseModel):
     branches: dict[str, Pipeline] = Field(default_factory=dict)
     pull_requests: dict[str, Pipeline] = Field(default_factory=dict, alias="pull-requests")
     custom: dict[str, Pipeline] = Field(default_factory=dict)
+    tags: dict[str, Pipeline] = Field(default_factory=dict)
+    bookmarks: dict[str, Pipeline] = Field(default_factory=dict)
 
     def get_all(self) -> dict[str, Pipeline]:
         pipelines = {}
