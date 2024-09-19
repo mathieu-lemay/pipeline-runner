@@ -39,7 +39,7 @@ def test_model_extra_keys_are_ignored() -> None:
         "default": [
             {
                 "step": {
-                    "oidc": True,
+                    "Invalid": 42,
                     "script": ["echo hello"],
                 },
             },

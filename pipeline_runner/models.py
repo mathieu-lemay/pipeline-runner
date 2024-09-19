@@ -1,3 +1,4 @@
+import logging
 import os.path
 from collections.abc import Iterator, Sequence
 from enum import Enum
@@ -16,6 +17,8 @@ from slugify import slugify
 from . import utils
 from .config import DEFAULT_SERVICES
 from .utils import generate_ssh_rsa_key
+
+logger = logging.getLogger(__name__)
 
 
 class BaseModel(PydanticBaseModel):
@@ -262,6 +265,7 @@ class Step(BaseModel):
     trigger: Trigger = Trigger.Automatic
     max_time: int | None = Field(None, alias="max-time")
     condition: Condition | None = None
+    oidc: bool = False
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 

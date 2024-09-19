@@ -362,3 +362,10 @@ pipelines:
             - docker
           caches:
             - docker
+
+    test_oidc:
+      - step:
+          name: Test step with oidc
+          oidc: true
+          script:
+            - "echo a"
