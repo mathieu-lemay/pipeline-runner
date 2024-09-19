@@ -1,4 +1,3 @@
-import logging
 import os.path
 from collections.abc import Iterator, Sequence
 from enum import Enum
@@ -17,8 +16,6 @@ from slugify import slugify
 from . import utils
 from .config import DEFAULT_SERVICES
 from .utils import generate_ssh_rsa_key
-
-logger = logging.getLogger(__name__)
 
 
 class BaseModel(PydanticBaseModel):
