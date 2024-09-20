@@ -138,7 +138,9 @@ class StepRunner(BaseStepRunner):
         )
 
     # TODO: Decomplexify
-    def run(self) -> int | None:  # noqa: C901: Too complex (>10)
+    # C901: Too complex (>10)
+    # PLR0915: Too many statements (>50)
+    def run(self) -> int | None:  # noqa: C901, PLR0915
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return None
@@ -148,6 +150,9 @@ class StepRunner(BaseStepRunner):
 
         if self._step.condition is not None:
             logger.warning("Ignoring condition on step: %s", self._step.name)
+
+        if self._step.oidc:
+            logger.warning("Ignoring OIDC flag on step: %s", self._step.name)
 
         if self._step.trigger == Trigger.Manual:
             input("Press enter to run step ")

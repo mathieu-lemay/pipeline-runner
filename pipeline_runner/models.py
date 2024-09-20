@@ -21,7 +21,7 @@ from .utils import generate_ssh_rsa_key
 class BaseModel(PydanticBaseModel):
     __env_var_expand_fields__: Sequence[str]
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         for attr in self.__env_var_expand_fields__:
@@ -108,8 +108,6 @@ CacheType = Cache | str
 
 
 class Definitions(BaseModel):
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
-
     caches: dict[str, CacheType] = Field(default_factory=dict)
     services: dict[str, Service] = Field(default_factory=dict)
 
@@ -264,6 +262,7 @@ class Step(BaseModel):
     trigger: Trigger = Trigger.Automatic
     max_time: int | None = Field(None, alias="max-time")
     condition: Condition | None = None
+    oidc: bool = False
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 
@@ -413,8 +412,6 @@ class PipelineSpec(BaseModel):
     pipelines: Pipelines
 
     __env_var_expand_fields__: Sequence[str] = ["image", "definitions", "pipelines"]
-
-    model_config = ConfigDict(extra="ignore")
 
     @property
     def caches(self) -> dict[str, CacheType]:

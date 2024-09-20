@@ -15,6 +15,7 @@ import docker  # type: ignore[import-untyped]
 import dotenv
 import pytest
 from _pytest.config import Config as PytestConfig
+from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from faker import Faker
 from pytest_mock import MockerFixture
@@ -498,6 +499,14 @@ def test_pipeline_supports_buildkit() -> None:
     result = runner.run()
 
     assert result.ok
+
+
+def test_warning_is_emitted_if_oidc_is_enabled(caplog: LogCaptureFixture) -> None:
+    runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
+    result = runner.run()
+
+    assert result.ok
+    assert "Ignoring OIDC flag on step: Test step with oidc" in caplog.text
 
 
 def _sha256hash(data: bytes) -> str:

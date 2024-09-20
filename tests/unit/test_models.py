@@ -16,9 +16,12 @@ from pipeline_runner.models import (
     Definitions,
     ParallelStep,
     Pipe,
+    Pipeline,
     PipelineResult,
+    Pipelines,
     ProjectMetadata,
     Step,
+    StepWrapper,
 )
 
 
@@ -29,6 +32,24 @@ def ssh_rsa_key() -> str:
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     )
     return private_key.decode()
+
+
+def test_model_extra_keys_are_ignored() -> None:
+    spec: dict[str, Any] = {
+        "default": [
+            {
+                "step": {
+                    "Invalid": 42,
+                    "script": ["echo hello"],
+                },
+            },
+        ],
+        "invalid": "invalid",
+    }
+
+    expected = Pipelines(default=Pipeline(root=[StepWrapper(step=Step(script=["echo hello"]))]))
+
+    assert Pipelines.model_validate(spec) == expected
 
 
 def test_cache_supports_static_name() -> None:
