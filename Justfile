@@ -2,18 +2,14 @@ set dotenv-load := true
 
 app := "pipeline_runner"
 
-run *args: _deps
-    poetry run python -m {{ app }} {{ args }}
-
-run-pipeline *args: _deps
-    DOCKER_CONFIG=./.ci/docker \
-        poetry run python -m {{ app }} run {{ args }}
+lint:
+    pre-commit run --all
 
 test: _deps
     poetry run pytest --verbosity=1 --cov --cov-append --cov-report=term-missing:skip-covered --cov-fail-under=90
 
-lint:
-    pre-commit run --all
+run *args: _deps
+    poetry run python -m {{ app }} {{ args }}
 
 release version:
     #!/bin/sh
