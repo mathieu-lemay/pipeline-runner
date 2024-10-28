@@ -3,8 +3,9 @@
 Tool to run Bitbucket Pipelines locally.
 
 ## Installation
+The prefered way of installing pipeline-runner is with [pipx](https://pipx.pypa.io/stable/installation/)
 ```shell
-pip install bitbucket-pipeline-runner
+pipx install bitbucket-pipeline-runner
 ```
 
 ## Basic usage
@@ -21,8 +22,8 @@ pipeline-runner list
 ```
 
 ## Environment variables
-bitbucket pipeline runner already sets all `BITBUCKET_*` enviromnent variables in the step's run enviromnent.
-It will also source any `.env` file in the current directory, for all project specific enviromnent variables.
+bitbucket pipeline runner already sets all `BITBUCKET_*` environment variables in the step's run environment.
+It will also source any `.env` file in the current directory, for all project specific environment variables.
 
 ## Artifacts and logs
 Persistent data like artifacts generated from your pipelines and execution logs can be found in your user's data directory.
