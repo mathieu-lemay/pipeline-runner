@@ -7,6 +7,7 @@ import sys
 import tarfile
 import uuid
 from collections.abc import Generator, Iterable, Iterator, Sequence
+from dataclasses import dataclass
 from importlib.resources import as_file, files
 from io import BufferedReader
 from logging import Logger
@@ -25,7 +26,13 @@ from .config import config
 from .models import Image, Pipe
 from .utils import escape_shell_string, stringify, wrap_in_shell
 
+_group_separator=0x1d
+GROUP_SEPARATOR=chr(_group_separator)
+ESCAPED_GROUP_SEPARATOR=f"\\x{_group_separator:02x}"
+
 logger = logging.getLogger(__name__)
+
+PipelineScript = Sequence[str | Pipe]
 
 
 class ContainerRunner:
@@ -241,11 +248,24 @@ class ContainerRunner:
         }
 
 
+@dataclass
+class RemoteScript:
+    entrypoint: str
+    exit_code_file: str
+
+
+@dataclass
+class Breakpoint:
+    pass
+
+RunAction = RemoteScript | Breakpoint
+
+
 class ContainerScriptRunner:
     def __init__(
         self,
         container: Container,
-        script: Sequence[str | Pipe],
+        script: PipelineScript,
         output_logger: Logger | None = None,
         user: int | str | None = None,
         env: dict[str, Any] | None = None,
@@ -276,36 +296,22 @@ class ContainerScriptRunner:
         self._stderr_print = stderr_print
 
     def run(self) -> int:
-        entrypoint, exit_code_file_path = self._prepare_script_for_remote_execution()
+        run_actions = RemoteActionManager(self._script, self._container).get_actions()
 
-        self._execute_script_on_container(entrypoint)
-        return self._get_exit_code_of_command(exit_code_file_path)
+        for act in run_actions:
+            match act:
+                case RemoteScript():
+                    self._execute_script_on_container(act.entrypoint)
+                    exit_code = self._get_exit_code_of_command(act.exit_code_file)
 
-    def _prepare_script_for_remote_execution(self) -> tuple[str, str]:
-        script = self._add_traces_to_script()
-        exit_code_file_path = posixpath.join(config.temp_dir, f"exit_code-{uuid.uuid4().hex}")
+                    if exit_code != 0:
+                        return exit_code
+                case Breakpoint():
+                    logger.info("Breakpoint")
+                    logger.info("You can run a shell on the container with: docker exec -it %s sh", self._container.name)
+                    input("Press enter to continue")
 
-        sh_script_name = f"shell_script-{uuid.uuid4().hex}.sh"
-        sh_script_path = posixpath.join(config.scripts_dir, sh_script_name)
-        sh_script = self._wrap_script_in_posix_shell(script)
-
-        bash_script_name = f"bash_script-{uuid.uuid4().hex}.sh"
-        bash_script_path = posixpath.join(config.scripts_dir, bash_script_name)
-        bash_script = self._wrap_script_in_bash(script)
-
-        wrapper_script_name = f"wrapper_script-{uuid.uuid4().hex}.sh"
-        wrapper_script_path = posixpath.join(config.scripts_dir, wrapper_script_name)
-        wrapper_script = self._make_wrapper_script(sh_script_path, bash_script_path, exit_code_file_path)
-
-        scripts = (
-            (sh_script_name, sh_script),
-            (bash_script_name, bash_script),
-            (wrapper_script_name, wrapper_script),
-        )
-
-        self._upload_to_container(scripts)
-
-        return wrapper_script_path, exit_code_file_path
+        return 0
 
     def _execute_script_on_container(self, entrypoint: str) -> None:
         _, output_stream = self._container.exec_run(
@@ -317,7 +323,7 @@ class ContainerScriptRunner:
     def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
         for stdout, stderr in output_stream:
             if stdout:
-                self._stdout_print(stdout.decode())
+                self._stdout_print(stdout.decode().replace(GROUP_SEPARATOR, ""))
             if stderr:
                 self._stderr_print(stderr.decode())
 
@@ -337,8 +343,111 @@ class ContainerScriptRunner:
         else:
             return exit_code
 
-    def _add_traces_to_script(self) -> str:
-        script_lines = map(self._add_trace_to_script_line, self._script)
+
+class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
+    def __init__(
+        self,
+        container: Container,
+        script: Sequence[str | Pipe],
+        output_logger: Logger | None = None,
+        user: int | str | None = None,
+        env: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(container, script, output_logger, user, env)
+        self._timestamp: float | None = None
+
+    def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
+        for stdout, stderr in output_stream:
+            if stdout:
+                chunks = iter(stdout.decode().split(GROUP_SEPARATOR))
+
+                self._stdout_print(next(chunks))
+
+                for c in chunks:
+                    self._print_timing()
+                    self._stdout_print(c)
+            if stderr:
+                self._stderr_print(stderr.decode())
+
+        self._print_timing()
+
+    def _print_timing(self) -> None:
+        now = time()
+        if self._timestamp:
+            self._stdout_print(f"\n>>> Execution time: {now - self._timestamp:.3f}s\n\n")
+
+        self._timestamp = now
+
+
+class ContainerScriptRunnerFactory:
+    @staticmethod
+    def get(
+        container: Container,
+        script: Sequence[str | Pipe],
+        output_logger: Logger | None = None,
+        user: int | str | None = None,
+        env: dict[str, Any] | None = None,
+        *,
+        exec_time: bool = False,
+    ) -> ContainerScriptRunner:
+        cls: type[ContainerScriptRunner | ContainerScriptRunnerWithExecTime]
+
+        cls = ContainerScriptRunnerWithExecTime if exec_time else ContainerScriptRunner
+
+        return cls(container, script, output_logger, user, env)
+
+
+class RemoteActionManager:
+    def __init__(self, pipeline_script: PipelineScript, container: Container) -> None:
+        self._pipeline_script = pipeline_script
+        self._container = container
+
+    def get_actions(self) -> list[RunAction]:
+        entries = [e.as_cmd() if isinstance(e, Pipe) else e.strip() for e in self._pipeline_script]
+
+        actions: list[RunAction] = []
+        current: list[str] = []
+
+        for e in entries:
+            if e == "# pipeline-runner[breakpoint]":
+                actions.append(self._prepare_for_remote_execution(current))
+                actions.append(Breakpoint())
+                current = []
+            else:
+                current.append(e)
+
+        if current:
+            actions.append(self._prepare_for_remote_execution(current))
+
+        return actions
+
+    def _prepare_for_remote_execution(self, script: list[str]) -> RemoteScript:
+        traced_script = self._add_traces_to_script(script)
+        exit_code_file_path = posixpath.join(config.temp_dir, f"exit_code-{uuid.uuid4().hex}")
+
+        sh_script_name = f"shell_script-{uuid.uuid4().hex}.sh"
+        sh_script_path = posixpath.join(config.scripts_dir, sh_script_name)
+        sh_script = self._wrap_script_in_posix_shell(traced_script)
+
+        bash_script_name = f"bash_script-{uuid.uuid4().hex}.sh"
+        bash_script_path = posixpath.join(config.scripts_dir, bash_script_name)
+        bash_script = self._wrap_script_in_bash(traced_script)
+
+        wrapper_script_name = f"wrapper_script-{uuid.uuid4().hex}.sh"
+        wrapper_script_path = posixpath.join(config.scripts_dir, wrapper_script_name)
+        wrapper_script = self._make_wrapper_script(sh_script_path, bash_script_path, exit_code_file_path)
+
+        scripts = (
+            (sh_script_name, sh_script),
+            (bash_script_name, bash_script),
+            (wrapper_script_name, wrapper_script),
+        )
+
+        self._upload_to_container(scripts)
+        return RemoteScript(entrypoint=wrapper_script_path, exit_code_file=exit_code_file_path)
+
+    def _add_traces_to_script(self, script: list[str]) -> str:
+        script_lines = map(self._add_trace_to_script_line, script)
 
         return '\nprintf "\\n"\n'.join(line for line in script_lines if line)
 
@@ -354,7 +463,7 @@ class ContainerScriptRunner:
     def _add_group_separator(value: str) -> str:
         value = escape_shell_string(value)
 
-        return f'printf "\\x1d+ {value}\\n"'
+        return f'printf "{ESCAPED_GROUP_SEPARATOR}+ {value}\\n"'
 
     @staticmethod
     def _wrap_script_in_posix_shell(script: str) -> str:
@@ -396,59 +505,6 @@ class ContainerScriptRunner:
         res = self._container.put_archive(config.scripts_dir, tar_data.getvalue())
         if not res:
             raise Exception("Error uploading scripts to container")
-
-
-class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
-    def __init__(
-        self,
-        container: Container,
-        script: Sequence[str | Pipe],
-        output_logger: Logger | None = None,
-        user: int | str | None = None,
-        env: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(container, script, output_logger, user, env)
-        self._timestamp: float | None = None
-
-    def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
-        for stdout, stderr in output_stream:
-            if stdout:
-                chunks = iter(stdout.decode().split("\x1d"))
-
-                self._stdout_print(next(chunks))
-
-                for c in chunks:
-                    self._print_timing()
-                    self._stdout_print(c)
-            if stderr:
-                self._stderr_print(stderr.decode())
-
-        self._print_timing()
-
-    def _print_timing(self) -> None:
-        now = time()
-        if self._timestamp:
-            self._stdout_print(f"\n>>> Execution time: {now - self._timestamp:.3f}s\n\n")
-
-        self._timestamp = now
-
-
-class ContainerScriptRunnerFactory:
-    @staticmethod
-    def get(
-        container: Container,
-        script: Sequence[str | Pipe],
-        output_logger: Logger | None = None,
-        user: int | str | None = None,
-        env: dict[str, Any] | None = None,
-        *,
-        exec_time: bool = False,
-    ) -> ContainerScriptRunner:
-        cls: type[ContainerScriptRunner | ContainerScriptRunnerWithExecTime]
-
-        cls = ContainerScriptRunnerWithExecTime if exec_time else ContainerScriptRunner
-
-        return cls(container, script, output_logger, user, env)
 
 
 _pulled_images = set()

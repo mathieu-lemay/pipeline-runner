@@ -111,7 +111,7 @@ def run(
     expose_ssh_agent: bool,
 ) -> None:
     """
-    Runs the pipeline PIPELINE.
+    Run the pipeline <PIPELINE>.
 
     PIPELINE is the full path to the pipeline to run. Ex: branches.master
     """
