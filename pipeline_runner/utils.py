@@ -138,7 +138,10 @@ def safe_extract_tar(tar: TarFile, path: str = ".", *, numeric_owner: bool = Fal
         if not _is_within_directory(path, member_path):
             raise PathTraversalError
 
-        tar.extract(member, path, numeric_owner=numeric_owner)
+        if sys.version_info >= (3, 12):
+            tar.extract(member, path, numeric_owner=numeric_owner, filter="data")
+        else:
+            tar.extract(member, path, numeric_owner=numeric_owner)
 
 
 class FileStreamer(IO[bytes]):
