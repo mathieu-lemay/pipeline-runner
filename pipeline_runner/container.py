@@ -26,9 +26,9 @@ from .config import config
 from .models import Image, Pipe
 from .utils import escape_shell_string, stringify, wrap_in_shell
 
-_group_separator=0x1d
-GROUP_SEPARATOR=chr(_group_separator)
-ESCAPED_GROUP_SEPARATOR=f"\\x{_group_separator:02x}"
+_group_separator = 0x1D
+GROUP_SEPARATOR = chr(_group_separator)
+ESCAPED_GROUP_SEPARATOR = f"\\x{_group_separator:02x}"
 
 logger = logging.getLogger(__name__)
 
@@ -258,6 +258,7 @@ class RemoteScript:
 class Breakpoint:
     pass
 
+
 RunAction = RemoteScript | Breakpoint
 
 
@@ -308,7 +309,9 @@ class ContainerScriptRunner:
                         return exit_code
                 case Breakpoint():
                     logger.info("Breakpoint")
-                    logger.info("You can run a shell on the container with: docker exec -it %s sh", self._container.name)
+                    logger.info(
+                        "You can run a shell on the container with: docker exec -it %s sh", self._container.name
+                    )
                     input("Press enter to continue")
 
         return 0
