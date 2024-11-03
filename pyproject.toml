@@ -39,7 +39,7 @@ types-pyyaml = "^6.0.12.10"
 types-python-slugify = "^8.0.0.2"
 types-boto3 = "^1.0.2"
 faker = "^30.8.1"
-pytest-cov = "^5.0.0"
+pytest-cov = "^6.0.0"
 
 [tool.poetry.scripts]
 pipeline-runner = 'pipeline_runner.cli:main'
