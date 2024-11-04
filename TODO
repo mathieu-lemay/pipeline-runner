@@ -1,7 +1,6 @@
 - Read pipeline variables from some file (with support for hidden)
 - Retry pipeline from step
 - Clone the real thing
-- pipes
 - Execution report
 - --include / --exclude instead of --step
 - Validate there are no variables in branch / pull-request pipelines

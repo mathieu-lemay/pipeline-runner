@@ -37,7 +37,8 @@ On macOS:
     ~/Library/Application Support/pipeline-runner
 
 ## Caches
-Caches defined in your pipelines are stored in your user's cache directory.
+Caches defined in your pipelines are stored in your user's cache directory. Unlike Bitbucket Pipelines, caches are always
+saved even if they already exists. This is subject to change in the future, to follow the behaviour of Bitbucket Pipelines.
 
 On Linux:
 
@@ -46,3 +47,39 @@ On Linux:
 On macOS:
 
     ~/Library/Caches/pipeline-runner
+
+Note: Docker cache is stored in a docker volume instead.
+
+## Supported features
+| Feature               | Supported  | Note                                           |
+| --------------------- | :--------: | :--------------------------------------------: |
+| Variables             | ✅         |                                                |
+| Artifacts             | ✅         |                                                |
+| Docker Service        | ✅         |                                                |
+| Caches                | ✅         |                                                |
+| Custom Caches         | ✅         |                                                |
+| Private Runner Images | ✅         |                                                |
+| Pipes                 | ✅         |                                                |
+| OIDC                  | ❌         | Theoretically possible but way too impractical |
+
+## Debugging
+A few features are available to help with debugging.
+
+### Breakpoints
+Breakpoints, or pauses, can be added during the execution of a pipeline. To do so, add a `# pipeline-runner[breakpoint]` entry in `script` like so
+```
+    example_with_breakpoint:
+      - step:
+          name: Step with breakpoint
+          script:
+            - echo "do something"
+            - # pipeline-runner[breakpoint]
+            - echo "do something else"
+```
+
+The execution will stop at the breakpoint to allow the user to check the state of the pipeline.
+
+### CPU Limits Enforcing
+By default, no cpu limits are enforced, meaning that the pipeline will run as fast as it can.
+You can mimick the cpu limits enforced by Bitbucket Pipelines with the `--cpu-limits`. This is
+useful to replicate more closely the speed at which a pipeline runs in the real thing.
