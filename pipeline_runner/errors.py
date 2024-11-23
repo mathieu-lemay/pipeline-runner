@@ -23,7 +23,8 @@ class InvalidPipelineError(UsageError, ValueError):
         msg = f"Invalid pipeline: {pipeline_name}"
 
         if valid_pipelines:
-            msg += f"\nAvailable pipelines:\n\t{'\n\t'.join(valid_pipelines)}"
+            valid_pipelines_str = "\n\t".join(valid_pipelines)
+            msg += f"\nAvailable pipelines:\n\t{valid_pipelines_str}"
 
         super().__init__(msg)
 

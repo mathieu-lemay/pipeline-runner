@@ -21,4 +21,3 @@ def parse_pipeline_file(file_path: str) -> PipelineSpec:
         raise PipelinesFileParseError(str(e)) from e
     except ValidationError as e:
         raise PipelinesFileValidationError(str(e)) from e
-
