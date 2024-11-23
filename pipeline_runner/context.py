@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from dotenv import dotenv_values
 from slugify import slugify
 
+from pipeline_runner.errors import InvalidPipelineError
+
 from . import utils
 from .config import DEFAULT_CACHES, DEFAULT_SERVICES
 from .models import (
@@ -68,10 +70,8 @@ class PipelineRunContext:
         pipeline_to_run = spec.get_pipeline(pipeline_name)
 
         if not pipeline_to_run:
-            msg = f"Invalid pipeline: {pipeline_name}"
-            logger.error(msg)
-            logger.info("Available pipelines:\n\t%s", "\n\t".join(sorted(spec.get_available_pipelines())))
-            raise ValueError(msg)
+            valid_pipelines = sorted(spec.get_available_pipelines())
+            raise InvalidPipelineError(pipeline_name, valid_pipelines)
 
         project_meta = ProjectMetadata.load_from_file(req.repository_path)
         repository = Repository(req.repository_path)
