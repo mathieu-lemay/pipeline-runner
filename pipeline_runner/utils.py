@@ -8,9 +8,9 @@ from logging import Logger
 from tarfile import TarFile
 from typing import IO
 
-from appdirs import user_cache_dir, user_data_dir
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from platformdirs import user_cache_dir, user_data_dir
 from slugify import slugify
 
 from . import APP_NAME
