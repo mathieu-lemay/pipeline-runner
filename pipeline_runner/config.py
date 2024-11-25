@@ -31,12 +31,16 @@ DEFAULT_SERVICES: Mapping[str, Any] = MappingProxyType(
         "docker": {
             "image": (
                 "docker-public.packages.atlassian.com/sox/atlassian"
-                "/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable"
+                "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
             ),
             "memory": 1024,
         }
     }
 )
+
+# This is the version of the client that is injected in the container if docker is not already present.
+# It is _not_ the same as the docker daemon version.
+ATLASSIAN_DOCKER_CLI_VERSION = "20.10.24"
 
 
 class Config(BaseSettings):

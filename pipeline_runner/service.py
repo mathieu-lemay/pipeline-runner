@@ -138,6 +138,8 @@ class ServiceRunner:
         pull_image(self._client, self._service.image)
 
         self._container = self._start_container()
+
+        logger.info("Waiting for service to be ready: %s", self._service_name)
         self._ensure_container_ready(self._container)
 
     def _start_container(self) -> Container:

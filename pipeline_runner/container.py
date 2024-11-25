@@ -22,7 +22,7 @@ from docker.models.containers import Container, ExecResult  # type: ignore[impor
 
 import pipeline_runner
 
-from .config import config
+from .config import ATLASSIAN_DOCKER_CLI_VERSION, config
 from .models import Image, Pipe
 from .utils import escape_shell_string, stringify, wrap_in_shell
 
@@ -80,9 +80,19 @@ class ContainerRunner:
             logger.debug("`docker` binary is already present in container.")
             return
 
-        docker_service = services["docker"]
-        archive, _ = docker_service.get_archive("/usr/local/bin/docker")
-        self._container.put_archive("/usr/local/bin", archive)
+        logger.debug("Injecting docker cli v%s in container", ATLASSIAN_DOCKER_CLI_VERSION)
+        docker_cli_container = self._client.containers.run(
+            f"docker:{ATLASSIAN_DOCKER_CLI_VERSION}-cli",
+            name=f"{self._name}-docker-cli",
+            entrypoint="sh",
+            detach=True,
+        )
+
+        try:
+            archive, _ = docker_cli_container.get_archive("/usr/local/bin/docker")
+            self._container.put_archive("/usr/local/bin", archive)
+        finally:
+            docker_cli_container.remove(v=True, force=True)
 
     def stop(self) -> None:
         if not self._container:

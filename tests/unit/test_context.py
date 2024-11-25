@@ -99,7 +99,7 @@ def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMet
     docker_service = Service(
         image=Image(
             name="docker-public.packages.atlassian.com/sox/atlassian"
-            "/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable"
+            "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
         ),
         variables={},
         memory=1024,
@@ -125,7 +125,7 @@ def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) 
     docker_service = Service(
         image=Image(
             name="docker-public.packages.atlassian.com/sox/atlassian"
-            "/bitbucket-pipelines-docker-daemon:v20.10.24-multiarch-prod-stable"
+            "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
         ),
         variables={"FOO": "bar"},
         memory=2048,
