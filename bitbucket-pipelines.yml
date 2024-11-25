@@ -354,7 +354,8 @@ pipelines:
             - |
               cat << EOF > Dockerfile
               FROM alpine
-              RUN apk --no-cache add bash
+              RUN --mount=type=cache,target=/var/cache/apk \
+                  apk add bash
               ENTRYPOINT ["bash"]
               EOF
             - DOCKER_BUILDKIT=1 docker build -t buildtest .

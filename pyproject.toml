@@ -73,8 +73,6 @@ ignore = [
     "PTH",  # flake8-use-pathlib
     "TD",  # flake8-todos
 
-    "ANN101",  # Missing type annotation for `self` in method
-    "ANN102",  # Missing type annotation for `cls` in classmethod
     "EM101",  # Exception must not use a string literal, assign to variable first
     "EM102",  # Exception must not use an f-string literal, assign to variable first
     "PLR0913",  # Too many arguments to function call
