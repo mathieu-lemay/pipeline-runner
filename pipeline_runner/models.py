@@ -304,7 +304,7 @@ class StepWrapper(BaseModel):
 
 
 class ParallelStep(ListWrapper[StepWrapper]):
-    wrapped: list[StepWrapper] = Field(alias="parallel", min_length=2)
+    wrapped: list[StepWrapper] = Field(alias="parallel", min_length=1)
 
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         for s in self.wrapped:
