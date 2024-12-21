@@ -298,6 +298,20 @@ pipelines:
               - set -eu
               - '[ "${BITBUCKET_PARALLEL_STEP}" = 1 ]'
               - '[ "${BITBUCKET_PARALLEL_STEP_COUNT}" = 2 ]'
+      - parallel:
+          steps:
+            - step:
+                name: Step 1 of 2
+                script:
+                  - set -eu
+                  - '[ "${BITBUCKET_PARALLEL_STEP}" = 0 ]'
+                  - '[ "${BITBUCKET_PARALLEL_STEP_COUNT}" = 2 ]'
+            - step:
+                name: Step 2 of 2
+                script:
+                  - set -eu
+                  - '[ "${BITBUCKET_PARALLEL_STEP}" = 1 ]'
+                  - '[ "${BITBUCKET_PARALLEL_STEP_COUNT}" = 2 ]'
 
     test_environment_variables:
       - step:
