@@ -186,11 +186,13 @@ class Trigger(str, Enum):
 class StepSize(str, Enum):
     __slots__ = ()
 
-    Simple = "1x"
-    Double = "2x"
+    Size1 = "1x"
+    Size2 = "2x"
+    Size4 = "4x"
+    Size8 = "8x"
 
     def as_int(self) -> int:
-        return {self.Simple: 1, self.Double: 2}[self]
+        return {self.Size1: 1, self.Size2: 2, self.Size4: 4, self.Size8: 8}[self]
 
 
 class Changesets(BaseModel):
@@ -256,7 +258,7 @@ class Step(BaseModel):
     services: list[str] = Field(default_factory=list)
     artifacts: list[str] = Field(default_factory=list)
     after_script: list[str | Pipe] = Field(default_factory=list, alias="after-script")
-    size: StepSize = StepSize.Simple
+    size: StepSize = StepSize.Size1
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
     deployment: str | None = None
     trigger: Trigger = Trigger.Automatic

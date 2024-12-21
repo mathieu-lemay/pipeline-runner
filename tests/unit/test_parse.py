@@ -387,12 +387,13 @@ def test_parse_step_with_manual_trigger() -> None:
     assert step.trigger == Trigger.Manual
 
 
-def test_parse_step_with_double_size() -> None:
-    spec = {"script": [], "size": "2x"}
+@pytest.mark.parametrize("size", list(StepSize))
+def test_parse_step_size(size: StepSize) -> None:
+    spec = {"script": [], "size": size.value}
 
     step = Step.model_validate(spec)
 
-    assert step.size == StepSize.Double
+    assert step.size == size
 
 
 def test_parse_step_with_pipes() -> None:
@@ -532,7 +533,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                         "services": ["from_env"],
                         "artifacts": [],
                         "after-script": [],
-                        "size": StepSize.Simple,
+                        "size": StepSize.Size1,
                         "clone": {"depth": None, "lfs": None, "enabled": None},
                         "deployment": None,
                         "trigger": Trigger.Automatic,
@@ -559,7 +560,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "services": ["from_env"],
                                 "artifacts": [],
                                 "after-script": [],
-                                "size": StepSize.Simple,
+                                "size": StepSize.Size1,
                                 "clone": {"depth": None, "lfs": None, "enabled": None},
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
@@ -584,7 +585,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "services": ["from_env"],
                                 "artifacts": [],
                                 "after-script": [],
-                                "size": StepSize.Simple,
+                                "size": StepSize.Size1,
                                 "clone": {"depth": None, "lfs": None, "enabled": None},
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
