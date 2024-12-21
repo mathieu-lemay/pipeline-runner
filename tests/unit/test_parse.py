@@ -11,6 +11,7 @@ from pipeline_runner.models import (
     Definitions,
     Image,
     ParallelStep,
+    ParallelSteps,
     Pipe,
     Pipeline,
     Pipelines,
@@ -245,6 +246,14 @@ def test_parse_pipeline_with_parallel_steps() -> None:
                 {"step": {"name": "Parallel Step 2", "script": ["echo 'Parallel 2'"]}},
             ]
         },
+        {
+            "parallel": {
+                "steps": [
+                    {"step": {"name": "Parallel Step 3", "script": ["echo 'Parallel 3'"]}},
+                    {"step": {"name": "Parallel Step 4", "script": ["echo 'Parallel 4'"]}},
+                ]
+            }
+        },
     ]
 
     pipeline = Pipeline.model_validate(spec)
@@ -252,7 +261,15 @@ def test_parse_pipeline_with_parallel_steps() -> None:
     step1 = StepWrapper(step=Step(name="Step 1", script=["cat /etc/os-release", "exit 0"]))
     pstep1 = StepWrapper(step=Step(name="Parallel Step 1", script=["echo 'Parallel 1'"]))
     pstep2 = StepWrapper(step=Step(name="Parallel Step 2", script=["echo 'Parallel 2'"]))
-    expected = Pipeline(root=[step1, ParallelStep(wrapped=[pstep1, pstep2])])
+    pstep3 = StepWrapper(step=Step(name="Parallel Step 3", script=["echo 'Parallel 3'"]))
+    pstep4 = StepWrapper(step=Step(name="Parallel Step 4", script=["echo 'Parallel 4'"]))
+    expected = Pipeline(
+        root=[
+            step1,
+            ParallelStep(parallel=[pstep1, pstep2]),
+            ParallelStep(parallel=ParallelSteps(wrapped=[pstep3, pstep4])),
+        ]
+    )
 
     assert pipeline == expected
 

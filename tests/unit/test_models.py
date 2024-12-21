@@ -15,6 +15,7 @@ from pipeline_runner.models import (
     CacheKey,
     Definitions,
     ParallelStep,
+    ParallelSteps,
     Pipe,
     Pipeline,
     PipelineResult,
@@ -83,13 +84,24 @@ def test_cache_supports_custom_keys() -> None:
 
 
 @pytest.mark.parametrize(("num_items", "is_valid"), [(0, False), (1, True), (2, True)])
+def test_parallel_steps_must_contain_at_least_1_item(num_items: int, is_valid: bool) -> None:
+    spec: dict[str, Any] = {"steps": [{"step": {"script": []}} for _ in range(num_items)]}
+
+    if is_valid:
+        ParallelSteps.model_validate(spec)
+    else:
+        with pytest.raises(ValidationError, match="List should have at least 1 item after validation"):
+            ParallelSteps.model_validate(spec)
+
+
+@pytest.mark.parametrize(("num_items", "is_valid"), [(0, False), (1, True), (2, True)])
 def test_parallel_step_must_contain_at_least_1_item(num_items: int, is_valid: bool) -> None:
     spec: dict[str, Any] = {"parallel": [{"step": {"script": []}} for _ in range(num_items)]}
 
     if is_valid:
         ParallelStep.model_validate(spec)
     else:
-        with pytest.raises(ValidationError, match="List should have at least 1 item after validation"):
+        with pytest.raises(ValidationError, match="Value should have at least 1 item after validation"):
             ParallelStep.model_validate(spec)
 
 

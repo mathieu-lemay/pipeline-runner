@@ -303,12 +303,25 @@ class StepWrapper(BaseModel):
         return getattr(self.step, item)
 
 
-class ParallelStep(ListWrapper[StepWrapper]):
-    wrapped: list[StepWrapper] = Field(alias="parallel", min_length=1)
+class ParallelSteps(ListWrapper[StepWrapper]):
+    wrapped: list[StepWrapper] = Field(alias="steps", min_length=1)
+
+
+class ParallelStep(BaseModel):
+    parallel: list[StepWrapper] | ParallelSteps = Field(min_length=1)
 
     def expand_env_vars(self, variables: dict[str, str]) -> None:
-        for s in self.wrapped:
+        for s in self.parallel:
             s.expand_env_vars(variables)
+
+    def __iter__(self) -> Iterator[StepWrapper]:  # type: ignore[override]
+        return iter(self.parallel)
+
+    def __getitem__(self, item: SupportsIndex) -> StepWrapper:
+        return self.parallel[item]
+
+    def __len__(self) -> int:
+        return len(self.parallel)
 
 
 class Variable(BaseModel):
