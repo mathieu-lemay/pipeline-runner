@@ -2,11 +2,12 @@ import logging
 import os
 import sys
 from abc import ABC, abstractmethod
+from http import HTTPStatus
 from time import time as ts
 
 import docker  # type: ignore[import-untyped]
+from docker.errors import APIError  # type: ignore[import-untyped]
 from docker.models.networks import Network  # type: ignore[import-untyped]
-from requests import HTTPError
 
 from . import utils
 from .artifacts import ArtifactManager
