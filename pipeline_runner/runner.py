@@ -256,14 +256,18 @@ class StepRunner(BaseStepRunner):
     def _get_network(self) -> Network:
         name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
         try:
-            bridge_network = self._docker_client.networks.get(name, driver="bridge")
-        except HTTPError:
-            print("Network {} doesn't exist yet...".format(name))
-        else:
+            bridge_network = self._docker_client.networks.get(name)
+        except APIError as e:
+            if e.status_code != HTTPStatus.NOT_FOUND:
+                raise
+
+            logger.debug("Creating network %s.", name)
             bridge_network = self._create_network(name)
+        else:
+            logger.debug("Network %s already exists.", name)
         return bridge_network
 
-    def _create_network(self, name) -> Network:
+    def _create_network(self, name: str) -> Network:
         return self._docker_client.networks.create(name, driver="bridge")
 
     def _get_step_env_vars(self) -> dict[str, str]:
