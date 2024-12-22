@@ -2,9 +2,11 @@ import logging
 import os
 import sys
 from abc import ABC, abstractmethod
+from http import HTTPStatus
 from time import time as ts
 
 import docker  # type: ignore[import-untyped]
+from docker.errors import APIError  # type: ignore[import-untyped]
 from docker.models.networks import Network  # type: ignore[import-untyped]
 
 from . import utils
@@ -169,7 +171,7 @@ class StepRunner(BaseStepRunner):
                 self._step.services.append("docker")
 
             image = self._get_image()
-            network = self._create_network()
+            network = self._get_network()
             environment = self._get_step_env_vars()
 
             services_manager = ServicesManager(
@@ -252,8 +254,21 @@ class StepRunner(BaseStepRunner):
 
         return Image(name=DEFAULT_IMAGE)
 
-    def _create_network(self) -> Network:
+    def _get_network(self) -> Network:
         name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
+        try:
+            bridge_network = self._docker_client.networks.get(name)
+        except APIError as e:
+            if e.status_code != HTTPStatus.NOT_FOUND:
+                raise
+
+            logger.debug("Creating network %s.", name)
+            bridge_network = self._create_network(name)
+        else:
+            logger.debug("Network %s already exists.", name)
+        return bridge_network
+
+    def _create_network(self, name: str) -> Network:
         return self._docker_client.networks.create(name, driver="bridge")
 
     def _get_step_env_vars(self) -> dict[str, str]:
