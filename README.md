@@ -22,11 +22,12 @@ pipeline-runner list
 ```
 
 ## Environment variables
-bitbucket pipeline runner already sets all `BITBUCKET_*` environment variables in the step's run environment.
-It will also source any `.env` file in the current directory, for all project specific environment variables.
+bitbucket pipeline runner already sets all `BITBUCKET_*` environment variables in the step's run environment. It will
+also source any `.env` file in the current directory, for all project specific environment variables.
 
 ## Artifacts and logs
-Persistent data like artifacts generated from your pipelines and execution logs can be found in your user's data directory.
+Persistent data like artifacts generated from your pipelines and execution logs can be found in your user's data
+directory.
 
 On Linux:
 
@@ -37,8 +38,9 @@ On macOS:
     ~/Library/Application Support/pipeline-runner
 
 ## Caches
-Caches defined in your pipelines are stored in your user's cache directory. Unlike Bitbucket Pipelines, caches are always
-saved even if they already exists. This is subject to change in the future, to follow the behaviour of Bitbucket Pipelines.
+Caches defined in your pipelines are stored in your user's cache directory. Unlike Bitbucket Pipelines, caches are
+always saved even if they already exists. This is subject to change in the future, to follow the behaviour of Bitbucket
+Pipelines.
 
 On Linux:
 
@@ -49,6 +51,39 @@ On macOS:
     ~/Library/Caches/pipeline-runner
 
 Note: Docker cache is stored in a docker volume instead.
+
+## SSH Agent Forwarding
+You can expose your ssh-agent to the container running the pipelines. This is useful if the pipeline needs to clone
+from a private repository for example.
+To do so, run the pipeline with the `--ssh` flag:
+
+```shell
+pipeline-runner run --ssh <pipeline-name>
+```
+
+## Debugging
+A few features are available to help with debugging.
+
+### Breakpoints
+Breakpoints, or pauses, can be added during the execution of a pipeline. To do so, add a
+`# pipeline-runner[breakpoint]` entry in `script`:
+```yaml
+    example_with_breakpoint:
+      - step:
+          name: Step with breakpoint
+          script:
+            - echo "do something"
+            - '# pipeline-runner[breakpoint]'
+            - echo "do something else"
+```
+
+The execution will stop at the breakpoint to allow the user to check the state of the pipeline.
+Note that the entry must be put in quotes to avoid it being interpreted as a yaml comment.
+
+### CPU Limits Enforcing
+By default, no cpu limits are enforced, meaning that the pipeline will run as fast as it can. You can mimick the cpu
+limits enforced by Bitbucket Pipelines with the `--cpu-limits`. This is useful to replicate more closely the speed at
+which a pipeline runs in the real thing.
 
 ## Supported features
 | Feature               | Supported  | Note                                           |
@@ -61,25 +96,3 @@ Note: Docker cache is stored in a docker volume instead.
 | Private Runner Images | ✅         |                                                |
 | Pipes                 | ✅         |                                                |
 | OIDC                  | ❌         | Theoretically possible but way too impractical |
-
-## Debugging
-A few features are available to help with debugging.
-
-### Breakpoints
-Breakpoints, or pauses, can be added during the execution of a pipeline. To do so, add a `# pipeline-runner[breakpoint]` entry in `script` like so
-```
-    example_with_breakpoint:
-      - step:
-          name: Step with breakpoint
-          script:
-            - echo "do something"
-            - # pipeline-runner[breakpoint]
-            - echo "do something else"
-```
-
-The execution will stop at the breakpoint to allow the user to check the state of the pipeline.
-
-### CPU Limits Enforcing
-By default, no cpu limits are enforced, meaning that the pipeline will run as fast as it can.
-You can mimick the cpu limits enforced by Bitbucket Pipelines with the `--cpu-limits`. This is
-useful to replicate more closely the speed at which a pipeline runs in the real thing.
