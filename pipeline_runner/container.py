@@ -57,6 +57,7 @@ class ContainerRunner:
         self._logger = output_logger
         self._mem_limit = mem_limit * 2**20  # MiB to B
         self._ssh_private_key = ssh_private_key
+        self._platform = os.getenv("PIPELINE_RUNNER_DOCKER_PLATFORM")
 
         self._client = docker.from_env()
         self._container = None
@@ -151,7 +152,7 @@ class ContainerRunner:
         return self._container.put_archive(path, data)
 
     def start_container(self) -> None:
-        pull_image(self._client, self._image)
+        pull_image(self._client, self._image, self._platform)
 
         logger.info("Creating container: %s", self._name)
 
@@ -182,6 +183,7 @@ class ContainerRunner:
             network=self._network_name,
             tty=True,
             detach=True,
+            platform=self._platform,
             **opts,
         )
 
@@ -523,7 +525,7 @@ class RemoteActionManager:
 _pulled_images = set()
 
 
-def pull_image(client: DockerClient, image: Image) -> None:
+def pull_image(client: DockerClient, image: Image, platform: str | None) -> None:
     if image.name in _pulled_images:
         logger.info("Image already pulled: %s", image.name)
         return
@@ -532,7 +534,7 @@ def pull_image(client: DockerClient, image: Image) -> None:
 
     auth_config = get_image_authentication(image)
     try:
-        client.images.pull(image.name, auth_config=auth_config)
+        client.images.pull(image.name, auth_config=auth_config, platform=platform)
     except docker.errors.NotFound:
         if client.images.get(image.name):
             logger.warning("Image not found on remote, but exists locally: %s", image.name)
