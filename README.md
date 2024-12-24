@@ -86,6 +86,8 @@ limits enforced by Bitbucket Pipelines with the `--cpu-limits`. This is useful t
 which a pipeline runs in the real thing.
 
 ## Supported features
+Most features of Bitbucket Pipelines should work out of the box. If you find something that is not working properly,
+please open an issue.
 | Feature               | Supported  | Note                                           |
 | --------------------- | :--------: | :--------------------------------------------: |
 | Variables             | ✅         |                                                |
@@ -95,4 +97,5 @@ which a pipeline runs in the real thing.
 | Custom Caches         | ✅         |                                                |
 | Private Runner Images | ✅         |                                                |
 | Pipes                 | ✅         |                                                |
+| Parallel Steps        | ✅         | The steps will run, but in sequence.           |
 | OIDC                  | ❌         | Theoretically possible but way too impractical |
