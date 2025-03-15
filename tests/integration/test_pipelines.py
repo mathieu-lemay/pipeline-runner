@@ -4,11 +4,13 @@ import io
 import json
 import logging.config
 import os
+import shutil
 import tarfile
 import time
 from collections.abc import Callable, Generator
 from concurrent.futures import Future
 from pathlib import Path
+from textwrap import dedent
 from uuid import UUID, uuid4
 
 import docker  # type: ignore[import-untyped]
@@ -105,6 +107,18 @@ def custom_cache_key_file(pytestconfig: PytestConfig) -> Generator[Path, None, N
     yield path
 
     path.unlink(missing_ok=True)
+
+
+@pytest.fixture
+def custom_pipelines_file(pytestconfig: PytestConfig, tmp_path: Path) -> Generator[Path, None, None]:
+    path = pytestconfig.rootpath / "bitbucket-pipelines.yml"
+    backup_file = tmp_path / "bitbucket-pipelines.yml"
+
+    shutil.copy(path, backup_file)
+
+    yield path
+
+    shutil.copy(backup_file, path)
 
 
 def test_success() -> None:
@@ -250,6 +264,31 @@ def test_service() -> None:
 
 def test_docker_in_docker() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_docker_in_docker"))
+    result = runner.run()
+
+    assert result.exit_code == 0
+
+
+def test_docker_in_docker_with_custom_image(custom_pipelines_file: Path) -> None:
+    pipeline_definition = dedent("""
+    definitions:
+      services:
+        docker:
+          image: docker:dind
+
+    pipelines:
+      default:
+        - step:
+            name: "Test Docker in Docker with Custom Image"
+            image: "alpine"
+            script:
+              - docker ps
+            services:
+              - docker
+    """)
+    with custom_pipelines_file.open("w") as f:
+        f.write(pipeline_definition)
+    runner = PipelineRunner(PipelineRunRequest("default"))
     result = runner.run()
 
     assert result.exit_code == 0

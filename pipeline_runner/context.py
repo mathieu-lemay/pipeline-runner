@@ -116,12 +116,9 @@ class PipelineRunContext:
 
             if name in services:
                 service = services[name]
-                service.image = default_service.image
-
-                if not service.variables:
-                    service.variables = default_service.variables
-                if not service.memory:
-                    service.memory = default_service.memory
+                service.image = service.image or default_service.image
+                service.variables = service.variables or default_service.variables
+                service.memory = service.memory or default_service.memory
             else:
                 services[name] = default_service
 

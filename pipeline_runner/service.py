@@ -1,5 +1,6 @@
 import logging
 from importlib.resources import as_file, files
+from typing import cast
 
 import docker  # type: ignore[import-untyped]
 from docker import DockerClient
@@ -214,8 +215,28 @@ class DockerServiceRunner(ServiceRunner):
                 return
             case "unhealthy":
                 raise ServiceUnhealthyError
+            case "unknown":
+                # Fallback to non-heathcheck running check
+                pass
             case _:
                 raise ServiceNotReadyError
+
+        if container.status != "running":
+            logger.debug("Container is %s", container.status)
+            raise ServiceNotReadyError
+
+        # Typing is not strictly true, values are list[list[Any]]
+        # But the last element is a str and that's the only one we care about
+        processes = cast("dict[str, list[list[str]]]", container.top())
+
+        # Ensure that docker is running in the container before attempting an exec_run
+        if not any(p for p in processes["Processes"] if p[-1].startswith("dockerd")):
+            raise ServiceNotReadyError
+
+        result = container.exec_run(("docker", "info"))
+        if result.exit_code != 0:
+            logger.debug("docker info result: exit_code=%d, output=%s", result.exit_code, result.output.decode())
+            raise ServiceNotReadyError
 
     def _get_volumes(self) -> dict[str, dict[str, str]]:
         static_files = files(pipeline_runner).joinpath("static")
