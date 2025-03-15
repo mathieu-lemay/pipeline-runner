@@ -67,7 +67,7 @@ class Config(BaseSettings):
 
     @field_validator("log_level")
     def validate_log_level(cls, value: str) -> str:
-        return cast(str, logging.getLevelName(value.upper()))
+        return cast("str", logging.getLevelName(value.upper()))
 
     @property
     def log_config(self) -> dict[str, Any]:

@@ -66,7 +66,7 @@ class ServicesManager:
         for s, sr in self._service_runners.items():
             try:
                 sr.stop()
-            except Exception:  # noqa: PERF203: try-except within a loop incurs performance overhead
+            except Exception:  # noqa: PERF203  # try-except within a loop incurs performance overhead
                 logger.exception("Error removing service '%s'", s)
 
     def get_services_containers(self) -> dict[str, Container]:

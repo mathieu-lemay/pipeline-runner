@@ -130,7 +130,7 @@ class ContainerRunner:
 
     def path_exists(self, path: str) -> bool:
         ret, _ = self.run_command(f'[ -e "$(realpath "{path}")" ]')
-        return cast(int, ret) == 0
+        return cast("int", ret) == 0
 
     # TODO: Validate Typing
     def get_archive(
@@ -298,10 +298,10 @@ class ContainerScriptRunner:
         else:
 
             def stdout_print(msg: str) -> None:
-                print(msg, end="")  # noqa: T201: `print` found
+                print(msg, end="")  # noqa: T201  # `print` found
 
             def stderr_print(msg: str) -> None:
-                print(msg, end="", file=sys.stderr)  # noqa: T201: `print` found
+                print(msg, end="", file=sys.stderr)  # noqa: T201  # `print` found
 
         self._stdout_print = stdout_print
         self._stderr_print = stderr_print
