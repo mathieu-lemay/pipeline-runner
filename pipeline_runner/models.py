@@ -118,20 +118,7 @@ class Definitions(BaseModel):
         errors = []
 
         for service_name, service in value.items():
-            if service_name in DEFAULT_SERVICES and service.image is not None:
-                err = PydanticCustomError(
-                    "value_error",
-                    "Default service '{service_name}' can't have a custom image",
-                    {"service_name": service_name},
-                )
-                errors.append(
-                    InitErrorDetails(
-                        type=err,
-                        loc=(service_name, "image"),
-                        input=service,
-                    )
-                )
-            elif service_name not in DEFAULT_SERVICES and service.image is None:
+            if service_name not in DEFAULT_SERVICES and service.image is None:
                 err = PydanticCustomError(
                     "missing",
                     "Service '{service_name}' must have an image",

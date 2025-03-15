@@ -216,6 +216,12 @@ class DockerServiceRunner(ServiceRunner):
                 raise ServiceUnhealthyError
             case _:
                 raise ServiceNotReadyError
+        # if not container.status == "running":
+        #     raise ServiceNotReadyError
+        #
+        # result = container.exec_run(("docker", "info"))
+        # if result.exit_code != 0:
+        #     raise ServiceNotReadyError
 
     def _get_volumes(self) -> dict[str, dict[str, str]]:
         static_files = files(pipeline_runner).joinpath("static")
