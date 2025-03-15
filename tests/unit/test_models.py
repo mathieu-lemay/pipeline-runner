@@ -14,7 +14,6 @@ from pipeline_runner.models import (
     Cache,
     CacheKey,
     Definitions,
-    Image,
     ParallelStep,
     ParallelSteps,
     Pipe,
@@ -82,27 +81,6 @@ def test_cache_supports_custom_keys() -> None:
             key=CacheKey(files=["file1.txt", "file2.txt"]),
             path="some-path",
         )
-    }
-
-
-def test_definitions_ensures_default_services_dont_have_an_image(faker: Faker) -> None:
-    image = faker.pystr()
-    spec: dict[str, Any] = {
-        "services": {"docker": {"image": image}},
-    }
-
-    with pytest.raises(ValidationError) as err_ctx:
-        Definitions.model_validate(spec)
-
-    assert err_ctx.value.error_count() == 1
-
-    error = err_ctx.value.errors()[0]
-    assert error == {
-        "type": "value_error",
-        "loc": ("services", "docker", "image"),
-        "msg": "Default service 'docker' can't have a custom image",
-        "input": Service(image=Image(name=image), variables={}),
-        "ctx": {"service_name": "docker"},
     }
 
 

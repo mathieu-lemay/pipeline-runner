@@ -1,3 +1,4 @@
+import logging
 import os.path
 from collections.abc import Iterator, Sequence
 from enum import Enum
@@ -16,6 +17,8 @@ from slugify import slugify
 from . import utils
 from .config import DEFAULT_SERVICES
 from .utils import generate_ssh_rsa_key
+
+logger = logging.getLogger(__name__)
 
 
 class BaseModel(PydanticBaseModel):
@@ -118,7 +121,11 @@ class Definitions(BaseModel):
         errors = []
 
         for service_name, service in value.items():
-            if service_name not in DEFAULT_SERVICES and service.image is None:
+            if service_name in DEFAULT_SERVICES and service.image is not None:
+                logger.warning(
+                    "Using custom image for service '%s'. This is not officially supported and can lead to issues"
+                )
+            elif service_name not in DEFAULT_SERVICES and service.image is None:
                 err = PydanticCustomError(
                     "missing",
                     "Service '{service_name}' must have an image",
