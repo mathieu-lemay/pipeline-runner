@@ -10,7 +10,7 @@ from git.repo import Repo
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import ConfigDict, Field, ValidationError, field_validator, model_validator
 from pydantic.root_model import RootModel
-from pydantic_core import ErrorDetails
+from pydantic_core import InitErrorDetails, PydanticCustomError
 from slugify import slugify
 
 from . import utils
@@ -119,26 +119,34 @@ class Definitions(BaseModel):
 
         for service_name, service in value.items():
             if service_name in DEFAULT_SERVICES and service.image is not None:
+                err = PydanticCustomError(
+                    "value_error",
+                    "Default service '{service_name}' can't have a custom image",
+                    {"service_name": service_name},
+                )
                 errors.append(
-                    ErrorDetails(
-                        type="ValueError",
-                        msg=f"Default service {service_name} can't have an image",
-                        loc=(service_name,),
-                        input=value,
+                    InitErrorDetails(
+                        type=err,
+                        loc=(service_name, "image"),
+                        input=service,
                     )
                 )
             elif service_name not in DEFAULT_SERVICES and service.image is None:
+                err = PydanticCustomError(
+                    "missing",
+                    "Service '{service_name}' must have an image",
+                    {"service_name": service_name},
+                )
                 errors.append(
-                    ErrorDetails(
-                        type="ValueError",
-                        msg=f"Default service {service_name} must have an image",
-                        loc=(service_name,),
-                        input=value,
+                    InitErrorDetails(
+                        type=err,
+                        loc=(service_name, "image"),
+                        input=service,
                     )
                 )
 
         if errors:
-            raise ValidationError(errors, cls)
+            raise ValidationError.from_exception_data(title=cls.__class__.__name__, line_errors=errors)
 
         return value
 
