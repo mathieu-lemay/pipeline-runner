@@ -132,7 +132,7 @@ class RepositoryCloner:
             CloneSettings().depth,
         )
 
-        return cast(str | int | None, depth)
+        return cast("str | int | None", depth)
 
     @staticmethod
     def _first_non_none_value(*args: T | None) -> T | None:

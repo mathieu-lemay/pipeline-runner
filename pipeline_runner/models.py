@@ -298,7 +298,7 @@ class StepWrapper(BaseModel):
     def expand_env_vars(self, variables: dict[str, str]) -> None:
         self.step.expand_env_vars(variables)
 
-    def __getattr__(self, item: str) -> Any:  # noqa: ANN401: Dynamically typed expressions (typing.Any) are disallowed
+    def __getattr__(self, item: str) -> Any:  # noqa: ANN401  # Dynamically typed expressions (typing.Any) are disallowed
         if item in self.__dict__:
             return self.__dict__[item]
 

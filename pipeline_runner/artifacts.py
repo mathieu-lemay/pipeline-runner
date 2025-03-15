@@ -74,7 +74,7 @@ class ArtifactManager:
         logger.debug("artifacts stats: %s", stats)
 
         # FileStreamer only implements `read` which is all that is needed.
-        with tarfile.open(fileobj=FileStreamer(data), mode="r|") as wrapper_tar:  # type: ignore[abstract]
+        with tarfile.open(fileobj=FileStreamer(data), mode="r|") as wrapper_tar:  # type: ignore[abstract,call-overload]
             for entry in wrapper_tar:
                 with tarfile.open(fileobj=wrapper_tar.extractfile(entry), mode="r|") as tar:
                     safe_extract_tar(tar, artifact_local_directory)
