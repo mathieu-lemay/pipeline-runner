@@ -123,7 +123,8 @@ class Definitions(BaseModel):
         for service_name, service in value.items():
             if service_name in DEFAULT_SERVICES and service.image is not None:
                 logger.warning(
-                    "Using custom image for service '%s'. This is not officially supported and can lead to issues"
+                    "Using custom image for service '%s'. This is not officially supported and can lead to issues",
+                    service_name,
                 )
             elif service_name not in DEFAULT_SERVICES and service.image is None:
                 err = PydanticCustomError(
