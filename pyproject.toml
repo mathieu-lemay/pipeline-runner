@@ -1,6 +1,6 @@
 [project]
 name = "bitbucket-pipeline-runner"
-version = "0.4.11"
+version = "0.4.12"
 description = "Run a bitbucket pipeline locally"
 authors = [
     { name = "Mathieu Lemay", email = "acidrain1@gmail.com" }
