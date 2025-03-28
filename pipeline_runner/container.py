@@ -525,7 +525,7 @@ class RemoteActionManager:
 _pulled_images = set()
 
 
-def pull_image(client: DockerClient, image: Image, platform: str | None) -> None:
+def pull_image(client: DockerClient, image: Image, platform: str | None = None) -> None:
     if image.name in _pulled_images:
         logger.info("Image already pulled: %s", image.name)
         return
