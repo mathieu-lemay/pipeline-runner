@@ -161,6 +161,32 @@ pipelines:
           script:
             - exit 0
 
+    test_artifacts_block_definition:
+      - step:
+          name: Create Artifacts
+          artifacts:
+            paths:
+              - file-a.txt
+              - file-b.txt
+          script:
+            - echo a > file-a.txt
+            - echo b > file-b.txt
+      - step:
+          name: Validate Artifacts
+          script:
+            - "[ -e file-a.txt ] || exit 1"
+            - "[ -e file-b.txt ] || exit 1"
+            - exit 0
+      - step:
+          name: Validate disable artifact download
+          artifacts:
+            download: false
+          script:
+            # Artifacts should _not_ be present in that container
+            - "[ -e file-a.txt ] && exit 1"
+            - "[ -e file-b.txt ] && exit 1"
+            - exit 0
+
     test_deployment_environment:
       - step:
           name: Test Bitbucket Deployment Environment

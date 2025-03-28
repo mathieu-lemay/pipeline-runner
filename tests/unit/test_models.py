@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from pipeline_runner import utils
 from pipeline_runner.models import (
+    Artifacts,
     Cache,
     CacheKey,
     Definitions,
@@ -199,6 +200,22 @@ def test_pipe_get_image_returns_the_right_docker_image_if_pipe_is_from_atlassian
     p = Pipe(pipe="atlassian/bar:1.2.3", variables={})
 
     assert p.get_image() == "bitbucketpipelines/bar:1.2.3"
+
+
+def test_step_artifacts_parses_list() -> None:
+    spec: list[str] = ["foo", "bar", "baz"]
+
+    artifacts = Artifacts.model_validate(spec)
+
+    assert artifacts == Artifacts(paths=["foo", "bar", "baz"], download=True)
+
+
+def test_step_artifacts_parses_object() -> None:
+    spec: dict[str, Any] = {"paths": ["foo", "bar", "baz"], "download": False}
+
+    artifacts = Artifacts.model_validate(spec)
+
+    assert artifacts == Artifacts(paths=["foo", "bar", "baz"], download=False)
 
 
 def test_step_condition_is_optional() -> None:
