@@ -67,6 +67,24 @@ container running the pipeline. If you have more than one ssh key linked to an
 account on the target git hosting, ensure that the one you need to use is the
 first one in the agent.
 
+## Alternate Platform
+To force a different plaform for the pipeline container, you can set the following environment variable:
+```shell
+# Replace linux/amd64 by the target platform
+export PIPELINE_RUNNER_DOCKER_PLATFORM=linux/amd64
+```
+
+Note that this affects _only_ the pipeline container, ie. the one that runs your script. It will not
+affect the services requested by the pipeline.
+
+If you are running on Apple Silicon, you can force docker to run _all_ containers on a different platform:
+```shell
+export DOCKER_DEFAULT_PLATFORM=linux/amd64
+```
+
+> [!WARNING]
+This feature is still experimental
+
 ## Debugging
 A few features are available to help with debugging.
 
