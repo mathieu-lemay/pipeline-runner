@@ -61,6 +61,12 @@ To do so, run the pipeline with the `--ssh` flag:
 pipeline-runner run --ssh <pipeline-name>
 ```
 
+> [!NOTE]
+Any personal git and/or ssh configuration won't be available inside the
+container running the pipeline. If you have more than one ssh key linked to an
+account on the target git hosting, ensure that the one you need to use is the
+first one in the agent.
+
 ## Debugging
 A few features are available to help with debugging.
 
