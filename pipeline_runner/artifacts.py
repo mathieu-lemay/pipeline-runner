@@ -6,9 +6,10 @@ from tarfile import TarInfo
 from time import time as ts
 from uuid import UUID
 
-from .config import config
-from .container import ContainerRunner
-from .utils import FileStreamer, get_human_readable_size, safe_extract_tar
+from pipeline_runner.config import config
+from pipeline_runner.container import ContainerRunner
+from pipeline_runner.models import Artifacts
+from pipeline_runner.utils import FileStreamer, get_human_readable_size, safe_extract_tar
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,8 @@ class ArtifactManager:
 
         logger.info("Artifacts loaded in %.3fs", t)
 
-    def download(self, artifacts: list[str]) -> None:
-        if not artifacts:
+    def download(self, artifacts: Artifacts) -> None:
+        if not artifacts.paths:
             return
 
         artifact_file = f"artifacts-{self._step_uuid}.tar"
@@ -61,7 +62,7 @@ class ArtifactManager:
 
         t = ts()
 
-        path_filters = " -o ".join(f"-path './{a}'" for a in artifacts)
+        path_filters = " -o ".join(f"-path './{a}'" for a in artifacts.paths)
         prepare_artifacts_cmd = ["find", "-type", "f", r"\(", path_filters, r"\)"]
         prepare_artifacts_cmd += ["|", "tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
 

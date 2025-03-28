@@ -355,6 +355,12 @@ class StepRunner(BaseStepRunner):
             # TODO: Refactor
             raise Exception("called on uninitialized runner")
 
+        if not self._step.artifacts.download:
+            # Note: Bitbucket Pipelines downloads from a storage, while we upload to the container,
+            #       hence the discrepancy between download and upload.
+            logger.info("Artifacts downloading disabled, skipping sending artifacts to container")
+            return
+
         am = ArtifactManager(
             self._container_runner, self._ctx.pipeline_ctx.get_artifact_directory(), self._ctx.step_uuid
         )

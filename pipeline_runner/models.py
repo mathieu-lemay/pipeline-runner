@@ -253,13 +253,26 @@ class Pipe(BaseModel):
         return self.pipe
 
 
+class Artifacts(BaseModel):
+    download: bool = True
+    paths: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def list_to_object(cls, data: Any) -> Any:  # noqa: ANN401  # pydantic expects `Any`
+        if isinstance(data, list):
+            return {"paths": data}
+
+        return data
+
+
 class Step(BaseModel):
     name: str = "<unnamed>"
     script: list[str | Pipe]
     image: Image | None = None
     caches: list[str] = Field(default_factory=list)
     services: list[str] = Field(default_factory=list)
-    artifacts: list[str] = Field(default_factory=list)
+    artifacts: Artifacts = Field(default_factory=Artifacts)
     after_script: list[str | Pipe] = Field(default_factory=list, alias="after-script")
     size: StepSize = StepSize.Size1
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
