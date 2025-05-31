@@ -1,17 +1,22 @@
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from importlib.resources import as_file, files
 from typing import cast
 
-import docker  # type: ignore[import-untyped]
+import docker
 from docker import DockerClient
-from docker.models.containers import Container  # type: ignore[import-untyped]
-from docker.models.volumes import Volume  # type: ignore[import-untyped]
+from docker.errors import APIError
+from docker.models.containers import Container
+from docker.models.networks import Network
+from docker.models.volumes import Volume
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
 import pipeline_runner
 
-from .config import config
+from .config import PAUSE_IMAGE, config
 from .container import ContainerScriptRunner, pull_image
 from .errors import InvalidServiceError
 from .models import Service
@@ -305,3 +310,64 @@ class ServiceRunnerFactory:
             repository_slug,
             pipeline_cache_directory,
         )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PauseServiceRunner:
+    docker_client: DockerClient
+    network: Network
+    project_slug: str
+
+    @contextmanager
+    def __call__(self) -> Generator["PauseService"]:
+        svc = self._start()
+
+        yield svc
+
+        self._stop(svc)
+
+    def _start(self) -> "PauseService":
+        name = f"{self.project_slug}-pause"
+
+        logger.debug("Starting pause service: %s", name)
+
+        container: Container = self.docker_client.containers.run(
+            PAUSE_IMAGE,
+            name=name,
+            network=self.network.name,
+            detach=True,
+        )
+
+        # Reload the container data to get the IP address
+        container = self.docker_client.containers.get(container.id)
+
+        logger.debug("Pause service started successfully: %s", name)
+
+        return PauseService(
+            id=container.id,
+            name=name,
+            ip_address=container.attrs["NetworkSettings"]["Networks"][self.network.name]["IPAddress"],
+            container=container,
+        )
+
+    @staticmethod
+    def _stop(svc: "PauseService") -> None:
+        logger.debug("Removing pause service: %s", svc.name)
+        try:
+            svc.container.remove(v=True, force=True)
+        except APIError:
+            logger.exception("Error removing pause service: %s", svc.name)
+        else:
+            logger.debug("Pause service removed: %s", svc.name)
+
+
+@dataclass(frozen=True, kw_only=True)
+class PauseService:
+    id: str
+    name: str
+    ip_address: str
+    container: Container
+
+    @property
+    def network_name(self) -> str:
+        return f"container:{self.name}"

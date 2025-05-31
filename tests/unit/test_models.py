@@ -183,6 +183,7 @@ def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
         '--env=BITBUCKET_STEP_UUID="$BITBUCKET_STEP_UUID" '
         '--env=BITBUCKET_DOCKER_HOST_INTERNAL="$BITBUCKET_DOCKER_HOST_INTERNAL" '
         '--env=DOCKER_HOST="tcp://host.docker.internal:2375" '
+        '--add-host="host.docker.internal:$BITBUCKET_DOCKER_HOST_INTERNAL" '
         "foo/bar:1.2.3"
     )
 
@@ -236,6 +237,7 @@ def test_pipe_as_cmd_adds_variables_as_docker_env_vars() -> None:
         '-e EXTRA_ARGS_0="a" '
         '-e EXTRA_ARGS_1="b" '
         '-e EXTRA_ARGS_COUNT="2" '
+        '--add-host="host.docker.internal:$BITBUCKET_DOCKER_HOST_INTERNAL" '
         "foo/bar:1.2.3"
     )
 

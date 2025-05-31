@@ -14,6 +14,10 @@ if TYPE_CHECKING:
     from .models import CacheType
 
 DEFAULT_IMAGE: Final[str] = "atlassian/default-image:latest"
+PAUSE_IMAGE: Final[str] = "k8s-docker.packages.atlassian.com/pause:3.8"
+DOCKER_IMAGE: Final[str] = (
+    "docker-public.packages.atlassian.com/sox/atlassian/bitbucket-pipelines-docker-daemon:v25.0.5-tlsfalse-prod-stable"
+)
 
 DEFAULT_CACHES: Final[dict[str, "CacheType"]] = {
     "composer": "~/.composer/cache",
@@ -29,10 +33,7 @@ DEFAULT_CACHES: Final[dict[str, "CacheType"]] = {
 DEFAULT_SERVICES: Mapping[str, Any] = MappingProxyType(
     {
         "docker": {
-            "image": (
-                "docker-public.packages.atlassian.com/sox/atlassian"
-                "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
-            ),
+            "image": DOCKER_IMAGE,
             "memory": 1024,
         }
     }

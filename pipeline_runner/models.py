@@ -251,6 +251,7 @@ class Pipe(BaseModel):
         if variables:
             cmd += [f'-e {k}="{self._escape_value(v)}"' for k, v in variables.items()]
 
+        cmd.append('--add-host="host.docker.internal:$BITBUCKET_DOCKER_HOST_INTERNAL"')
         cmd.append(self.get_image())
 
         return " ".join(cmd)

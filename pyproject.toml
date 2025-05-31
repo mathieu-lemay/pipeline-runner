@@ -7,7 +7,7 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<4"
 dependencies = [
     "pyyaml (>=6.0.2,<7.0.0)",
     "docker (>=7.1.0,<8.0.0)",
@@ -54,6 +54,14 @@ explicit_package_bases = true
 strict = true
 show_error_codes = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "docker",
+    "docker.*"
+]
+ignore_missing_imports = true
+
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

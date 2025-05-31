@@ -5,9 +5,9 @@ from abc import ABC, abstractmethod
 from http import HTTPStatus
 from time import time as ts
 
-import docker  # type: ignore[import-untyped]
-from docker.errors import APIError  # type: ignore[import-untyped]
-from docker.models.networks import Network  # type: ignore[import-untyped]
+import docker
+from docker.errors import APIError
+from docker.models.networks import Network
 
 from . import utils
 from .artifacts import ArtifactManager
@@ -26,7 +26,7 @@ from .models import (
     Variable,
 )
 from .repository import RepositoryCloner
-from .service import ServicesManager
+from .service import PauseService, PauseServiceRunner, ServicesManager
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class StepRunner(BaseStepRunner):
     # TODO: Decomplexify
     # C901: Too complex (>10)
     # PLR0915: Too many statements (>50)
-    def run(self) -> int | None:  # noqa: C901, PLR0915
+    def run(self) -> int | None:
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return None
@@ -163,59 +163,20 @@ class StepRunner(BaseStepRunner):
 
         network = None
 
-        exit_code: int
+        exit_code: int = -1
 
         try:
-            if "docker" not in self._step.services and self._docker_is_needed():
-                logger.debug("Docker service is needed, but wasn't requested. Adding it.")
-                self._step.services.append("docker")
-
-            image = self._get_image()
             network = self._get_network()
-            environment = self._get_step_env_vars()
 
-            services_manager = ServicesManager(
-                self._step.services,
-                self._ctx.pipeline_ctx.services,
-                self._step.size.as_int(),
-                self._data_volume_name,
-                self._ctx.pipeline_ctx.project_metadata.path_slug,
-                self._ctx.pipeline_ctx.get_cache_directory(),
+            pause_svc_runner = PauseServiceRunner(
+                docker_client=self._docker_client,
+                network=network,
+                project_slug=self._ctx.pipeline_ctx.project_metadata.path_slug,
             )
-            self._services_manager = services_manager
 
-            mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
+            with pause_svc_runner() as pause_svc:
+                exit_code = self._run_step(pause_svc)
 
-            container_runner = ContainerRunner(
-                self._container_name,
-                image,
-                network.name,
-                self._ctx.pipeline_ctx.repository.path,
-                self._data_volume_name,
-                environment,
-                self._output_logger,
-                mem_limit,
-                self._ctx.pipeline_ctx.project_metadata.ssh_key,
-            )
-            self._container_runner = container_runner
-
-            container_runner.start()
-
-            services_manager.start_services(f"container:{container_runner.get_container_name()}")
-
-            services = services_manager.get_services_containers()
-            container_runner.install_docker_client_if_needed(services)
-
-            self._build_setup()
-
-            exit_code = container_runner.run_script(self._step.script, exec_time=True)
-
-            container_runner.run_script(self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True)
-
-            if exit_code:
-                logger.error("Step '%s': FAIL", self._step.name)
-
-            self._build_teardown(exit_code)
         except Exception:
             logger.exception("Error during pipeline execution")
             exit_code = 1
@@ -235,6 +196,60 @@ class StepRunner(BaseStepRunner):
                 volume.remove()
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
+
+        return exit_code
+
+    def _run_step(self, pause_svc: PauseService) -> int:
+        if "docker" not in self._step.services and self._docker_is_needed():
+            logger.debug("Docker service is needed, but wasn't requested. Adding it.")
+            self._step.services.append("docker")
+
+        image = self._get_image()
+        network = pause_svc.network_name
+        environment = self._get_step_env_vars(pause_svc)
+
+        services_manager = ServicesManager(
+            self._step.services,
+            self._ctx.pipeline_ctx.services,
+            self._step.size.as_int(),
+            self._data_volume_name,
+            self._ctx.pipeline_ctx.project_metadata.path_slug,
+            self._ctx.pipeline_ctx.get_cache_directory(),
+        )
+        self._services_manager = services_manager
+
+        mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
+
+        container_runner = ContainerRunner(
+            self._container_name,
+            image,
+            network,
+            self._ctx.pipeline_ctx.repository.path,
+            self._data_volume_name,
+            environment,
+            self._output_logger,
+            mem_limit,
+            self._ctx.pipeline_ctx.project_metadata.ssh_key,
+        )
+        self._container_runner = container_runner
+
+        container_runner.start()
+
+        services_manager.start_services(network)
+
+        services = services_manager.get_services_containers()
+        container_runner.install_docker_client_if_needed(services)
+
+        self._build_setup()
+
+        exit_code = container_runner.run_script(self._step.script, exec_time=True)
+
+        container_runner.run_script(self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True)
+
+        if exit_code:
+            logger.error("Step '%s': FAIL", self._step.name)
+
+        self._build_teardown(exit_code)
 
         return exit_code
 
@@ -271,11 +286,12 @@ class StepRunner(BaseStepRunner):
     def _create_network(self, name: str) -> Network:
         return self._docker_client.networks.create(name, driver="bridge")
 
-    def _get_step_env_vars(self) -> dict[str, str]:
+    def _get_step_env_vars(self, pause_svc: PauseService) -> dict[str, str]:
         env_vars = self._get_bitbucket_env_vars()
 
         if "docker" in self._step.services:
             env_vars["DOCKER_HOST"] = "tcp://localhost:2375"
+            env_vars["BITBUCKET_DOCKER_HOST_INTERNAL"] = pause_svc.ip_address
 
         env_vars.update(self._ctx.pipeline_ctx.env_vars)
         env_vars.update(self._ctx.pipeline_ctx.pipeline_variables)

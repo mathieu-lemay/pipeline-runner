@@ -2,6 +2,7 @@ import os.path
 from pathlib import Path
 from unittest.mock import Mock
 
+from pipeline_runner.config import DOCKER_IMAGE
 from pipeline_runner.context import PipelineRunContext
 from pipeline_runner.models import CloneSettings, Image, ProjectMetadata, Service
 
@@ -97,10 +98,7 @@ def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMet
     )
 
     docker_service = Service(
-        image=Image(
-            name="docker-public.packages.atlassian.com/sox/atlassian"
-            "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
-        ),
+        image=Image(name=DOCKER_IMAGE),
         variables={},
         memory=1024,
     )
@@ -123,10 +121,7 @@ def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) 
     )
 
     docker_service = Service(
-        image=Image(
-            name="docker-public.packages.atlassian.com/sox/atlassian"
-            "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
-        ),
+        image=Image(name=DOCKER_IMAGE),
         variables={"FOO": "bar"},
         memory=2048,
     )

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
-from docker import DockerClient  # type: ignore[import-untyped]
+from docker import DockerClient
 from pytest_mock import MockerFixture
 
 from pipeline_runner.config import Config

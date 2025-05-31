@@ -13,7 +13,7 @@ from pathlib import Path
 from textwrap import dedent
 from uuid import UUID, uuid4
 
-import docker  # type: ignore[import-untyped]
+import docker
 import dotenv
 import pytest
 from _pytest.config import Config as PytestConfig
