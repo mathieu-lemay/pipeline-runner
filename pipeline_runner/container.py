@@ -15,10 +15,10 @@ from time import time
 from typing import Any, cast
 
 import boto3
-import docker.errors  # type: ignore[import-untyped]
+import docker.errors
 from docker import DockerClient
-from docker.constants import DEFAULT_DATA_CHUNK_SIZE  # type: ignore[import-untyped]
-from docker.models.containers import Container, ExecResult  # type: ignore[import-untyped]
+from docker.constants import DEFAULT_DATA_CHUNK_SIZE
+from docker.models.containers import Container, ExecResult
 
 import pipeline_runner
 
