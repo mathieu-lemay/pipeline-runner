@@ -148,7 +148,48 @@ def test_pipeline_result_ok_returns_false_if_exit_code_is_not_zero() -> None:
 
 def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
     p = Pipe(
-        pipe="atlassian/foo:1.2.3",
+        pipe="foo/bar:1.2.3",
+    )
+
+    assert p.as_cmd() == (
+        "docker run --rm "
+        "--volume=/opt/atlassian/pipelines/agent/build:/opt/atlassian/pipelines/agent/build "
+        "--volume=/opt/atlassian/pipelines/agent/ssh:/opt/atlassian/pipelines/agent/ssh:ro "
+        "--volume=/opt/atlassian/pipelines/bin/docker:/usr/local/bin/docker:ro "
+        "--workdir=$(pwd) "
+        "--label=org.bitbucket.pipelines.system=true "
+        '--env=BITBUCKET_STEP_TRIGGERER_UUID="$BITBUCKET_STEP_TRIGGERER_UUID" '
+        '--env=BITBUCKET_REPO_FULL_NAME="$BITBUCKET_REPO_FULL_NAME" '
+        '--env=BITBUCKET_GIT_HTTP_ORIGIN="$BITBUCKET_GIT_HTTP_ORIGIN" '
+        '--env=BITBUCKET_REPO_SLUG="$BITBUCKET_REPO_SLUG" '
+        '--env=BITBUCKET_PROJECT_UUID="$BITBUCKET_PROJECT_UUID" '
+        '--env=CI="$CI" '
+        '--env=BITBUCKET_REPO_OWNER="$BITBUCKET_REPO_OWNER" '
+        '--env=BITBUCKET_REPO_IS_PRIVATE="$BITBUCKET_REPO_IS_PRIVATE" '
+        '--env=BITBUCKET_WORKSPACE="$BITBUCKET_WORKSPACE" '
+        '--env=BITBUCKET_SSH_KEY_FILE="$BITBUCKET_SSH_KEY_FILE" '
+        '--env=BITBUCKET_REPO_OWNER_UUID="$BITBUCKET_REPO_OWNER_UUID" '
+        '--env=BITBUCKET_STEP_RUN_NUMBER="$BITBUCKET_STEP_RUN_NUMBER" '
+        '--env=BITBUCKET_BUILD_NUMBER="$BITBUCKET_BUILD_NUMBER" '
+        '--env=BITBUCKET_BRANCH="$BITBUCKET_BRANCH" '
+        '--env=BITBUCKET_GIT_SSH_ORIGIN="$BITBUCKET_GIT_SSH_ORIGIN" '
+        '--env=BITBUCKET_PIPELINE_UUID="$BITBUCKET_PIPELINE_UUID" '
+        '--env=BITBUCKET_PIPELINES_VARIABLES_PATH="$BITBUCKET_PIPELINES_VARIABLES_PATH" '
+        '--env=BITBUCKET_COMMIT="$BITBUCKET_COMMIT" '
+        '--env=BITBUCKET_REPO_UUID="$BITBUCKET_REPO_UUID" '
+        '--env=BITBUCKET_CLONE_DIR="$BITBUCKET_CLONE_DIR" '
+        '--env=BITBUCKET_PROJECT_KEY="$BITBUCKET_PROJECT_KEY" '
+        '--env=PIPELINES_JWT_TOKEN="$PIPELINES_JWT_TOKEN" '
+        '--env=BITBUCKET_STEP_UUID="$BITBUCKET_STEP_UUID" '
+        '--env=BITBUCKET_DOCKER_HOST_INTERNAL="$BITBUCKET_DOCKER_HOST_INTERNAL" '
+        '--env=DOCKER_HOST="tcp://host.docker.internal:2375" '
+        "foo/bar:1.2.3"
+    )
+
+
+def test_pipe_as_cmd_adds_variables_as_docker_env_vars() -> None:
+    p = Pipe(
+        pipe="foo/bar:1.2.3",
         variables={
             "FOO": "BAR",
             "BAZ": '[{"some": "json with \'single-quotes\'", "more": "json with line\nbreak"}]',
@@ -162,14 +203,54 @@ def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
         "--volume=/opt/atlassian/pipelines/agent/build:/opt/atlassian/pipelines/agent/build "
         "--volume=/opt/atlassian/pipelines/agent/ssh:/opt/atlassian/pipelines/agent/ssh:ro "
         "--volume=/opt/atlassian/pipelines/bin/docker:/usr/local/bin/docker:ro "
+        "--workdir=$(pwd) "
+        "--label=org.bitbucket.pipelines.system=true "
+        '--env=BITBUCKET_STEP_TRIGGERER_UUID="$BITBUCKET_STEP_TRIGGERER_UUID" '
+        '--env=BITBUCKET_REPO_FULL_NAME="$BITBUCKET_REPO_FULL_NAME" '
+        '--env=BITBUCKET_GIT_HTTP_ORIGIN="$BITBUCKET_GIT_HTTP_ORIGIN" '
+        '--env=BITBUCKET_REPO_SLUG="$BITBUCKET_REPO_SLUG" '
+        '--env=BITBUCKET_PROJECT_UUID="$BITBUCKET_PROJECT_UUID" '
+        '--env=CI="$CI" '
+        '--env=BITBUCKET_REPO_OWNER="$BITBUCKET_REPO_OWNER" '
+        '--env=BITBUCKET_REPO_IS_PRIVATE="$BITBUCKET_REPO_IS_PRIVATE" '
+        '--env=BITBUCKET_WORKSPACE="$BITBUCKET_WORKSPACE" '
+        '--env=BITBUCKET_SSH_KEY_FILE="$BITBUCKET_SSH_KEY_FILE" '
+        '--env=BITBUCKET_REPO_OWNER_UUID="$BITBUCKET_REPO_OWNER_UUID" '
+        '--env=BITBUCKET_STEP_RUN_NUMBER="$BITBUCKET_STEP_RUN_NUMBER" '
+        '--env=BITBUCKET_BUILD_NUMBER="$BITBUCKET_BUILD_NUMBER" '
+        '--env=BITBUCKET_BRANCH="$BITBUCKET_BRANCH" '
+        '--env=BITBUCKET_GIT_SSH_ORIGIN="$BITBUCKET_GIT_SSH_ORIGIN" '
+        '--env=BITBUCKET_PIPELINE_UUID="$BITBUCKET_PIPELINE_UUID" '
+        '--env=BITBUCKET_PIPELINES_VARIABLES_PATH="$BITBUCKET_PIPELINES_VARIABLES_PATH" '
+        '--env=BITBUCKET_COMMIT="$BITBUCKET_COMMIT" '
+        '--env=BITBUCKET_REPO_UUID="$BITBUCKET_REPO_UUID" '
+        '--env=BITBUCKET_CLONE_DIR="$BITBUCKET_CLONE_DIR" '
+        '--env=BITBUCKET_PROJECT_KEY="$BITBUCKET_PROJECT_KEY" '
+        '--env=PIPELINES_JWT_TOKEN="$PIPELINES_JWT_TOKEN" '
+        '--env=BITBUCKET_STEP_UUID="$BITBUCKET_STEP_UUID" '
+        '--env=BITBUCKET_DOCKER_HOST_INTERNAL="$BITBUCKET_DOCKER_HOST_INTERNAL" '
+        '--env=DOCKER_HOST="tcp://host.docker.internal:2375" '
         '-e FOO="BAR" '
         '-e BAZ="[{\\"some\\": \\"json with \'single-quotes\'\\", \\"more\\": \\"json with line\nbreak\\"}]" '
         '-e ENV="${SOME_ENVVAR}" '
         '-e EXTRA_ARGS_0="a" '
         '-e EXTRA_ARGS_1="b" '
         '-e EXTRA_ARGS_COUNT="2" '
-        "bitbucketpipelines/foo:1.2.3"
+        "foo/bar:1.2.3"
     )
+
+
+def test_pipe_as_cmd_uses_proper_repo_for_atlassian_pipes(faker: Faker) -> None:
+    image = faker.pystr()
+    tag = faker.pystr()
+
+    p = Pipe(
+        pipe=f"atlassian/{image}:{tag}",
+    )
+
+    cmd = p.as_cmd()
+
+    assert cmd.endswith(f"bitbucketpipelines/{image}:{tag}")
 
 
 def test_pipe_expand_variables_expands_list_variables() -> None:
