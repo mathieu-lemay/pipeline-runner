@@ -364,7 +364,7 @@ class PauseService:
         type_: type[BaseException] | None,
         value: BaseException | None,
         traceback: TracebackType | None,
-    ) -> bool | None:
+    ) -> None:
         logger.debug("Removing pause service: %s", self.name)
         try:
             self.container.remove(v=True, force=True)
