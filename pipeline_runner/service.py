@@ -1,9 +1,8 @@
 import logging
-from collections.abc import Generator
-from contextlib import contextmanager
 from dataclasses import dataclass
 from importlib.resources import as_file, files
-from typing import cast
+from types import TracebackType
+from typing import Self, cast
 
 import docker
 from docker import DockerClient
@@ -318,13 +317,8 @@ class PauseServiceRunner:
     network: Network
     project_slug: str
 
-    @contextmanager
-    def __call__(self) -> Generator["PauseService"]:
-        svc = self._start()
-
-        yield svc
-
-        self._stop(svc)
+    def __call__(self) -> "PauseService":
+        return self._start()
 
     def _start(self) -> "PauseService":
         name = f"{self.project_slug}-pause"
@@ -350,16 +344,6 @@ class PauseServiceRunner:
             container=container,
         )
 
-    @staticmethod
-    def _stop(svc: "PauseService") -> None:
-        logger.debug("Removing pause service: %s", svc.name)
-        try:
-            svc.container.remove(v=True, force=True)
-        except APIError:
-            logger.exception("Error removing pause service: %s", svc.name)
-        else:
-            logger.debug("Pause service removed: %s", svc.name)
-
 
 @dataclass(frozen=True, kw_only=True)
 class PauseService:
@@ -371,3 +355,20 @@ class PauseService:
     @property
     def network_name(self) -> str:
         return f"container:{self.name}"
+
+    def __enter__(self) -> "Self":
+        return self
+
+    def __exit__(
+        self,
+        type_: type[BaseException] | None,
+        value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
+        logger.debug("Removing pause service: %s", self.name)
+        try:
+            self.container.remove(v=True, force=True)
+        except APIError:
+            logger.exception("Error removing pause service: %s", self.name)
+        else:
+            logger.debug("Pause service removed: %s", self.name)
