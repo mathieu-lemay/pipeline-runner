@@ -73,6 +73,7 @@ class RepositoryCloner:
         git_clone_cmd = self._get_clone_command(origin)
 
         return [
+            "umask 000",
             git_clone_cmd,
             "git reset --hard $BITBUCKET_COMMIT",
             "git config user.name bitbucket-pipelines",
@@ -82,6 +83,7 @@ class RepositoryCloner:
             f"git remote set-url origin {origin}",
             "git reflog expire --expire=all --all",
             "echo '.bitbucket/pipelines/generated' >> .git/info/exclude",
+            "chmod 777 $BUILD_DIR",
         ]
 
     @staticmethod

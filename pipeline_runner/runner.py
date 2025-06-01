@@ -163,7 +163,7 @@ class StepRunner(BaseStepRunner):
 
         network = None
 
-        exit_code: int = -1
+        exit_code: int
 
         try:
             network = self._get_network()
@@ -179,7 +179,7 @@ class StepRunner(BaseStepRunner):
 
         except Exception:
             logger.exception("Error during pipeline execution")
-            exit_code = 1
+            exit_code = -1
         finally:
             if self._services_manager:
                 self._services_manager.stop_services()
