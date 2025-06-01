@@ -155,7 +155,7 @@ def test_pipe_as_cmd_transforms_the_pipe_into_a_docker_command() -> None:
         "docker run --rm "
         "--volume=/opt/atlassian/pipelines/agent/build:/opt/atlassian/pipelines/agent/build "
         "--volume=/opt/atlassian/pipelines/agent/ssh:/opt/atlassian/pipelines/agent/ssh:ro "
-        "--volume=/opt/atlassian/pipelines/bin/docker:/usr/local/bin/docker:ro "
+        "--volume=/usr/local/bin/docker:/usr/local/bin/docker:ro "
         "--workdir=$(pwd) "
         "--label=org.bitbucket.pipelines.system=true "
         '--env=BITBUCKET_STEP_TRIGGERER_UUID="$BITBUCKET_STEP_TRIGGERER_UUID" '
@@ -203,7 +203,7 @@ def test_pipe_as_cmd_adds_variables_as_docker_env_vars() -> None:
         "docker run --rm "
         "--volume=/opt/atlassian/pipelines/agent/build:/opt/atlassian/pipelines/agent/build "
         "--volume=/opt/atlassian/pipelines/agent/ssh:/opt/atlassian/pipelines/agent/ssh:ro "
-        "--volume=/opt/atlassian/pipelines/bin/docker:/usr/local/bin/docker:ro "
+        "--volume=/usr/local/bin/docker:/usr/local/bin/docker:ro "
         "--workdir=$(pwd) "
         "--label=org.bitbucket.pipelines.system=true "
         '--env=BITBUCKET_STEP_TRIGGERER_UUID="$BITBUCKET_STEP_TRIGGERER_UUID" '
