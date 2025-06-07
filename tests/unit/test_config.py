@@ -17,7 +17,7 @@ from pipeline_runner.config import Config
         ("~/.cache:/cache:ro:wat", "invalid volume spec"),
     ],
 )
-def test_validate_volumes_conform_to_docker_spec(*, volume: str, expected_error: str | None):
+def test_validate_volumes_conform_to_docker_spec(*, volume: str, expected_error: str | None) -> None:
     if expected_error:
         with pytest.raises(ValidationError, match=expected_error):
             Config.model_validate({"volumes": [volume]})
@@ -25,7 +25,7 @@ def test_validate_volumes_conform_to_docker_spec(*, volume: str, expected_error:
         Config.model_validate({"volumes": [volume]})
 
 
-def test_validate_validates_all():
+def test_validate_validates_all_volumes() -> None:
     volumes = ["", "foo:x:y:z", "valid", "bar:x:y:z"]
 
     with pytest.raises(ValidationError) as exc_info:
@@ -47,7 +47,7 @@ def test_validate_validates_all():
         ),
     ],
 )
-def test_validate_expands_first_part(monkeypatch: MonkeyPatch, *, volume: str, expected: str):
+def test_validate_expands_first_part(monkeypatch: MonkeyPatch, *, volume: str, expected: str) -> None:
     monkeypatch.setenv("SOMEVAR", "expanded-var")
 
     c = Config.model_validate({"volumes": [volume]})
