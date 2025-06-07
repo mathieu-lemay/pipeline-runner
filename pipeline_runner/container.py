@@ -254,10 +254,31 @@ class ContainerRunner:
             raise Exception(f"Error creating root ssh config: {output}")
 
     def _get_volumes(self) -> dict[str, dict[str, str]]:
-        return {
-            self._repository_path: {"bind": config.remote_workspace_dir, "mode": "ro"},
-            self._data_volume_name: {"bind": config.remote_pipeline_dir},
-        }
+        volumes = {}
+        for volume in config.volumes:
+            name, spec = self._parse_volume_spec(volume)
+            volumes[name] = spec
+
+        # Add the standard volumes at the end to ensure they can't be overwritten by the user
+        volumes.update(
+            {
+                self._repository_path: {"bind": config.remote_workspace_dir, "mode": "ro"},
+                self._data_volume_name: {"bind": config.remote_pipeline_dir},
+            }
+        )
+
+        return volumes
+
+    @staticmethod
+    def _parse_volume_spec(volume: str) -> tuple[str, dict[str, str]]:
+        parts = volume.split(":")
+        name = parts[0]
+
+        spec = {"bind": parts[1] if len(parts) > 1 else name}
+        if len(parts) > 2:  # noqa: PLR2004  # Magic value used in comparison
+            spec["mode"] = parts[2]
+
+        return name, spec
 
 
 @dataclass

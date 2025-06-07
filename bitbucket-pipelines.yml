@@ -410,3 +410,15 @@ pipelines:
           oidc: true
           script:
             - "echo a"
+
+    test_user_defined_volumes:
+      - step:
+          name: Test custom volumes
+          script:
+            - test -d /custom-rw
+            - echo ok > /custom-rw/file
+
+            - test -d /custom-ro
+            - if echo ok > /custom-ro/file; then
+            -   exit 1
+            - fi

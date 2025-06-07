@@ -6,7 +6,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from . import __name__ as __project_name__
 
@@ -44,9 +44,12 @@ ATLASSIAN_DOCKER_CLI_VERSION = "20.10.24"
 
 
 class Config(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="pipeline_runner_")
+
     color: bool = True
     cpu_limits: bool = False
     expose_ssh_agent: bool = False
+    volumes: list[str] = Field(default_factory=list)
 
     username: str = Field(default_factory=getpass.getuser)
 
@@ -68,6 +71,27 @@ class Config(BaseSettings):
     @field_validator("log_level")
     def validate_log_level(cls, value: str) -> str:
         return cast("str", logging.getLevelName(value.upper()))
+
+    @field_validator("volumes")
+    def validate_volumes(cls, volumes: list[str]) -> list[str]:
+        errors = []
+
+        for idx, vol in enumerate(volumes):
+            if not vol:
+                errors.append(f"Invalid volume: {vol}: empty volume spec")
+
+            parts = vol.split(":")
+            if len(parts) > 3:  # noqa: PLR2004  # Magic value used in comparison
+                errors.append(f"Invalid volume: {vol}: invalid volume spec")
+
+            parts[0] = os.path.expandvars(os.path.expanduser(parts[0]))
+
+            volumes[idx] = ":".join(parts)
+
+        if errors:
+            raise ValueError(", ".join(errors))
+
+        return volumes
 
     @property
     def log_config(self) -> dict[str, Any]:

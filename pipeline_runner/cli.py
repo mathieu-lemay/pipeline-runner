@@ -86,19 +86,25 @@ def main(ctx: click.Context, *, show_version: bool) -> None:
 @click.option(
     "-c",
     "--color/--no-color",
-    default=True,
+    default=None,
     help="Enable colored output. Default: True",
 )
 @click.option(
     "--cpu-limits/--no-cpu-limits",
-    default=False,
+    default=None,
     help="Enable to enforce cpu limits for the runner. Default: False",
 )
 @click.option(
     "--ssh/--no-ssh",
     "expose_ssh_agent",
-    default=False,
+    default=None,
     help="Expose the local ssh agent to the container. Default: False",
+)
+@click.option(
+    "--volume",
+    "volumes",
+    multiple=True,
+    help="Extra volume mounts for the pipeline container. Supports docker --volume syntax.",
 )
 def run(
     pipeline: str | None,
@@ -109,15 +115,21 @@ def run(
     color: bool,
     cpu_limits: bool,
     expose_ssh_agent: bool,
+    volumes: tuple[str] | None,
 ) -> None:
     """
     Run the pipeline <PIPELINE>.
 
     PIPELINE is the full path to the pipeline to run. Ex: branches.master
     """
-    config.color = color
-    config.cpu_limits = cpu_limits
-    config.expose_ssh_agent = expose_ssh_agent
+    if color is not None:
+        config.color = color
+    if cpu_limits is not None:
+        config.cpu_limits = cpu_limits
+    if expose_ssh_agent is not None:
+        config.expose_ssh_agent = expose_ssh_agent
+    if volumes:
+        config.volumes = list(volumes)
 
     _init_logger()
 
