@@ -548,6 +548,31 @@ def test_warning_is_emitted_if_oidc_is_enabled(caplog: LogCaptureFixture) -> Non
     assert "Ignoring OIDC flag on step: Test step with oidc" in caplog.text
 
 
+def test_user_defined_volumes(tmp_path: Path, mocker: MockerFixture) -> None:
+    cfg = config.model_copy(deep=True)
+
+    mocker.patch("pipeline_runner.container.config", cfg)
+
+    custom_rw = tmp_path / "rw"
+    custom_ro = tmp_path / "ro"
+
+    # Create the directories with the current user to ensure they are not created as root by docker
+    custom_rw.mkdir(parents=True)
+    custom_ro.mkdir(parents=True)
+
+    cfg.volumes = [
+        f"{custom_rw}:/custom-rw",
+        f"{custom_ro}:/custom-ro:ro",
+    ]
+
+    runner = PipelineRunner(PipelineRunRequest("custom.test_user_defined_volumes"))
+    result = runner.run()
+
+    assert result.ok
+    assert (custom_rw / "file").exists()
+    assert not (custom_ro / "file").exists()
+
+
 def _sha256hash(data: bytes) -> str:
     hasher = hashlib.sha256()
     hasher.update(data)
