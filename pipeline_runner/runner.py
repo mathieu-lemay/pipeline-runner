@@ -362,7 +362,10 @@ class StepRunner(BaseStepRunner):
             return
 
         am = ArtifactManager(
-            self._container_runner, self._ctx.pipeline_ctx.get_artifact_directory(), self._ctx.step_uuid
+            self._docker_client,
+            self._container_name,
+            self._ctx.pipeline_ctx.get_artifact_directory(),
+            self._ctx.step_uuid,
         )
         am.upload()
 
@@ -426,7 +429,10 @@ class StepRunner(BaseStepRunner):
             raise Exception("called on uninitialized runner")
 
         am = ArtifactManager(
-            self._container_runner, self._ctx.pipeline_ctx.get_artifact_directory(), self._ctx.step_uuid
+            self._docker_client,
+            self._container_name,
+            self._ctx.pipeline_ctx.get_artifact_directory(),
+            self._ctx.step_uuid,
         )
         am.download(self._step.artifacts)
 

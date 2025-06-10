@@ -42,3 +42,8 @@ class NegativeIntegerError(ValueError):
 class InvalidCacheKeyError(ValueError):
     def __init__(self, name: str) -> None:
         super().__init__(f'Cache "{name}": Cache key files could not be found')
+
+
+class ArtifactManagementError(Exception):
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)
