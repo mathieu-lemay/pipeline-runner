@@ -4,19 +4,25 @@ import os.path
 import tarfile
 from tarfile import TarInfo
 from time import time as ts
+from types import TracebackType
 from uuid import UUID
 
+from docker import DockerClient  # type: ignore[import-untyped]
+from docker.models.containers import Container  # type: ignore[import-untyped]
+
 from pipeline_runner.config import config
-from pipeline_runner.container import ContainerRunner
+from pipeline_runner.errors import ArtifactManagementError
 from pipeline_runner.models import Artifacts
-from pipeline_runner.utils import FileStreamer, get_human_readable_size, safe_extract_tar
+from pipeline_runner.utils import FileStreamer, get_human_readable_size, safe_extract_tar, stringify, wrap_in_shell
 
 logger = logging.getLogger(__name__)
 
 
 class ArtifactManager:
-    def __init__(self, container: ContainerRunner, artifact_directory: str, step_uuid: UUID) -> None:
-        self._container = container
+    def __init__(
+        self, client: DockerClient, pipeline_container_name: str, artifact_directory: str, step_uuid: UUID
+    ) -> None:
+        self._runner = ArtifactManagerContainerRunner(client, pipeline_container_name)
         self._artifact_directory = artifact_directory
         self._step_uuid = step_uuid
 
@@ -42,9 +48,10 @@ class ArtifactManager:
                     with open(full_path, "rb") as f:
                         tar.addfile(ti, f)
 
-        res = self._container.put_archive(config.build_dir, tar_data.getvalue())
-        if not res:
-            raise Exception(f"Error loading artifact: {af}")
+        with self._runner as container:
+            res = container.put_archive(config.build_dir, tar_data.getvalue())
+            if not res:
+                raise Exception(f"Error loading artifact: {af}")
 
         t = ts() - t
 
@@ -62,23 +69,30 @@ class ArtifactManager:
 
         t = ts()
 
-        path_filters = " -o ".join(f"-path './{a}'" for a in artifacts.paths)
-        prepare_artifacts_cmd = ["find", "-type", "f", r"\(", path_filters, r"\)"]
-        prepare_artifacts_cmd += ["|", "tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
+        with self._runner as container:
+            path_filters = " -o ".join(f"-path './{a}'" for a in artifacts.paths)
+            prepare_artifacts_cmd = ["find", "-type", "f", r"\(", path_filters, r"\)"]
+            prepare_artifacts_cmd += ["|", "tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
 
-        self._container.run_command(prepare_artifacts_cmd)
-        if not self._container.path_exists(artifact_remote_path):
-            logger.info("No artifacts found. Skipping")
-            return
+            cmd = wrap_in_shell(stringify(prepare_artifacts_cmd))
+            logger.debug("preparing artifacts cmd: %s", cmd)
+            exit_code, output = container.exec_run(cmd)
+            if exit_code != 0:
+                output_str = output.decode()
+                if "empty archive" in output_str:
+                    logger.info("No artifacts found. Skipping")
+                    return
 
-        data, stats = self._container.get_archive(artifact_remote_path, encode_stream=True)
-        logger.debug("artifacts stats: %s", stats)
+                raise ArtifactManagementError(f"Error preparing artifacts: {output.decode()}")
 
-        # FileStreamer only implements `read` which is all that is needed.
-        with tarfile.open(fileobj=FileStreamer(data), mode="r|") as wrapper_tar:  # type: ignore[abstract,call-overload]
-            for entry in wrapper_tar:
-                with tarfile.open(fileobj=wrapper_tar.extractfile(entry), mode="r|") as tar:
-                    safe_extract_tar(tar, artifact_local_directory)
+            data, stats = container.get_archive(artifact_remote_path, encode_stream=True)
+            logger.debug("artifacts stats: %s", stats)
+
+            # FileStreamer only implements `read` which is all that is needed.
+            with tarfile.open(fileobj=FileStreamer(data), mode="r|") as wrapper_tar:  # type: ignore[abstract,call-overload]
+                for entry in wrapper_tar:
+                    with tarfile.open(fileobj=wrapper_tar.extractfile(entry), mode="r|") as tar:
+                        safe_extract_tar(tar, artifact_local_directory)
 
         t = ts() - t
 
@@ -88,3 +102,36 @@ class ArtifactManager:
             artifact_local_directory,
             t,
         )
+
+
+class ArtifactManagerContainerRunner:
+    def __init__(self, client: DockerClient, source_container_name: str) -> None:
+        self._client = client
+        self._source_container_name = source_container_name
+        self._container: Container | None = None
+
+    def __enter__(self) -> Container:
+        name = f"{self._source_container_name}-artifacts"
+        logger.debug("Creating artifacts manager container: %s", name)
+
+        self._container = self._client.containers.run(
+            "alpine",
+            name=name,
+            entrypoint="sh",
+            working_dir=config.build_dir,
+            volumes_from=[self._source_container_name],
+            tty=True,
+            detach=True,
+        )
+
+        return self._container
+
+    def __exit__(
+        self,
+        type_: type[BaseException] | None,
+        value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self._container:
+            logger.debug("Deleting artifacts manager container: %s", self._container.name)
+            self._container.remove(force=True)
