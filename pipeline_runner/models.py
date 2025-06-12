@@ -503,6 +503,7 @@ class ProjectMetadata(BaseModel):
     repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: int = 0
     ssh_key: str = Field(default_factory=generate_ssh_rsa_key)
+    gpg_key: str = Field(default_factory=generate_ssh_rsa_key)
 
     @classmethod
     def load_from_file(cls, project_directory: str) -> "ProjectMetadata":
