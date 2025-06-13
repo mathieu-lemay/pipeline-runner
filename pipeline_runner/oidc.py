@@ -56,7 +56,7 @@ class OIDCPayload(BaseModel):
             sub = f"{pipeline_uuid}:{step_uuid}"
 
         return cls(
-            iss=oidc_settings.issuer or "https://example.org",
+            iss=oidc_settings.issuer,
             aud=oidc_settings.audience,
             sub=sub,
             iat=iat,

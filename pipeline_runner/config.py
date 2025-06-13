@@ -45,7 +45,7 @@ ATLASSIAN_DOCKER_CLI_VERSION = "20.10.24"
 
 class OIDCSettings(BaseSettings):
     enabled: bool = False
-    issuer: str | None = None
+    issuer: str = "https://example.org"
     audience: str = "rogueconsulting::pipeline-runner"
 
 

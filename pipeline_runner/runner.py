@@ -154,7 +154,7 @@ class StepRunner(BaseStepRunner):
         if self._step.condition is not None:
             logger.warning("Ignoring condition on step: %s", self._step.name)
 
-        if self._step.oidc:
+        if self._step.oidc and not config.oidc.enabled:
             logger.warning("Ignoring OIDC flag on step: %s", self._step.name)
 
         if self._step.trigger == Trigger.Manual:
