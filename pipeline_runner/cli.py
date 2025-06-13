@@ -6,9 +6,12 @@ import sys
 from importlib.metadata import version
 
 import click
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from pyfzf import FzfPrompt  # type: ignore[import-untyped]
 
 from pipeline_runner.errors import InvalidPipelineError
+from pipeline_runner.models import ProjectMetadata
 
 from . import utils
 from .config import config
@@ -214,6 +217,38 @@ def cache(action: str) -> None:
     elif action == "clear":
         for p in projects:
             shutil.rmtree(os.path.join(cache_dir, p))
+
+
+@main.command("oidc-config")
+@click.option(
+    "-r",
+    "--repository-path",
+    help="Path to the git repository. Defaults to current directory.",
+)
+@click.pass_context
+def oidc_config(ctx: click.Context, *, repository_path: str) -> None:
+    """
+    Print the oidc configuration for this repository.
+    """
+    if not config.oidc.enabled:
+        logger.error("oidc is not enabled")
+        ctx.exit(1)
+
+    if not config.oidc.issuer:
+        logger.error("oidc issuer is not set")
+        ctx.exit(1)
+
+    repo_meta = ProjectMetadata.load_from_file(repository_path or ".", increase_build=False)
+    public_key = load_pem_private_key(repo_meta.gpg_key.encode(), password=None).public_key()
+    pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+
+    click.echo("OIDC Configuration:")
+    click.echo(f"\tIssuer: {config.oidc.issuer}")
+    click.echo(f"\tAudience: {config.oidc.audience}")
+    click.echo(f"\tPublic Key: {pem.replace('\n', '\\n')}")
 
 
 if __name__ == "__main__":

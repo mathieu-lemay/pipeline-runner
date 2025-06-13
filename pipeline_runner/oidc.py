@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from pydantic import BaseModel, ConfigDict, Field
 
 from pipeline_runner.config import config
@@ -72,8 +74,17 @@ class OIDCPayload(BaseModel):
 def get_step_oidc_token(ctx: StepRunContext, deployment_environment: str | None = None) -> str:
     payload = OIDCPayload.new(ctx, deployment_environment=deployment_environment)
 
+    public_key = load_pem_private_key(ctx.pipeline_ctx.project_metadata.gpg_key.encode(), password=None).public_key()
+    public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+    kid = uuid.uuid5(uuid.NAMESPACE_OID, public_key_pem)
+
     return jwt.encode(
         payload.model_dump(),
         ctx.pipeline_ctx.project_metadata.gpg_key,
         algorithm="RS256",
+        headers={"kid": str(kid)},
     )

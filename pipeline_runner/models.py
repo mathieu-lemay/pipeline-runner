@@ -506,7 +506,8 @@ class ProjectMetadata(BaseModel):
     gpg_key: str = Field(default_factory=generate_rsa_key)
 
     @classmethod
-    def load_from_file(cls, project_directory: str) -> "ProjectMetadata":
+    def load_from_file(cls, project_directory: str, increase_build: bool = True) -> "ProjectMetadata":
+        project_directory = os.path.abspath(os.path.expanduser(project_directory))
         path_slug = utils.hashify_path(project_directory)
 
         project_data_dir = utils.get_project_data_directory(path_slug)
@@ -520,7 +521,8 @@ class ProjectMetadata(BaseModel):
             key = "".join(s[0].upper() for s in slug.split("-"))
             meta = cls(name=name, path_slug=path_slug, slug=slug, key=key)
 
-        meta.build_number += 1
+        if increase_build:
+            meta.build_number += 1
 
         meta_file.write_text(meta.model_dump_json())
 

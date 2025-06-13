@@ -50,7 +50,7 @@ class OIDCSettings(BaseSettings):
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="pipeline_runner_")
+    model_config = SettingsConfigDict(env_prefix="pipeline_runner_", env_nested_delimiter="_")
 
     color: bool = True
     cpu_limits: bool = False
