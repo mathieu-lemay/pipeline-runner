@@ -16,7 +16,7 @@ from slugify import slugify
 
 from . import utils
 from .config import DEFAULT_SERVICES
-from .utils import generate_ssh_rsa_key
+from .utils import generate_rsa_key
 
 logger = logging.getLogger(__name__)
 
@@ -502,8 +502,8 @@ class ProjectMetadata(BaseModel):
     project_uuid: UUID = Field(default_factory=uuid4)
     repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: int = 0
-    ssh_key: str = Field(default_factory=generate_ssh_rsa_key)
-    gpg_key: str = Field(default_factory=generate_ssh_rsa_key)
+    ssh_key: str = Field(default_factory=generate_rsa_key)
+    gpg_key: str = Field(default_factory=generate_rsa_key)
 
     @classmethod
     def load_from_file(cls, project_directory: str) -> "ProjectMetadata":

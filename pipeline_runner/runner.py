@@ -25,6 +25,7 @@ from .models import (
     Trigger,
     Variable,
 )
+from .oidc import get_step_oidc_token
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -313,6 +314,11 @@ class StepRunner(BaseStepRunner):
 
         if self._step.deployment:
             env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
+
+        if self._step.oidc and config.oidc.enabled:
+            env_vars["BITBUCKET_STEP_OIDC_TOKEN"] = get_step_oidc_token(
+                self._ctx, deployment_environment=self._step.deployment
+            )
 
         return env_vars
 

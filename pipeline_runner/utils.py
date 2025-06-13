@@ -112,7 +112,7 @@ def hashify_path(path: str) -> str:
     return f"{slug}-{suffix}"
 
 
-def generate_ssh_rsa_key() -> str:
+def generate_rsa_key() -> str:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_key = key.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
