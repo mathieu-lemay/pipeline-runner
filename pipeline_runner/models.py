@@ -503,11 +503,12 @@ class ProjectMetadata(BaseModel):
     repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: int = 0
     ssh_key: str = Field(default_factory=generate_rsa_key)
-    gpg_key: str = Field(default_factory=generate_rsa_key)
+    oidc_private_key: str = Field(default_factory=generate_rsa_key)
 
     @classmethod
     def load_from_file(cls, project_directory: str, *, increase_build: bool = True) -> "ProjectMetadata":
-        project_directory = os.path.abspath(os.path.expanduser(project_directory))
+        # FIXME: increase_build is a ugly hack for something that should never have been done
+        #        as part of this function in the first place.
         path_slug = utils.hashify_path(project_directory)
 
         project_data_dir = utils.get_project_data_directory(path_slug)

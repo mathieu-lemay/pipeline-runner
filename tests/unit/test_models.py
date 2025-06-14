@@ -37,6 +37,15 @@ def ssh_rsa_key() -> str:
     return private_key.decode()
 
 
+@pytest.fixture
+def oidc_private_key() -> str:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    return private_key.decode()
+
+
 def test_model_extra_keys_are_ignored() -> None:
     spec: dict[str, Any] = {
         "default": [
@@ -364,6 +373,7 @@ def test_project_metadata_load_from_file_generates_new_metadata_if_not_exists(
         repo_uuid=metadata.repo_uuid,
         build_number=1,
         ssh_key=metadata.ssh_key,
+        oidc_private_key=metadata.oidc_private_key,
     )
 
     # Ensure UUIDs are valid
@@ -374,6 +384,9 @@ def test_project_metadata_load_from_file_generates_new_metadata_if_not_exists(
     # Ensure ssh key is valid
     serialization.load_pem_private_key(metadata.ssh_key.encode(), password=None)
 
+    # Ensure oidc key is valid
+    serialization.load_pem_private_key(metadata.oidc_private_key.encode(), password=None)
+
     metadata_file = user_data_directory / expected_path_slug / "meta.json"
     assert metadata_file.exists()
 
@@ -382,7 +395,7 @@ def test_project_metadata_load_from_file_generates_new_metadata_if_not_exists(
 
 
 def test_project_metadata_load_from_file_loads_existing_metadata(
-    user_data_directory: Path, ssh_rsa_key: str, faker: Faker
+    user_data_directory: Path, ssh_rsa_key: str, oidc_private_key: str, faker: Faker
 ) -> None:
     project_name = "Some project name"
     project_directory = f"{faker.pystr()}/{faker.pystr()}/{project_name}"
@@ -407,6 +420,7 @@ def test_project_metadata_load_from_file_loads_existing_metadata(
         "repo_uuid": str(repo_uuid),
         "build_number": last_build_number,
         "ssh_key": ssh_rsa_key,
+        "oidc_private_key": oidc_private_key,
     }
 
     metadata_file = user_data_directory / expected_path_slug / "meta.json"
@@ -423,6 +437,7 @@ def test_project_metadata_load_from_file_loads_existing_metadata(
         repo_uuid=repo_uuid,
         build_number=last_build_number + 1,
         ssh_key=ssh_rsa_key,
+        oidc_private_key=oidc_private_key,
     )
 
     assert ProjectMetadata.load_from_file(project_directory) == expected_metadata
