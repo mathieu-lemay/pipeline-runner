@@ -68,3 +68,7 @@ def test_oidc_payload_new(mocker: MockerFixture, faker: Faker, deployment_enviro
         expected_payload.deployment_environment_uuid = f"{{{deployment_environment_uuid}}}"
 
     assert payload == expected_payload
+
+
+def test_get_oidc_token_returns_a_valid_token() -> None:
+    pytest.fail("not implemented")
