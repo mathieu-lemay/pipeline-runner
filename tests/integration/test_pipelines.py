@@ -15,10 +15,12 @@ from uuid import UUID, uuid4
 
 import docker  # type: ignore[import-untyped]
 import dotenv
+import jwt
 import pytest
 from _pytest.config import Config as PytestConfig
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from faker import Faker
 from pytest_mock import MockerFixture
 from tenacity import retry, stop_after_delay, wait_fixed
@@ -540,12 +542,54 @@ def test_pipeline_supports_buildkit() -> None:
     assert result.ok
 
 
-def test_warning_is_emitted_if_oidc_is_enabled(caplog: LogCaptureFixture) -> None:
+def test_warning_is_emitted_if_oidc_is_enabled(artifacts_directory: Path, caplog: LogCaptureFixture) -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
     result = runner.run()
 
     assert result.ok
     assert "Ignoring OIDC flag on step: Test step with oidc" in caplog.text
+
+    oidc_token_file = artifacts_directory / "oidc-token"
+    assert oidc_token_file.exists()
+
+    token = oidc_token_file.read_text().strip()
+    assert token == ""
+
+
+def test_oidc_token_generated_if_feature_flag_is_active(
+    project_data_directory: Path,
+    artifacts_directory: Path,
+    mocker: MockerFixture,
+    caplog: LogCaptureFixture,
+    faker: Faker,
+) -> None:
+    issuer = f"https://oidc.{faker.safe_domain_name()}"
+    audience = faker.pystr()
+
+    mocker.patch.object(config.oidc, "enabled", new=True)
+    mocker.patch.object(config.oidc, "issuer", new=issuer)
+    mocker.patch.object(config.oidc, "audience", new=audience)
+
+    runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
+    result = runner.run()
+
+    assert result.ok
+    assert "Ignoring OIDC flag on step: Test step with oidc" not in caplog.text
+
+    oidc_token_file = artifacts_directory / "oidc-token"
+    assert oidc_token_file.exists()
+
+    token = oidc_token_file.read_text().strip()
+    assert token != ""
+
+    meta_file = project_data_directory / "meta.json"
+    assert meta_file.exists()
+
+    meta = ProjectMetadata.model_validate_json(meta_file.read_text())
+    public_key = load_pem_private_key(meta.gpg_key.encode(), password=None).public_key()
+
+    decoded_token = jwt.decode(token, public_key, algorithms=["RS256"], audience=audience)
+    assert decoded_token["iss"] == issuer
 
 
 def test_user_defined_volumes(tmp_path: Path, mocker: MockerFixture) -> None:
