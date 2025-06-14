@@ -100,7 +100,7 @@ def test_get_oidc_token_returns_a_valid_token(mocker: MockerFixture, faker: Fake
     public_key = load_pem_private_key(private_key.encode(), password=None).public_key()
 
     step_ctx = Mock()
-    step_ctx.pipeline_ctx.project_metadata.gpg_key = private_key
+    step_ctx.pipeline_ctx.project_metadata.oidc_private_key = private_key
     deployment_environment = Mock()
 
     token = get_step_oidc_token(step_ctx, deployment_environment)

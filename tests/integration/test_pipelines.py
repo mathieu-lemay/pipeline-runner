@@ -587,7 +587,7 @@ def test_oidc_token_generated_if_feature_flag_is_active(
     assert meta_file.exists()
 
     meta = ProjectMetadata.model_validate_json(meta_file.read_text())
-    public_key = load_pem_private_key(meta.gpg_key.encode(), password=None).public_key()
+    public_key = load_pem_private_key(meta.oidc_private_key.encode(), password=None).public_key()
     assert isinstance(public_key, RSAPublicKey)  # type check for jwt.decode
 
     decoded_token = jwt.decode(token, public_key, algorithms=["RS256"], audience=audience)

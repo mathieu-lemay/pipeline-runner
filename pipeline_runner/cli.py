@@ -239,7 +239,7 @@ def oidc_config(ctx: click.Context, *, repository_path: str) -> None:
         ctx.exit(1)
 
     repo_meta = ProjectMetadata.load_from_file(repository_path or ".", increase_build=False)
-    public_key = load_pem_private_key(repo_meta.gpg_key.encode(), password=None).public_key()
+    public_key = load_pem_private_key(repo_meta.oidc_private_key.encode(), password=None).public_key()
     pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
