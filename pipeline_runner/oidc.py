@@ -22,8 +22,8 @@ class OIDCPayload(BaseModel):
     iss: str
     aud: str
     sub: str
-    exp: int
     iat: int
+    exp: int
 
     account_uuid: str = Field(alias="accountUuid")
     workspace_uuid: str = Field(alias="workspaceUuid")
