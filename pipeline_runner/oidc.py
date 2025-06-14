@@ -61,13 +61,13 @@ class OIDCPayload(BaseModel):
             sub=sub,
             iat=iat,
             exp=exp,
-            accountUuid=account_uuid,
-            workspaceUuid=workspace_uuid,
-            repositoryUuid=repository_uuid,
-            pipelineUuid=pipeline_uuid,
-            stepUuid=step_uuid,
-            deploymentEnvironmentUuid=deployment_environment_uuid,
-            branchName=branch_name,
+            account_uuid=account_uuid,
+            workspace_uuid=workspace_uuid,
+            repository_uuid=repository_uuid,
+            pipeline_uuid=pipeline_uuid,
+            step_uuid=step_uuid,
+            deployment_environment_uuid=deployment_environment_uuid,
+            branch_name=branch_name,
         )
 
 

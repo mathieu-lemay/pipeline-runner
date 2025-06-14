@@ -20,6 +20,7 @@ import pytest
 from _pytest.config import Config as PytestConfig
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from faker import Faker
 from pytest_mock import MockerFixture
@@ -587,6 +588,7 @@ def test_oidc_token_generated_if_feature_flag_is_active(
 
     meta = ProjectMetadata.model_validate_json(meta_file.read_text())
     public_key = load_pem_private_key(meta.gpg_key.encode(), password=None).public_key()
+    assert isinstance(public_key, RSAPublicKey)  # type check for jwt.decode
 
     decoded_token = jwt.decode(token, public_key, algorithms=["RS256"], audience=audience)
     assert decoded_token["iss"] == issuer
