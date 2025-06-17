@@ -1,5 +1,6 @@
 import logging
 import os.path
+import uuid
 from collections.abc import Generator
 from pathlib import Path
 from time import time
@@ -7,9 +8,11 @@ from time import time
 import pytest
 from _pytest.fixtures import FixtureRequest
 from _pytest.logging import LogCaptureFixture
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from pytest_mock import MockerFixture
 
-from pipeline_runner.models import ProjectMetadata, Repository
+from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
 
 
 @pytest.fixture(autouse=True)
@@ -36,11 +39,43 @@ def user_cache_directory(tmp_path: Path, mocker: MockerFixture) -> Path:
 @pytest.fixture(autouse=True)
 def user_data_directory(tmp_path: Path, mocker: MockerFixture) -> Path:
     data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True)
 
     m = mocker.patch("pipeline_runner.utils.get_data_directory")
     m.return_value = str(data_dir)
 
     return data_dir
+
+
+@pytest.fixture
+def ssh_rsa_key() -> str:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    return private_key.decode()
+
+
+@pytest.fixture
+def oidc_private_key() -> str:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_key = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+    return private_key.decode()
+
+
+@pytest.fixture
+def workspace_metadata(mocker: MockerFixture, oidc_private_key: str) -> WorkspaceMetadata:
+    workspace_metadata = WorkspaceMetadata(
+        workspace_uuid=uuid.uuid4(),
+        owner_uuid=uuid.uuid4(),
+        oidc_private_key=oidc_private_key,
+    )
+
+    mocker.patch("pipeline_runner.models.WorkspaceMetadata.load_from_file", return_value=workspace_metadata)
+
+    return workspace_metadata
 
 
 @pytest.fixture

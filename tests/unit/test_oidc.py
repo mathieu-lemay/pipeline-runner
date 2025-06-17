@@ -38,8 +38,8 @@ def test_oidc_payload_new(mocker: MockerFixture, faker: Faker, deployment_enviro
 
     step_ctx = Mock()
     step_ctx.step_uuid = step_uuid
-    step_ctx.pipeline_ctx.project_metadata.owner_uuid = account_uuid
-    step_ctx.pipeline_ctx.project_metadata.project_uuid = workspace_uuid
+    step_ctx.pipeline_ctx.workspace_metadata.owner_uuid = account_uuid
+    step_ctx.pipeline_ctx.workspace_metadata.workspace_uuid = workspace_uuid
     step_ctx.pipeline_ctx.project_metadata.repo_uuid = repository_uuid
     step_ctx.pipeline_ctx.pipeline_uuid = pipeline_uuid
     step_ctx.pipeline_ctx.repository.get_current_branch.return_value = branch_name
@@ -100,7 +100,7 @@ def test_get_oidc_token_returns_a_valid_token(mocker: MockerFixture, faker: Fake
     public_key = load_pem_private_key(private_key.encode(), password=None).public_key()
 
     step_ctx = Mock()
-    step_ctx.pipeline_ctx.project_metadata.oidc_private_key = private_key
+    step_ctx.pipeline_ctx.workspace_metadata.oidc_private_key = private_key
     deployment_environment = Mock()
 
     token = get_step_oidc_token(step_ctx, deployment_environment)

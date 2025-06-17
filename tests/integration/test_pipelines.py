@@ -28,7 +28,7 @@ from tenacity import retry, stop_after_delay, wait_fixed
 
 from pipeline_runner.cache import compute_cache_key
 from pipeline_runner.config import config
-from pipeline_runner.models import ProjectMetadata, Repository
+from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 
@@ -386,7 +386,11 @@ def test_parallel_steps() -> None:
 
 
 def test_environment_variables(
-    artifacts_directory: Path, project_metadata: ProjectMetadata, repository: Repository, mocker: MockerFixture
+    artifacts_directory: Path,
+    workspace_metadata: WorkspaceMetadata,
+    project_metadata: ProjectMetadata,
+    repository: Repository,
+    mocker: MockerFixture,
 ) -> None:
     pipeline_uuid = uuid4()
     step_uuid = uuid4()
@@ -428,7 +432,7 @@ def test_environment_variables(
         "BITBUCKET_REPO_FULL_NAME": f"{slug}/{slug}",
         "BITBUCKET_REPO_IS_PRIVATE": "true",
         "BITBUCKET_REPO_OWNER": config.username,
-        "BITBUCKET_REPO_OWNER_UUID": str(project_metadata.owner_uuid),
+        "BITBUCKET_REPO_OWNER_UUID": str(workspace_metadata.owner_uuid),
         "BITBUCKET_REPO_SLUG": slug,
         "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
         "BITBUCKET_STEP_UUID": str(step_uuid),
@@ -543,7 +547,11 @@ def test_pipeline_supports_buildkit() -> None:
     assert result.ok
 
 
-def test_warning_is_emitted_if_oidc_is_enabled(artifacts_directory: Path, caplog: LogCaptureFixture) -> None:
+def test_warning_is_emitted_if_oidc_is_enabled(
+    artifacts_directory: Path, mocker: MockerFixture, caplog: LogCaptureFixture
+) -> None:
+    mocker.patch.object(config.oidc, "enabled", new=False)
+
     runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
     result = runner.run()
 

@@ -301,7 +301,7 @@ class StepRunner(BaseStepRunner):
             "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
             "BITBUCKET_REPO_OWNER": config.username,
-            "BITBUCKET_REPO_OWNER_UUID": str(self._ctx.pipeline_ctx.project_metadata.owner_uuid),
+            "BITBUCKET_REPO_OWNER_UUID": str(self._ctx.pipeline_ctx.workspace_metadata.owner_uuid),
             "BITBUCKET_REPO_SLUG": project_slug,
             "BITBUCKET_REPO_UUID": str(self._ctx.pipeline_ctx.project_metadata.repo_uuid),
             "BITBUCKET_STEP_UUID": str(self._ctx.step_uuid),

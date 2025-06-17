@@ -493,12 +493,34 @@ class PipelineSpec(BaseModel):
         return value
 
 
+class WorkspaceMetadata(BaseModel):
+    workspace_uuid: UUID = Field(default_factory=uuid4)
+    owner_uuid: UUID = Field(default_factory=uuid4)
+    oidc_private_key: str = Field(default_factory=generate_rsa_key)
+
+    @classmethod
+    def load_from_file(cls, project_directory: str | None = None) -> "WorkspaceMetadata":
+        meta_file = Path(utils.get_data_directory()) / "workspace.json"
+
+        if meta_file.exists():
+            meta = cls.model_validate_json(meta_file.read_text())
+        elif project_directory:
+            # TODO: Remove temporary load from project for migration purposes
+            project_meta = ProjectMetadata.load_from_file(project_directory, increase_build=False)
+            meta = cls(oidc_private_key=project_meta.oidc_private_key)
+        else:
+            meta = cls()
+
+        meta_file.write_text(meta.model_dump_json())
+
+        return meta
+
+
 class ProjectMetadata(BaseModel):
     name: str
     path_slug: str
     slug: str
     key: str
-    owner_uuid: UUID = Field(default_factory=uuid4)
     project_uuid: UUID = Field(default_factory=uuid4)
     repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: int = 0

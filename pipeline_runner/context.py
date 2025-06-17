@@ -20,6 +20,7 @@ from .models import (
     Repository,
     Service,
     Step,
+    WorkspaceMetadata,
 )
 from .parse import parse_pipeline_file
 
@@ -38,6 +39,7 @@ class PipelineRunContext:
         services: dict[str, Service],
         clone_settings: CloneSettings,
         default_image: Image | None,
+        workspace_metadata: WorkspaceMetadata,
         project_metadata: ProjectMetadata,
         repository: Repository,
         env_vars: dict[str, str] | None = None,
@@ -49,6 +51,7 @@ class PipelineRunContext:
         self.services = self._merge_default_services(services)
         self.clone_settings = clone_settings
         self.default_image = default_image
+        self.workspace_metadata = workspace_metadata
         self.project_metadata = project_metadata
         self.repository = repository
         self.env_vars = env_vars or {}
@@ -73,6 +76,7 @@ class PipelineRunContext:
             valid_pipelines = sorted(spec.get_available_pipelines())
             raise InvalidPipelineError(pipeline_name, valid_pipelines)
 
+        workspace_meta = WorkspaceMetadata.load_from_file(req.repository_path)
         project_meta = ProjectMetadata.load_from_file(req.repository_path)
         repository = Repository(req.repository_path)
 
@@ -83,6 +87,7 @@ class PipelineRunContext:
             spec.services,
             spec.clone_settings,
             spec.image,
+            workspace_meta,
             project_meta,
             repository,
             env_vars,

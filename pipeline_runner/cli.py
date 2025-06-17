@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from pyfzf import FzfPrompt  # type: ignore[import-untyped]
 
 from pipeline_runner.errors import InvalidPipelineError
-from pipeline_runner.models import ProjectMetadata
+from pipeline_runner.models import WorkspaceMetadata
 
 from . import utils
 from .config import config
@@ -238,8 +238,8 @@ def oidc_config(ctx: click.Context, *, repository_path: str) -> None:
         logger.error("oidc issuer is not set")
         ctx.exit(1)
 
-    repo_meta = ProjectMetadata.load_from_file(repository_path or ".", increase_build=False)
-    public_key = load_pem_private_key(repo_meta.oidc_private_key.encode(), password=None).public_key()
+    workspace_meta = WorkspaceMetadata.load_from_file(os.path.abspath(repository_path or "."))
+    public_key = load_pem_private_key(workspace_meta.oidc_private_key.encode(), password=None).public_key()
     pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
