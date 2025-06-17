@@ -122,4 +122,4 @@ please open an issue.
 | Private Runner Images | ✅         |                                                            |
 | Pipes                 | ✅         |                                                            |
 | Parallel Steps        | ✅         | The steps will run, but in sequence.                       |
-| OIDC                  | ✅         | https://github.com/mathieu-lemay/pipeline-runner/wiki/OIDC |
+| OIDC                  | ✅         | [OIDC Setup](https://github.com/mathieu-lemay/pipeline-runner/wiki/OIDC) |
