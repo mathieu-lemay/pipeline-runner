@@ -102,6 +102,10 @@ def test_aws_credentials_have_precedence(aws_lib: MagicMock) -> None:
     }
 
 
+def test_aws_credentials_oidc(aws_lib: MagicMock) -> None:
+    pytest.fail("not implemented")
+
+
 def test_cpu_limits_are_not_applied_if_config_is_set_to_false(
     config: Config, mocker: MockerFixture, faker: Faker
 ) -> None:

@@ -4,7 +4,6 @@ import uuid
 from collections.abc import Generator
 from pathlib import Path
 from time import time
-from unittest.mock import Mock
 
 import pytest
 from _pytest.fixtures import FixtureRequest
@@ -31,13 +30,11 @@ def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
 
 @pytest.fixture
 def config(mocker: MockerFixture) -> Config:
-    mock_config = Mock()
+    cfg = config_module._config.copy(deep=True)
 
-    # Set a few default values
-    mock_config.volumes = []
+    mocker.patch.object(config_module, "_config", cfg)
 
-    mocker.patch.object(config_module, "_config", mock_config)
-    return mock_config
+    return cfg
 
 
 @pytest.fixture(autouse=True)
