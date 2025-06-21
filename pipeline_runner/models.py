@@ -47,14 +47,14 @@ class AwsCredentials(BaseModel):
     __env_var_expand_fields__: Sequence[str] = ["access_key_id", "secret_access_key", "oidc_role"]
 
     @model_validator(mode="after")
-    def validate_aws_auth(self) -> Self:
-        if config.oidc.enabled and self.oidc_role is not None:
-            return self
+    def validate_aws_auth(cls, model: Self) -> Self:
+        if config.oidc.enabled and model.oidc_role is not None:
+            return model
 
-        if self.access_key_id is None or self.secret_access_key is None:
+        if model.access_key_id is None or model.secret_access_key is None:
             raise ValueError("aws image authentication requires 'access_key_id' and 'secret_access_key'")
 
-        return self
+        return model
 
     @field_validator("oidc_role")
     def oidc_role_not_supported(cls, v: str | None) -> str | None:
@@ -541,7 +541,6 @@ class ProjectMetadata(BaseModel):
     def load_from_file(cls, project_directory: str, *, increase_build: bool = True) -> "ProjectMetadata":
         # FIXME: increase_build is a ugly hack for something that should never have been done
         #        as part of this function in the first place.
-        # project_directory = os.path.abspath(os.path.expanduser(project_directory))
         path_slug = utils.hashify_path(project_directory)
 
         project_data_dir = utils.get_project_data_directory(path_slug)
