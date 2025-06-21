@@ -35,7 +35,7 @@ class RepositoryCloner:
 
     def clone(self) -> None:
         # TODO: Fix cyclic import
-        from .container import ContainerRunner
+        from .container import ContainerRunner  # noqa: PLC0415  # Import should be at top of file
 
         if not self._should_clone():
             logger.info("Clone disabled: skipping")
