@@ -112,14 +112,14 @@ which a pipeline runs in the real thing.
 ## Supported features
 Most features of Bitbucket Pipelines should work out of the box. If you find something that is not working properly,
 please open an issue.
-| Feature               | Supported  | Note                                           |
-| --------------------- | :--------: | :--------------------------------------------: |
-| Variables             | ✅         |                                                |
-| Artifacts             | ✅         |                                                |
-| Docker Service        | ✅         |                                                |
-| Caches                | ✅         |                                                |
-| Custom Caches         | ✅         |                                                |
-| Private Runner Images | ✅         |                                                |
-| Pipes                 | ✅         |                                                |
-| Parallel Steps        | ✅         | The steps will run, but in sequence.           |
-| OIDC                  | ❌         | Theoretically possible but way too impractical |
+| Feature               | Supported  | Note                                                       |
+| --------------------- | :--------: | :--------------------------------------------------------: |
+| Variables             | ✅         |                                                            |
+| Artifacts             | ✅         |                                                            |
+| Docker Service        | ✅         |                                                            |
+| Caches                | ✅         |                                                            |
+| Custom Caches         | ✅         |                                                            |
+| Private Runner Images | ✅         |                                                            |
+| Pipes                 | ✅         |                                                            |
+| Parallel Steps        | ✅         | The steps will run, but in sequence.                       |
+| OIDC                  | ✅         | [OIDC Setup](https://github.com/mathieu-lemay/pipeline-runner/wiki/OIDC) |

@@ -25,6 +25,7 @@ from .models import (
     Trigger,
     Variable,
 )
+from .oidc import get_step_oidc_token
 from .repository import RepositoryCloner
 from .service import ServicesManager
 
@@ -153,7 +154,7 @@ class StepRunner(BaseStepRunner):
         if self._step.condition is not None:
             logger.warning("Ignoring condition on step: %s", self._step.name)
 
-        if self._step.oidc:
+        if self._step.oidc and not config.oidc.enabled:
             logger.warning("Ignoring OIDC flag on step: %s", self._step.name)
 
         if self._step.trigger == Trigger.Manual:
@@ -300,7 +301,7 @@ class StepRunner(BaseStepRunner):
             "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
             "BITBUCKET_REPO_OWNER": config.username,
-            "BITBUCKET_REPO_OWNER_UUID": str(self._ctx.pipeline_ctx.project_metadata.owner_uuid),
+            "BITBUCKET_REPO_OWNER_UUID": str(self._ctx.pipeline_ctx.workspace_metadata.owner_uuid),
             "BITBUCKET_REPO_SLUG": project_slug,
             "BITBUCKET_REPO_UUID": str(self._ctx.pipeline_ctx.project_metadata.repo_uuid),
             "BITBUCKET_STEP_UUID": str(self._ctx.step_uuid),
@@ -313,6 +314,9 @@ class StepRunner(BaseStepRunner):
 
         if self._step.deployment:
             env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
+
+        if self._step.oidc and config.oidc.enabled:
+            env_vars["BITBUCKET_STEP_OIDC_TOKEN"] = get_step_oidc_token(self._ctx)
 
         return env_vars
 

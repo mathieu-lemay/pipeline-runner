@@ -409,7 +409,9 @@ pipelines:
           name: Test step with oidc
           oidc: true
           script:
-            - "echo a"
+            - echo "${BITBUCKET_STEP_OIDC_TOKEN:-}" > ./oidc-token
+          artifacts:
+            - oidc-token
 
     test_user_defined_volumes:
       - step:

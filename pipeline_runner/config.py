@@ -43,8 +43,14 @@ DEFAULT_SERVICES: Mapping[str, Any] = MappingProxyType(
 ATLASSIAN_DOCKER_CLI_VERSION = "20.10.24"
 
 
+class OIDCSettings(BaseSettings):
+    enabled: bool = False
+    issuer: str = "https://example.org"
+    audience: str = "rogueconsulting::pipeline-runner"
+
+
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="pipeline_runner_")
+    model_config = SettingsConfigDict(env_prefix="pipeline_runner_", env_nested_delimiter="_")
 
     color: bool = True
     cpu_limits: bool = False
@@ -52,6 +58,8 @@ class Config(BaseSettings):
     volumes: list[str] = Field(default_factory=list)
 
     username: str = Field(default_factory=getpass.getuser)
+
+    oidc: OIDCSettings = Field(default_factory=OIDCSettings)
 
     total_memory_limit: int = 4096
     build_container_minimum_memory: int = 1024

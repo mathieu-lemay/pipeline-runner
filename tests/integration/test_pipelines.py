@@ -15,17 +15,20 @@ from uuid import UUID, uuid4
 
 import docker  # type: ignore[import-untyped]
 import dotenv
+import jwt
 import pytest
 from _pytest.config import Config as PytestConfig
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from faker import Faker
 from pytest_mock import MockerFixture
 from tenacity import retry, stop_after_delay, wait_fixed
 
 from pipeline_runner.cache import compute_cache_key
 from pipeline_runner.config import config
-from pipeline_runner.models import ProjectMetadata, Repository
+from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
 
@@ -383,7 +386,11 @@ def test_parallel_steps() -> None:
 
 
 def test_environment_variables(
-    artifacts_directory: Path, project_metadata: ProjectMetadata, repository: Repository, mocker: MockerFixture
+    artifacts_directory: Path,
+    workspace_metadata: WorkspaceMetadata,
+    project_metadata: ProjectMetadata,
+    repository: Repository,
+    mocker: MockerFixture,
 ) -> None:
     pipeline_uuid = uuid4()
     step_uuid = uuid4()
@@ -425,7 +432,7 @@ def test_environment_variables(
         "BITBUCKET_REPO_FULL_NAME": f"{slug}/{slug}",
         "BITBUCKET_REPO_IS_PRIVATE": "true",
         "BITBUCKET_REPO_OWNER": config.username,
-        "BITBUCKET_REPO_OWNER_UUID": str(project_metadata.owner_uuid),
+        "BITBUCKET_REPO_OWNER_UUID": str(workspace_metadata.owner_uuid),
         "BITBUCKET_REPO_SLUG": slug,
         "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
         "BITBUCKET_STEP_UUID": str(step_uuid),
@@ -540,12 +547,59 @@ def test_pipeline_supports_buildkit() -> None:
     assert result.ok
 
 
-def test_warning_is_emitted_if_oidc_is_enabled(caplog: LogCaptureFixture) -> None:
+def test_warning_is_emitted_if_oidc_is_enabled(
+    artifacts_directory: Path, mocker: MockerFixture, caplog: LogCaptureFixture
+) -> None:
+    mocker.patch.object(config.oidc, "enabled", new=False)
+
     runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
     result = runner.run()
 
     assert result.ok
     assert "Ignoring OIDC flag on step: Test step with oidc" in caplog.text
+
+    oidc_token_file = artifacts_directory / "oidc-token"
+    assert oidc_token_file.exists()
+
+    token = oidc_token_file.read_text().strip()
+    assert token == ""
+
+
+def test_oidc_token_generated_if_feature_flag_is_active(
+    project_data_directory: Path,
+    artifacts_directory: Path,
+    mocker: MockerFixture,
+    caplog: LogCaptureFixture,
+    faker: Faker,
+) -> None:
+    issuer = f"https://oidc.{faker.safe_domain_name()}"
+    audience = faker.pystr()
+
+    mocker.patch.object(config.oidc, "enabled", new=True)
+    mocker.patch.object(config.oidc, "issuer", new=issuer)
+    mocker.patch.object(config.oidc, "audience", new=audience)
+
+    runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
+    result = runner.run()
+
+    assert result.ok
+    assert "Ignoring OIDC flag on step: Test step with oidc" not in caplog.text
+
+    oidc_token_file = artifacts_directory / "oidc-token"
+    assert oidc_token_file.exists()
+
+    token = oidc_token_file.read_text().strip()
+    assert token != ""
+
+    meta_file = project_data_directory / "meta.json"
+    assert meta_file.exists()
+
+    meta = ProjectMetadata.model_validate_json(meta_file.read_text())
+    public_key = load_pem_private_key(meta.oidc_private_key.encode(), password=None).public_key()
+    assert isinstance(public_key, RSAPublicKey)  # type check for jwt.decode
+
+    decoded_token = jwt.decode(token, public_key, algorithms=["RS256"], audience=audience)
+    assert decoded_token["iss"] == issuer
 
 
 def test_user_defined_volumes(tmp_path: Path, mocker: MockerFixture) -> None:

@@ -16,7 +16,7 @@ from slugify import slugify
 
 from . import utils
 from .config import DEFAULT_SERVICES
-from .utils import generate_ssh_rsa_key
+from .utils import generate_rsa_key
 
 logger = logging.getLogger(__name__)
 
@@ -493,19 +493,44 @@ class PipelineSpec(BaseModel):
         return value
 
 
+class WorkspaceMetadata(BaseModel):
+    workspace_uuid: UUID = Field(default_factory=uuid4)
+    owner_uuid: UUID = Field(default_factory=uuid4)
+    oidc_private_key: str = Field(default_factory=generate_rsa_key)
+
+    @classmethod
+    def load_from_file(cls, project_directory: str | None = None) -> "WorkspaceMetadata":
+        meta_file = Path(utils.get_data_directory()) / "workspace.json"
+
+        if meta_file.exists():
+            meta = cls.model_validate_json(meta_file.read_text())
+        elif project_directory:
+            # TODO: Remove temporary load from project for migration purposes
+            project_meta = ProjectMetadata.load_from_file(project_directory, increase_build=False)
+            meta = cls(oidc_private_key=project_meta.oidc_private_key)
+        else:
+            meta = cls()
+
+        meta_file.write_text(meta.model_dump_json())
+
+        return meta
+
+
 class ProjectMetadata(BaseModel):
     name: str
     path_slug: str
     slug: str
     key: str
-    owner_uuid: UUID = Field(default_factory=uuid4)
     project_uuid: UUID = Field(default_factory=uuid4)
     repo_uuid: UUID = Field(default_factory=uuid4)
     build_number: int = 0
-    ssh_key: str = Field(default_factory=generate_ssh_rsa_key)
+    ssh_key: str = Field(default_factory=generate_rsa_key)
+    oidc_private_key: str = Field(default_factory=generate_rsa_key)
 
     @classmethod
-    def load_from_file(cls, project_directory: str) -> "ProjectMetadata":
+    def load_from_file(cls, project_directory: str, *, increase_build: bool = True) -> "ProjectMetadata":
+        # FIXME: increase_build is a ugly hack for something that should never have been done
+        #        as part of this function in the first place.
         path_slug = utils.hashify_path(project_directory)
 
         project_data_dir = utils.get_project_data_directory(path_slug)
@@ -519,7 +544,8 @@ class ProjectMetadata(BaseModel):
             key = "".join(s[0].upper() for s in slug.split("-"))
             meta = cls(name=name, path_slug=path_slug, slug=slug, key=key)
 
-        meta.build_number += 1
+        if increase_build:
+            meta.build_number += 1
 
         meta_file.write_text(meta.model_dump_json())
 

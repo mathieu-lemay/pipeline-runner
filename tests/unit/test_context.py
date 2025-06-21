@@ -3,11 +3,11 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from pipeline_runner.context import PipelineRunContext
-from pipeline_runner.models import CloneSettings, Image, ProjectMetadata, Service
+from pipeline_runner.models import CloneSettings, Image, ProjectMetadata, Service, WorkspaceMetadata
 
 
 def test_get_log_directory_returns_the_right_directory(
-    user_data_directory: Path, project_metadata: ProjectMetadata
+    user_data_directory: Path, workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata
 ) -> None:
     pipeline = Mock()
     repository = Mock()
@@ -19,6 +19,7 @@ def test_get_log_directory_returns_the_right_directory(
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
@@ -34,7 +35,7 @@ def test_get_log_directory_returns_the_right_directory(
 
 
 def test_get_artifact_directory_returns_the_right_directory(
-    user_data_directory: Path, project_metadata: ProjectMetadata
+    user_data_directory: Path, workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata
 ) -> None:
     pipeline = Mock()
     repository = Mock()
@@ -46,6 +47,7 @@ def test_get_artifact_directory_returns_the_right_directory(
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
@@ -61,7 +63,7 @@ def test_get_artifact_directory_returns_the_right_directory(
 
 
 def test_get_pipeline_cache_directory_returns_the_right_directory(
-    user_cache_directory: Path, project_metadata: ProjectMetadata
+    user_cache_directory: Path, workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata
 ) -> None:
     pipeline = Mock()
     repository = Mock()
@@ -73,6 +75,7 @@ def test_get_pipeline_cache_directory_returns_the_right_directory(
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
@@ -81,7 +84,9 @@ def test_get_pipeline_cache_directory_returns_the_right_directory(
     assert prc.get_cache_directory() == cache_directory
 
 
-def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMetadata) -> None:
+def test_docker_is_added_to_services_if_not_present(
+    workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata
+) -> None:
     pipeline = Mock()
     repository = Mock()
 
@@ -92,6 +97,7 @@ def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMet
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
@@ -107,7 +113,9 @@ def test_docker_is_added_to_services_if_not_present(project_metadata: ProjectMet
     assert prc.services == {"docker": docker_service}
 
 
-def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) -> None:
+def test_docker_service_uses_fallback_values(
+    workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata
+) -> None:
     pipeline = Mock()
     repository = Mock()
 
@@ -118,6 +126,7 @@ def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) 
         services={"docker": Service(memory=2048, variables={"FOO": "bar"})},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
@@ -133,7 +142,7 @@ def test_docker_service_uses_fallback_values(project_metadata: ProjectMetadata) 
     assert prc.services == {"docker": docker_service}
 
 
-def test_default_caches_are_used(project_metadata: ProjectMetadata) -> None:
+def test_default_caches_are_used(workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata) -> None:
     pipeline = Mock()
     repository = Mock()
 
@@ -144,6 +153,7 @@ def test_default_caches_are_used(project_metadata: ProjectMetadata) -> None:
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
@@ -163,7 +173,9 @@ def test_default_caches_are_used(project_metadata: ProjectMetadata) -> None:
     assert prc.caches == all_caches
 
 
-def test_default_caches_can_be_overridden(project_metadata: ProjectMetadata) -> None:
+def test_default_caches_can_be_overridden(
+    workspace_metadata: WorkspaceMetadata, project_metadata: ProjectMetadata
+) -> None:
     pipeline = Mock()
     repository = Mock()
 
@@ -174,6 +186,7 @@ def test_default_caches_can_be_overridden(project_metadata: ProjectMetadata) -> 
         services={},
         clone_settings=CloneSettings.empty(),
         default_image=None,
+        workspace_metadata=workspace_metadata,
         project_metadata=project_metadata,
         repository=repository,
     )
