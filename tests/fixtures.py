@@ -30,7 +30,7 @@ def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
 
 @pytest.fixture
 def config(mocker: MockerFixture) -> Config:
-    cfg = config_module._config.copy(deep=True)
+    cfg = config_module._config.model_copy(deep=True)
 
     mocker.patch.object(config_module, "_config", cfg)
 

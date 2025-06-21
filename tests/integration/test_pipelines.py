@@ -548,10 +548,10 @@ def test_pipeline_supports_buildkit() -> None:
     assert result.ok
 
 
-def test_warning_is_emitted_if_oidc_is_enabled(
+def test_warning_is_emitted_if_oidc_is_used_but_not_enabled(
     artifacts_directory: Path, config: Config, caplog: LogCaptureFixture
 ) -> None:
-    config.oidc.enabled = True
+    config.oidc.enabled = False
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
     result = runner.run()
