@@ -4,6 +4,7 @@ import uuid
 from collections.abc import Generator
 from pathlib import Path
 from time import time
+from unittest.mock import Mock
 
 import pytest
 from _pytest.fixtures import FixtureRequest
@@ -12,6 +13,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from pytest_mock import MockerFixture
 
+from pipeline_runner import config as config_module
+from pipeline_runner.config import Config
 from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
 
 
@@ -24,6 +27,17 @@ def faker_seed() -> float:
 def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     caplog.set_level(logging.DEBUG)
     return caplog
+
+
+@pytest.fixture
+def config(mocker: MockerFixture) -> Config:
+    mock_config = Mock()
+
+    # Set a few default values
+    mock_config.volumes = []
+
+    mocker.patch.object(config_module, "_config", mock_config)
+    return mock_config
 
 
 @pytest.fixture(autouse=True)

@@ -9,8 +9,10 @@ from faker import Faker
 from pydantic import ValidationError
 
 from pipeline_runner import utils
+from pipeline_runner.config import Config
 from pipeline_runner.models import (
     Artifacts,
+    AwsCredentials,
     Cache,
     CacheKey,
     Definitions,
@@ -74,6 +76,41 @@ def test_cache_supports_custom_keys() -> None:
             path="some-path",
         )
     }
+
+
+@pytest.mark.parametrize(
+    ("aws_access_key_id", "aws_secret_access_key", "oidc_role", "oidc_enabled", "expected_error"),
+    [
+        (None, None, None, False, "aws image authentication requires 'access_key_id' and 'secret_access_key'"),
+        ("key-id", None, None, False, "aws image authentication requires 'access_key_id' and 'secret_access_key'"),
+        (None, "secret-key", None, False, "aws image authentication requires 'access_key_id' and 'secret_access_key'"),
+        ("key-id", "secret-key", None, False, None),
+        (None, None, "oidc-role", False, "aws oidc-role not supported"),
+        (None, None, "oidc-role", True, None),
+        ("key-id", "secret-key", "oidc-role", True, None),
+    ],
+)
+def test_aws_credentials_auth_validation(
+    config: Config,
+    aws_access_key_id: str | None,
+    aws_secret_access_key: str | None,
+    oidc_role: str | None,
+    oidc_enabled: bool,
+    expected_error: str | None,
+) -> None:
+    config.oidc.enabled = oidc_enabled
+
+    values = {
+        "access-key": aws_access_key_id,
+        "secret-key": aws_secret_access_key,
+        "oidc-role": oidc_role,
+    }
+
+    if expected_error:
+        with pytest.raises(ValidationError, match=expected_error):
+            AwsCredentials.model_validate(values)
+    else:
+        AwsCredentials.model_validate(values)
 
 
 def test_definitions_ensures_non_default_services_have_an_image(faker: Faker) -> None:

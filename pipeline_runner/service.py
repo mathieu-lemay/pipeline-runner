@@ -13,6 +13,7 @@ import pipeline_runner
 
 from .config import config
 from .container import ContainerScriptRunner, pull_image
+from .context import StepRunContext
 from .errors import InvalidServiceError
 from .models import Service
 
@@ -30,18 +31,19 @@ class ServiceUnhealthyError(Exception):
 class ServicesManager:
     def __init__(
         self,
-        service_names: list[str],
-        service_definitions: dict[str, Service],
-        memory_multiplier: int,
+        ctx: StepRunContext,
         shared_data_volume_name: str,
-        repository_slug: str,
-        pipeline_cache_directory: str,
     ) -> None:
+        self._ctx = ctx
+
+        service_names = ctx.step.services
+        service_definitions = ctx.pipeline_ctx.services
         self._services_by_name = self._get_services(service_names, service_definitions)
-        self._memory_multiplier = memory_multiplier
+
+        self._memory_multiplier = ctx.step.size.as_int()
         self._shared_data_volume_name = shared_data_volume_name
-        self._repository_slug = repository_slug
-        self._pipeline_cache_directory = pipeline_cache_directory
+        self._repository_slug = ctx.pipeline_ctx.project_metadata.path_slug
+        self._pipeline_cache_directory = ctx.pipeline_ctx.get_cache_directory()
 
         self._client = docker.from_env()
 
@@ -53,6 +55,7 @@ class ServicesManager:
         for service_name, service in self._services_by_name.items():
             sr = ServiceRunnerFactory.get(
                 self._client,
+                self._ctx,
                 service_name,
                 service,
                 network_name,
@@ -104,6 +107,7 @@ class ServiceRunner:
     def __init__(
         self,
         docker_client: DockerClient,
+        step_ctx: StepRunContext,
         service_name: str,
         service: Service,
         network_name: str,
@@ -112,6 +116,7 @@ class ServiceRunner:
         pipeline_cache_directory: str,
     ) -> None:
         self._client = docker_client
+        self._step_ctx = step_ctx
         self._service_name = service_name
         self._service = service
         self._network_name = network_name
@@ -136,7 +141,7 @@ class ServiceRunner:
             raise ValueError(msg)
 
         logger.info("Starting service: %s", self._service_name)
-        pull_image(self._client, self._service.image)
+        pull_image(self._client, self._step_ctx, self._service.image)
 
         self._container = self._start_container()
 
@@ -285,6 +290,7 @@ class ServiceRunnerFactory:
     @staticmethod
     def get(
         docker_client: DockerClient,
+        step_ctx: StepRunContext,
         service_name: str,
         service_def: Service,
         network_name: str,
@@ -298,6 +304,7 @@ class ServiceRunnerFactory:
 
         return cls(
             docker_client,
+            step_ctx,
             service_name,
             service_def,
             network_name,

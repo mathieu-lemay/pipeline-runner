@@ -128,4 +128,12 @@ class Config(BaseSettings):
         }
 
 
-config = Config()
+_config = Config()
+
+
+class ConfigProxy:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_config, name)
+
+
+config = cast("Config", ConfigProxy())

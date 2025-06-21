@@ -2,7 +2,8 @@ import logging
 from typing import TypeVar, cast
 
 from .config import config
-from .models import CloneSettings, Image, Repository
+from .context import StepRunContext
+from .models import CloneSettings, Image
 
 logger = logging.getLogger(__name__)
 
@@ -13,18 +14,17 @@ T = TypeVar("T")
 class RepositoryCloner:
     def __init__(
         self,
-        repository: Repository,
-        step_clone_settings: CloneSettings,
-        global_clone_settings: CloneSettings,
+        ctx: StepRunContext,
         environment: dict[str, str],
         user: int | str | None,
         parent_container_name: str,
         data_volume_name: str,
         output_logger: logging.Logger,
     ) -> None:
-        self._repository = repository
-        self._step_clone_settings = step_clone_settings
-        self._global_clone_settings = global_clone_settings
+        self._ctx = ctx
+        self._repository = ctx.pipeline_ctx.repository
+        self._step_clone_settings = ctx.step.clone_settings
+        self._global_clone_settings = ctx.pipeline_ctx.clone_settings
         self._environment = environment
         self._user = str(user) if user is not None else None
         self._name = f"{parent_container_name}-clone"
@@ -43,10 +43,10 @@ class RepositoryCloner:
 
         image = Image(name="alpine/git", run_as_user=self._user)
         runner = ContainerRunner(
+            self._ctx,
             self._name,
             image,
             None,
-            self._repository.path,
             self._data_volume_name,
             self._environment,
             self._output_logger,
