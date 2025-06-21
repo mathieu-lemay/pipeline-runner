@@ -245,10 +245,11 @@ def oidc_config(ctx: click.Context, *, repository_path: str) -> None:
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     ).decode()
 
+    pubkey = pem.replace("\n", "\\n")
     click.echo("OIDC Configuration:")
     click.echo(f"\tIssuer: {config.oidc.issuer}")
     click.echo(f"\tAudience: {config.oidc.audience}")
-    click.echo(f"\tPublic Key: {pem.replace('\n', '\\n')}")
+    click.echo(f"\tPublic Key: {pubkey}")
 
 
 if __name__ == "__main__":

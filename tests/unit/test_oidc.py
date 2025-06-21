@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
 import jwt
@@ -17,7 +17,7 @@ from pipeline_runner.utils import generate_rsa_key
 
 @pytest.mark.parametrize("deployment_environment", ([None, "some-env"]))
 def test_oidc_payload_new(mocker: MockerFixture, faker: Faker, deployment_environment: str | None) -> None:
-    timestamp = datetime.now(tz=UTC)
+    timestamp = datetime.now(tz=timezone.utc)
     mock_datetime = Mock()
     mock_datetime.now.return_value = timestamp
 
@@ -80,7 +80,7 @@ def test_get_oidc_token_returns_a_valid_token(mocker: MockerFixture, faker: Fake
     issuer = f"https://oidc.{faker.safe_domain_name()}"
     audience = faker.pystr()
 
-    now = int(datetime.now(tz=UTC).timestamp())
+    now = int(datetime.now(tz=timezone.utc).timestamp())
 
     payload = OIDCPayload(
         iss=issuer,
@@ -114,7 +114,8 @@ def test_get_oidc_token_returns_a_valid_token(mocker: MockerFixture, faker: Fake
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
-    expected_kid = uuid.uuid5(uuid.NAMESPACE_OID, public_key_pem)
+    # TODO: py312: remove .decode()
+    expected_kid = uuid.uuid5(uuid.NAMESPACE_OID, public_key_pem.decode())
 
     assert headers == {
         "alg": "RS256",

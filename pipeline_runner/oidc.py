@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import jwt
@@ -12,7 +12,14 @@ from pipeline_runner.config import config
 from pipeline_runner.context import StepRunContext
 
 if TYPE_CHECKING:
-    from typing import Self
+    import sys
+
+    if sys.version_info < (3, 11):
+        from typing_extensions import Self
+    else:
+        from typing import Self
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +44,7 @@ class OIDCPayload(BaseModel):
     def new(cls, ctx: StepRunContext) -> "Self":
         oidc_settings = config.oidc
 
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=timezone.utc)
         iat = int(now.timestamp())
         exp = iat + 3600
 
@@ -82,7 +89,8 @@ def get_step_oidc_token(ctx: StepRunContext) -> str:
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
-    kid = uuid.uuid5(uuid.NAMESPACE_OID, public_key_pem)
+    # TODO: py312: remove .decode()
+    kid = uuid.uuid5(uuid.NAMESPACE_OID, public_key_pem.decode())
 
     return jwt.encode(
         payload.model_dump(),
