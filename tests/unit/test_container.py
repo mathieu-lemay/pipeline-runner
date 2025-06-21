@@ -1,12 +1,13 @@
 import base64
 import os
 from collections.abc import Callable
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from docker import DockerClient  # type: ignore[import-untyped]
+from faker.proxy import Faker
 from pytest_mock import MockerFixture
 
 from pipeline_runner.config import Config
@@ -16,17 +17,13 @@ from pipeline_runner.container import (
     get_image_authentication,
     get_ssh_agent_socket_path,
 )
+from pipeline_runner.context import StepRunContext
 from pipeline_runner.models import AwsCredentials, Image
 
 
 @pytest.fixture
 def aws_lib(mocker: MockerFixture) -> MagicMock:
     return mocker.patch("pipeline_runner.container.boto3")
-
-
-@pytest.fixture
-def config(mocker: MockerFixture) -> Config:
-    return mocker.patch("pipeline_runner.container.config")
 
 
 @pytest.fixture
@@ -37,7 +34,7 @@ def docker_is_docker_desktop_mock(mocker: MockerFixture) -> Callable[[DockerClie
 def test_get_image_authentication_returns_nothing_if_no_auth_defined() -> None:
     image = Image(name="alpine")
 
-    assert get_image_authentication(image) is None
+    assert get_image_authentication(Mock(), image) is None
 
 
 def test_get_image_authentication_returns_credentials_from_user_and_pass_if_they_are_specified() -> None:
@@ -46,7 +43,7 @@ def test_get_image_authentication_returns_credentials_from_user_and_pass_if_they
 
     image = Image(name="alpine", username=username, password=password)
 
-    assert get_image_authentication(image) == {
+    assert get_image_authentication(Mock(), image) == {
         "username": username,
         "password": password,
     }
@@ -76,7 +73,7 @@ def test_get_image_authentication_returns_credentials_from_aws_if_they_are_speci
     client = aws_lib.client.return_value
     client.get_authorization_token.return_value = {"authorizationData": [{"authorizationToken": auth_token}]}
 
-    assert get_image_authentication(image) == {
+    assert get_image_authentication(Mock(), image) == {
         "username": username,
         "password": password,
     }
@@ -99,18 +96,25 @@ def test_aws_credentials_have_precedence(aws_lib: MagicMock) -> None:
     client = aws_lib.client.return_value
     client.get_authorization_token.return_value = {"authorizationData": [{"authorizationToken": auth_token}]}
 
-    assert get_image_authentication(image) == {
+    assert get_image_authentication(Mock(), image) == {
         "username": aws_username,
         "password": aws_password,
     }
 
 
-def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config: Config, mocker: MockerFixture) -> None:
+def test_cpu_limits_are_not_applied_if_config_is_set_to_false(
+    config: Config, mocker: MockerFixture, faker: Faker
+) -> None:
+    step = Mock()
+    step.name = faker.pystr()
+
+    ctx = StepRunContext(step=step, pipeline_run_context=Mock())
+
     runner = ContainerRunner(
+        ctx=ctx,
         name="container",
         image=mocker.Mock(),
         network_name=None,
-        repository_path="/some/path",
         data_volume_name="data-volume",
         env_vars={},
         output_logger=mocker.Mock(),
@@ -131,12 +135,17 @@ def test_cpu_limits_are_not_applied_if_config_is_set_to_false(config: Config, mo
     assert "cpu_shares" not in kwargs
 
 
-def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker: MockerFixture) -> None:
+def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker: MockerFixture, faker: Faker) -> None:
+    step = Mock()
+    step.name = faker.pystr()
+
+    ctx = StepRunContext(step=step, pipeline_run_context=Mock())
+
     runner = ContainerRunner(
+        ctx=ctx,
         name="container",
         image=mocker.Mock(),
         network_name=None,
-        repository_path="/some/path",
         data_volume_name="data-volume",
         env_vars={},
         output_logger=mocker.Mock(),

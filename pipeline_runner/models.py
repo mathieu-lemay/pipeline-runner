@@ -4,7 +4,7 @@ from collections.abc import Iterator, Sequence
 from enum import Enum
 from pathlib import Path
 from string import Template
-from typing import Any, Generic, SupportsIndex, TypeVar
+from typing import Any, Generic, Self, SupportsIndex, TypeVar
 from uuid import UUID, uuid4
 
 from git.repo import Repo
@@ -15,7 +15,7 @@ from pydantic_core import InitErrorDetails, PydanticCustomError
 from slugify import slugify
 
 from . import utils
-from .config import DEFAULT_SERVICES
+from .config import DEFAULT_SERVICES, config
 from .utils import generate_rsa_key
 
 logger = logging.getLogger(__name__)
@@ -40,15 +40,25 @@ class BaseModel(PydanticBaseModel):
 
 
 class AwsCredentials(BaseModel):
-    access_key_id: str = Field(alias="access-key")
-    secret_access_key: str = Field(alias="secret-key")
+    access_key_id: str | None = Field(alias="access-key", default=None)
+    secret_access_key: str | None = Field(alias="secret-key", default=None)
     oidc_role: str | None = Field(alias="oidc-role", default=None)
 
     __env_var_expand_fields__: Sequence[str] = ["access_key_id", "secret_access_key", "oidc_role"]
 
+    @model_validator(mode="after")
+    def validate_aws_auth(self) -> Self:
+        if config.oidc.enabled and self.oidc_role is not None:
+            return self
+
+        if self.access_key_id is None or self.secret_access_key is None:
+            raise ValueError("aws image authentication requires 'access_key_id' and 'secret_access_key'")
+
+        return self
+
     @field_validator("oidc_role")
     def oidc_role_not_supported(cls, v: str | None) -> str | None:
-        if v is not None:
+        if config.oidc.enabled is False and v is not None:
             raise ValueError("aws oidc-role not supported")
 
         return v
@@ -531,6 +541,7 @@ class ProjectMetadata(BaseModel):
     def load_from_file(cls, project_directory: str, *, increase_build: bool = True) -> "ProjectMetadata":
         # FIXME: increase_build is a ugly hack for something that should never have been done
         #        as part of this function in the first place.
+        # project_directory = os.path.abspath(os.path.expanduser(project_directory))
         path_slug = utils.hashify_path(project_directory)
 
         project_data_dir = utils.get_project_data_directory(path_slug)

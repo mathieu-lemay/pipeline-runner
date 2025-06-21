@@ -175,28 +175,20 @@ class StepRunner(BaseStepRunner):
             network = self._get_network()
             environment = self._get_step_env_vars()
 
-            services_manager = ServicesManager(
-                self._step.services,
-                self._ctx.pipeline_ctx.services,
-                self._step.size.as_int(),
-                self._data_volume_name,
-                self._ctx.pipeline_ctx.project_metadata.path_slug,
-                self._ctx.pipeline_ctx.get_cache_directory(),
-            )
+            services_manager = ServicesManager(self._ctx, self._data_volume_name)
             self._services_manager = services_manager
 
             mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
 
             container_runner = ContainerRunner(
+                self._ctx,
                 self._container_name,
                 image,
                 network.name,
-                self._ctx.pipeline_ctx.repository.path,
                 self._data_volume_name,
                 environment,
                 self._output_logger,
                 mem_limit,
-                self._ctx.pipeline_ctx.project_metadata.ssh_key,
             )
             self._container_runner = container_runner
 
@@ -390,9 +382,7 @@ class StepRunner(BaseStepRunner):
         image = self._get_image()
 
         rc = RepositoryCloner(
-            self._ctx.pipeline_ctx.repository,
-            self._step.clone_settings,
-            self._ctx.pipeline_ctx.clone_settings,
+            self._ctx,
             self._get_bitbucket_env_vars(),
             image.run_as_user,
             self._container_name,

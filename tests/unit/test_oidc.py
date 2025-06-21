@@ -10,13 +10,15 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from faker.proxy import Faker
 from pytest_mock import MockerFixture
 
-from pipeline_runner.config import config
+from pipeline_runner.config import Config
 from pipeline_runner.oidc import OIDCPayload, get_step_oidc_token
 from pipeline_runner.utils import generate_rsa_key
 
 
 @pytest.mark.parametrize("deployment_environment", ([None, "some-env"]))
-def test_oidc_payload_new(mocker: MockerFixture, faker: Faker, deployment_environment: str | None) -> None:
+def test_oidc_payload_new(
+    mocker: MockerFixture, config: Config, faker: Faker, deployment_environment: str | None
+) -> None:
     timestamp = datetime.now(tz=timezone.utc)
     mock_datetime = Mock()
     mock_datetime.now.return_value = timestamp
@@ -26,8 +28,8 @@ def test_oidc_payload_new(mocker: MockerFixture, faker: Faker, deployment_enviro
     issuer = f"https://oidc.{faker.safe_domain_name()}"
     audience = faker.pystr()
 
-    mocker.patch.object(config.oidc, "issuer", new=issuer)
-    mocker.patch.object(config.oidc, "audience", new=audience)
+    config.oidc.issuer = issuer
+    config.oidc.audience = audience
 
     account_uuid = uuid.uuid4()
     workspace_uuid = uuid.uuid4()
