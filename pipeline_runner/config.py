@@ -132,7 +132,7 @@ _config = Config()
 
 
 class ConfigProxy:
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401  # Proxy to `Config`
         return getattr(_config, name)
 
 
