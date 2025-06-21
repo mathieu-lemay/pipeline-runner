@@ -34,7 +34,7 @@ class OIDCPayload(BaseModel):
     branch_name: str = Field(alias="branchName")
 
     @classmethod
-    def new(cls, ctx: StepRunContext, deployment_environment: str | None = None) -> "Self":
+    def new(cls, ctx: StepRunContext) -> "Self":
         oidc_settings = config.oidc
 
         now = datetime.now(tz=UTC)
@@ -48,8 +48,8 @@ class OIDCPayload(BaseModel):
         step_uuid = f"{{{ctx.step_uuid}}}"
         branch_name = ctx.pipeline_ctx.repository.get_current_branch()
 
-        if deployment_environment:
-            deployment_environment_uuid = f"{{{uuid.uuid5(uuid.NAMESPACE_OID, deployment_environment)}}}"
+        if ctx.step.deployment:
+            deployment_environment_uuid = f"{{{uuid.uuid5(uuid.NAMESPACE_OID, ctx.step.deployment)}}}"
             sub = f"{pipeline_uuid}:{deployment_environment_uuid}:{step_uuid}"
         else:
             deployment_environment_uuid = None
@@ -71,8 +71,8 @@ class OIDCPayload(BaseModel):
         )
 
 
-def get_step_oidc_token(ctx: StepRunContext, deployment_environment: str | None = None) -> str:
-    payload = OIDCPayload.new(ctx, deployment_environment=deployment_environment)
+def get_step_oidc_token(ctx: StepRunContext) -> str:
+    payload = OIDCPayload.new(ctx)
 
     public_key = load_pem_private_key(
         ctx.pipeline_ctx.workspace_metadata.oidc_private_key.encode(), password=None

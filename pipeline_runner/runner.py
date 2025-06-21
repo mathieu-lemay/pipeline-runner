@@ -316,9 +316,7 @@ class StepRunner(BaseStepRunner):
             env_vars["BITBUCKET_DEPLOYMENT_ENVIRONMENT"] = self._step.deployment
 
         if self._step.oidc and config.oidc.enabled:
-            env_vars["BITBUCKET_STEP_OIDC_TOKEN"] = get_step_oidc_token(
-                self._ctx, deployment_environment=self._step.deployment
-            )
+            env_vars["BITBUCKET_STEP_OIDC_TOKEN"] = get_step_oidc_token(self._ctx)
 
         return env_vars
 

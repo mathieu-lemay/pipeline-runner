@@ -43,8 +43,9 @@ def test_oidc_payload_new(mocker: MockerFixture, faker: Faker, deployment_enviro
     step_ctx.pipeline_ctx.project_metadata.repo_uuid = repository_uuid
     step_ctx.pipeline_ctx.pipeline_uuid = pipeline_uuid
     step_ctx.pipeline_ctx.repository.get_current_branch.return_value = branch_name
+    step_ctx.step.deployment = deployment_environment
 
-    payload = OIDCPayload.new(step_ctx, deployment_environment)
+    payload = OIDCPayload.new(step_ctx)
 
     iat = int(timestamp.timestamp())
     exp = iat + 3600
@@ -101,9 +102,8 @@ def test_get_oidc_token_returns_a_valid_token(mocker: MockerFixture, faker: Fake
 
     step_ctx = Mock()
     step_ctx.pipeline_ctx.workspace_metadata.oidc_private_key = private_key
-    deployment_environment = Mock()
 
-    token = get_step_oidc_token(step_ctx, deployment_environment)
+    token = get_step_oidc_token(step_ctx)
 
     assert isinstance(public_key, RSAPublicKey)  # type check for jwt.decode
     decoded_token = jwt.decode(token, public_key, algorithms=["RS256"], audience=audience)
