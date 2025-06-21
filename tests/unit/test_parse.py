@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from pipeline_runner.config import config
+from pipeline_runner.config import Config
 from pipeline_runner.models import (
     AwsCredentials,
     Definitions,
@@ -71,6 +71,8 @@ def test_parse_definitions() -> None:
 
     defs = Definitions.model_validate(value)
 
+    from pipeline_runner.config import config
+
     services = {
         "docker": Service(image=None, variables={}, memory=3072),
         "postgres": Service(
@@ -127,11 +129,13 @@ def test_parse_image_with_aws_credentials() -> None:
     image = Image.model_validate(value)
 
     assert image == Image(
-        name=name, aws=AwsCredentials(access_key_id=access_key_id, secret_access_key=secret_access_key)
+        name=name, aws=AwsCredentials(access_key_id=access_key_id, secret_access_key=secret_access_key, oidc_role=None)
     )
 
 
-def test_parse_image_with_aws_oidc_role() -> None:
+def test_parse_image_with_aws_oidc_role_raises_error_if_oidc_is_disabled(config: Config) -> None:
+    config.oidc.enabled = False
+
     name = "alpine:latest"
     oidc_role = "some-role"
 
@@ -141,6 +145,20 @@ def test_parse_image_with_aws_oidc_role() -> None:
         Image.model_validate(value)
 
     assert "aws oidc-role not supported" in str(exc_info.value)
+
+
+def test_parse_image_with_aws_oidc_role(config: Config) -> None:
+    config.oidc.enabled = True
+
+    name = "alpine:latest"
+    oidc_role = "some-role"
+
+    value = {"name": name, "aws": {"oidc-role": oidc_role}}
+    image = Image.model_validate(value)
+
+    assert image == Image(
+        name=name, aws=AwsCredentials(access_key_id=None, secret_access_key=None, oidc_role="some-role")
+    )
 
 
 def test_parse_image_with_envvars() -> None:
