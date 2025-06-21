@@ -95,7 +95,7 @@ def project_metadata(mocker: MockerFixture) -> ProjectMetadata:
 
 @pytest.fixture
 def repository() -> Repository:
-    from pipeline_runner import __file__ as root_file
+    from pipeline_runner import __file__ as root_file  # noqa: PLC0415  # Import should be at top of file
 
     return Repository(os.path.dirname(os.path.dirname(root_file)))
 
