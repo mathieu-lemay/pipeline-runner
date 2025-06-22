@@ -12,6 +12,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from pytest_mock import MockerFixture
 
+from pipeline_runner import config as config_module
+from pipeline_runner.config import Config, get_config
 from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
 
 
@@ -24,6 +26,15 @@ def faker_seed() -> float:
 def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     caplog.set_level(logging.DEBUG)
     return caplog
+
+
+@pytest.fixture
+def config(mocker: MockerFixture) -> Config:
+    cfg = get_config().model_copy(deep=True)
+
+    mocker.patch.object(config_module, "get_config", return_value=cfg)
+
+    return cfg
 
 
 @pytest.fixture(autouse=True)

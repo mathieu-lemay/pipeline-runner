@@ -12,7 +12,7 @@ from importlib.resources import as_file, files
 from io import BufferedReader
 from logging import Logger
 from time import time
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import boto3
 import docker.errors  # type: ignore[import-untyped]
@@ -21,9 +21,11 @@ from docker.constants import DEFAULT_DATA_CHUNK_SIZE  # type: ignore[import-unty
 from docker.models.containers import Container, ExecResult  # type: ignore[import-untyped]
 
 import pipeline_runner
+from pipeline_runner.context import StepRunContext
 
 from .config import ATLASSIAN_DOCKER_CLI_VERSION, config
-from .models import Image, Pipe
+from .models import AwsCredentials, Image, Pipe
+from .oidc import get_step_oidc_token
 from .utils import escape_shell_string, stringify, wrap_in_shell
 
 _group_separator = 0x1D
@@ -38,25 +40,25 @@ PipelineScript = Sequence[str | Pipe]
 class ContainerRunner:
     def __init__(
         self,
+        ctx: StepRunContext,
         name: str,
         image: Image,
         network_name: str | None,
-        repository_path: str,
         data_volume_name: str,
         env_vars: dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
-        ssh_private_key: str | None = None,
     ) -> None:
+        self._ctx = ctx
         self._name = name
         self._image = image
         self._network_name = network_name
-        self._repository_path = repository_path
+        self._repository_path = ctx.pipeline_ctx.repository.path
         self._data_volume_name = data_volume_name
         self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2**20  # MiB to B
-        self._ssh_private_key = ssh_private_key
+        self._ssh_private_key = ctx.pipeline_ctx.project_metadata.ssh_key
         self._platform = os.getenv("PIPELINE_RUNNER_DOCKER_PLATFORM")
 
         self._client = docker.from_env()
@@ -152,7 +154,7 @@ class ContainerRunner:
         return self._container.put_archive(path, data)
 
     def start_container(self) -> None:
-        pull_image(self._client, self._image, self._platform)
+        pull_image(self._client, self._ctx, self._image, self._platform)
 
         logger.info("Creating container: %s", self._name)
 
@@ -546,14 +548,14 @@ class RemoteActionManager:
 _pulled_images = set()
 
 
-def pull_image(client: DockerClient, image: Image, platform: str | None = None) -> None:
+def pull_image(client: DockerClient, step_ctx: StepRunContext, image: Image, platform: str | None = None) -> None:
     if image.name in _pulled_images:
         logger.info("Image already pulled: %s", image.name)
         return
 
     logger.info("Pulling image: %s", image.name)
 
-    auth_config = get_image_authentication(image)
+    auth_config = get_image_authentication(step_ctx, image)
     try:
         client.images.pull(image.name, auth_config=auth_config, platform=platform)
     except docker.errors.NotFound:
@@ -570,38 +572,60 @@ def pull_image(client: DockerClient, image: Image, platform: str | None = None) 
     _pulled_images.add(image.name)
 
 
-def get_image_authentication(image: Image) -> dict[str, str] | None:
+class DockerCredentials(TypedDict):
+    username: str
+    password: str
+
+
+def get_image_authentication(ctx: StepRunContext, image: Image) -> DockerCredentials | None:
     if image.aws:
-        aws_access_key_id = image.aws.access_key_id
-        aws_secret_access_key = image.aws.secret_access_key
-        aws_session_token = os.getenv("AWS_SESSION_TOKEN")
-        aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-
-        client = boto3.client(
-            "ecr",
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
-            region_name=aws_region,
-        )
-
-        resp = client.get_authorization_token()
-
-        credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
-        username, password = credentials.split(":", maxsplit=1)
-
-        return {
-            "username": username,
-            "password": password,
-        }
+        return _get_aws_ecr_authentication(ctx, image.aws)
 
     if image.username and image.password:
-        return {
-            "username": image.username,
-            "password": image.password,
-        }
+        return DockerCredentials(username=image.username, password=image.password)
 
     return None
+
+
+def _get_aws_ecr_authentication(ctx: StepRunContext, aws: AwsCredentials) -> DockerCredentials | None:
+    aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+
+    if config.oidc.enabled and aws.oidc_role:
+        logger.info("Authenticating to AWS with OIDC")
+
+        sts_client = boto3.client("sts", region_name=aws_region)
+        oidc_token = get_step_oidc_token(ctx)
+
+        response = sts_client.assume_role_with_web_identity(
+            RoleArn=aws.oidc_role,
+            RoleSessionName=f"pipeline-runner-step-{ctx.step_uuid}",
+            WebIdentityToken=oidc_token,
+            DurationSeconds=3600,
+        )
+
+        aws_access_key_id = response["Credentials"]["AccessKeyId"]
+        aws_secret_access_key = response["Credentials"]["SecretAccessKey"]
+        aws_session_token = response["Credentials"]["SessionToken"]
+    else:
+        # Try to authenticate with provided credentials, with fallback to the user's AWS creds
+        aws_access_key_id = aws.access_key_id
+        aws_secret_access_key = aws.secret_access_key
+        aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+
+    client = boto3.client(
+        "ecr",
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
+        region_name=aws_region,
+    )
+
+    resp = client.get_authorization_token()
+
+    credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
+    username, password = credentials.split(":", maxsplit=1)
+
+    return DockerCredentials(username=username, password=password)
 
 
 def get_ssh_agent_socket_path(client: DockerClient) -> str | None:

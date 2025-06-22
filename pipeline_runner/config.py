@@ -2,6 +2,7 @@ import getpass
 import logging
 import os
 from collections.abc import Mapping
+from functools import lru_cache
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, cast
 
@@ -128,4 +129,14 @@ class Config(BaseSettings):
         }
 
 
-config = Config()
+@lru_cache(maxsize=1)
+def get_config() -> Config:
+    return Config()
+
+
+class ConfigProxy:
+    def __getattr__(self, name: str) -> Any:  # noqa: ANN401  # Proxy to `Config`
+        return getattr(get_config(), name)
+
+
+config = cast("Config", ConfigProxy())

@@ -27,7 +27,7 @@ from pytest_mock import MockerFixture
 from tenacity import retry, stop_after_delay, wait_fixed
 
 from pipeline_runner.cache import compute_cache_key
-from pipeline_runner.config import config
+from pipeline_runner.config import Config
 from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
 from pipeline_runner.runner import PipelineRunner, PipelineRunRequest
 
@@ -39,7 +39,7 @@ def _cwd() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _log() -> None:
+def _log(config: Config) -> None:
     logging.config.dictConfig(config.log_config)
 
 
@@ -390,6 +390,7 @@ def test_environment_variables(
     workspace_metadata: WorkspaceMetadata,
     project_metadata: ProjectMetadata,
     repository: Repository,
+    config: Config,
     mocker: MockerFixture,
 ) -> None:
     pipeline_uuid = uuid4()
@@ -547,10 +548,10 @@ def test_pipeline_supports_buildkit() -> None:
     assert result.ok
 
 
-def test_warning_is_emitted_if_oidc_is_enabled(
-    artifacts_directory: Path, mocker: MockerFixture, caplog: LogCaptureFixture
+def test_warning_is_emitted_if_oidc_is_used_but_not_enabled(
+    artifacts_directory: Path, config: Config, caplog: LogCaptureFixture
 ) -> None:
-    mocker.patch.object(config.oidc, "enabled", new=False)
+    config.oidc.enabled = False
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
     result = runner.run()
@@ -568,16 +569,16 @@ def test_warning_is_emitted_if_oidc_is_enabled(
 def test_oidc_token_generated_if_feature_flag_is_active(
     project_data_directory: Path,
     artifacts_directory: Path,
-    mocker: MockerFixture,
+    config: Config,
     caplog: LogCaptureFixture,
     faker: Faker,
 ) -> None:
     issuer = f"https://oidc.{faker.safe_domain_name()}"
     audience = faker.pystr()
 
-    mocker.patch.object(config.oidc, "enabled", new=True)
-    mocker.patch.object(config.oidc, "issuer", new=issuer)
-    mocker.patch.object(config.oidc, "audience", new=audience)
+    config.oidc.enabled = True
+    config.oidc.issuer = issuer
+    config.oidc.audience = audience
 
     runner = PipelineRunner(PipelineRunRequest("custom.test_oidc"))
     result = runner.run()
@@ -602,11 +603,7 @@ def test_oidc_token_generated_if_feature_flag_is_active(
     assert decoded_token["iss"] == issuer
 
 
-def test_user_defined_volumes(tmp_path: Path, mocker: MockerFixture) -> None:
-    cfg = config.model_copy(deep=True)
-
-    mocker.patch("pipeline_runner.container.config", cfg)
-
+def test_user_defined_volumes(tmp_path: Path, config: Config) -> None:
     custom_rw = tmp_path / "rw"
     custom_ro = tmp_path / "ro"
 
@@ -614,7 +611,7 @@ def test_user_defined_volumes(tmp_path: Path, mocker: MockerFixture) -> None:
     custom_rw.mkdir(parents=True)
     custom_ro.mkdir(parents=True)
 
-    cfg.volumes = [
+    config.volumes = [
         f"{custom_rw}:/custom-rw",
         f"{custom_ro}:/custom-ro:ro",
     ]
