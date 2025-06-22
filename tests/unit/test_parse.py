@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from pipeline_runner.config import Config
+from pipeline_runner.config import Config, get_config
 from pipeline_runner.models import (
     AwsCredentials,
     Definitions,
@@ -71,10 +71,8 @@ def test_parse_definitions() -> None:
 
     defs = Definitions.model_validate(value)
 
-    from pipeline_runner.config import config
-
     services = {
-        "docker": Service(image=None, variables={}, memory=3072),
+        "docker": Service(image=None, memory=3072),
         "postgres": Service(
             image=Image(name="postgres:13"),
             variables={
@@ -82,7 +80,7 @@ def test_parse_definitions() -> None:
                 "POSTGRES_USER": "pg-user",
                 "POSTGRES_PASSWORD": "pg-passwd",
             },
-            memory=config.service_container_default_memory_limit,
+            memory=get_config().service_container_default_memory_limit,
         ),
         "mysql": Service(
             image=Image(name="mysql"),
@@ -91,7 +89,7 @@ def test_parse_definitions() -> None:
                 "MYSQL_USER": "my-user",
                 "MYSQL_PASSWORD": "my-passwd",
             },
-            memory=config.service_container_default_memory_limit,
+            memory=get_config().service_container_default_memory_limit,
         ),
     }
 

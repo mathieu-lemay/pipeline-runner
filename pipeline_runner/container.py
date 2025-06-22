@@ -579,18 +579,15 @@ class DockerCredentials(TypedDict):
 
 def get_image_authentication(ctx: StepRunContext, image: Image) -> DockerCredentials | None:
     if image.aws:
-        return get_ecr_authentication(ctx, image.aws)
+        return _get_aws_ecr_authentication(ctx, image.aws)
 
     if image.username and image.password:
-        return {
-            "username": image.username,
-            "password": image.password,
-        }
+        return DockerCredentials(username=image.username, password=image.password)
 
     return None
 
 
-def get_ecr_authentication(ctx: StepRunContext, aws: AwsCredentials) -> DockerCredentials | None:
+def _get_aws_ecr_authentication(ctx: StepRunContext, aws: AwsCredentials) -> DockerCredentials | None:
     aws_region = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 
     if config.oidc.enabled and aws.oidc_role:
@@ -628,10 +625,7 @@ def get_ecr_authentication(ctx: StepRunContext, aws: AwsCredentials) -> DockerCr
     credentials = base64.b64decode(resp["authorizationData"][0]["authorizationToken"]).decode()
     username, password = credentials.split(":", maxsplit=1)
 
-    return {
-        "username": username,
-        "password": password,
-    }
+    return DockerCredentials(username=username, password=password)
 
 
 def get_ssh_agent_socket_path(client: DockerClient) -> str | None:

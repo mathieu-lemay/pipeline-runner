@@ -90,7 +90,6 @@ ignore = [
 classmethod-decorators = [
     "classmethod",
     "pydantic.field_validator",
-    "pydantic.model_validator",
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -1,7 +1,7 @@
 import base64
 import os
 from collections.abc import Callable
-from unittest.mock import MagicMock, Mock
+from unittest.mock import ANY, MagicMock, Mock, call
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -102,8 +102,67 @@ def test_aws_credentials_have_precedence(aws_lib: MagicMock) -> None:
     }
 
 
-def test_aws_credentials_oidc(aws_lib: MagicMock) -> None:
-    pytest.fail("not implemented")
+def test_aws_credentials_oidc(aws_lib: MagicMock, config: Config, mocker: MockerFixture, faker: Faker) -> None:
+    config.oidc.enabled = True
+
+    oidc_role = faker.pystr()
+
+    creds = AwsCredentials(oidc_role=oidc_role)
+    image = Image(name="alpine", aws=creds)
+
+    ctx = Mock(spec=StepRunContext)
+    ctx.step_uuid = faker.uuid4()
+
+    oidc_token = faker.pystr()
+
+    aws_access_key_id = faker.pystr()
+    aws_secret_access_key = faker.pystr()
+    aws_session_token = faker.pystr()
+
+    aws_username = faker.pystr()
+    aws_password = faker.pystr()
+    auth_token = base64.b64encode(f"{aws_username}:{aws_password}".encode()).decode()
+
+    get_step_oidc_token = mocker.patch("pipeline_runner.container.get_step_oidc_token")
+    get_step_oidc_token.return_value = oidc_token
+
+    client = aws_lib.client.return_value
+    client.assume_role_with_web_identity.return_value = {
+        "Credentials": {
+            "AccessKeyId": aws_access_key_id,
+            "SecretAccessKey": aws_secret_access_key,
+            "SessionToken": aws_session_token,
+        }
+    }
+    client.get_authorization_token.return_value = {"authorizationData": [{"authorizationToken": auth_token}]}
+
+    assert get_image_authentication(ctx, image) == {
+        "username": aws_username,
+        "password": aws_password,
+    }
+
+    get_step_oidc_token.assert_called_with(ctx)
+
+    aws_lib.client.assert_has_calls(
+        (
+            call("sts", region_name=ANY),
+            call(
+                "ecr",
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                aws_session_token=aws_session_token,
+                region_name=ANY,
+            ),
+        ),
+        any_order=True,
+    )
+    client.assume_role_with_web_identity.assert_called_once_with(
+        RoleArn=oidc_role,
+        RoleSessionName=f"pipeline-runner-step-{ctx.step_uuid}",
+        WebIdentityToken=oidc_token,
+        DurationSeconds=3600,
+    )
+    client.get_authorization_token.assert_called_once_with()
 
 
 def test_cpu_limits_are_not_applied_if_config_is_set_to_false(

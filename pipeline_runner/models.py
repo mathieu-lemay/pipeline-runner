@@ -4,7 +4,7 @@ from collections.abc import Iterator, Sequence
 from enum import Enum
 from pathlib import Path
 from string import Template
-from typing import Any, Generic, Self, SupportsIndex, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, SupportsIndex, TypeVar
 from uuid import UUID, uuid4
 
 from git.repo import Repo
@@ -17,6 +17,14 @@ from slugify import slugify
 from . import utils
 from .config import DEFAULT_SERVICES, config
 from .utils import generate_rsa_key
+
+if TYPE_CHECKING:
+    import sys
+
+    if sys.version_info < (3, 11):
+        from typing_extensions import Self
+    else:
+        from typing import Self
 
 logger = logging.getLogger(__name__)
 
@@ -47,14 +55,14 @@ class AwsCredentials(BaseModel):
     __env_var_expand_fields__: Sequence[str] = ["access_key_id", "secret_access_key", "oidc_role"]
 
     @model_validator(mode="after")
-    def validate_aws_auth(cls, model: Self) -> Self:
-        if config.oidc.enabled and model.oidc_role is not None:
-            return model
+    def validate_aws_auth(self) -> "Self":
+        if config.oidc.enabled and self.oidc_role is not None:
+            return self
 
-        if model.access_key_id is None or model.secret_access_key is None:
+        if self.access_key_id is None or self.secret_access_key is None:
             raise ValueError("aws image authentication requires 'access_key_id' and 'secret_access_key'")
 
-        return model
+        return self
 
     @field_validator("oidc_role")
     def oidc_role_not_supported(cls, v: str | None) -> str | None:
@@ -385,6 +393,7 @@ class Variable(BaseModel):
     allowed_values: list[str] | None = Field(alias="allowed-values", default=None)
 
     @model_validator(mode="after")  # type: ignore[arg-type]
+    @classmethod
     def validate_var_with_allowed_values_must_have_a_default_value(cls, model: "Variable") -> "Variable":
         allowed_values = model.allowed_values
         default = model.default
@@ -462,6 +471,7 @@ class Pipelines(BaseModel):
         return pipelines
 
     @model_validator(mode="before")
+    @classmethod
     def ensure_at_least_one_pipeline(cls, values: dict[str, Any]) -> dict[str, Any]:
         if not any(bool(v) for v in values.values()):
             raise ValueError("There must be at least one pipeline")
