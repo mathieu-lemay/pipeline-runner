@@ -165,14 +165,11 @@ class ContainerRunner:
         opts = {"cpu_period": 100000, "cpu_quota": 400000, "cpu_shares": 4096} if config.cpu_limits else {}
 
         if config.expose_ssh_agent:
-            if is_running_on_windows():
-                logger.warning("ssh agent forwarding is not supported on Windows/WSL")
-            elif ssh_agent_socket_path := get_ssh_agent_socket_path(self._client):
+            ssh_agent_socket_path = get_ssh_agent_socket_path(self._client)
+            if ssh_agent_socket_path:
                 logger.info("Mounting ssh agent in container")
                 volumes[ssh_agent_socket_path] = {"bind": "/ssh-agent"}
                 environment["SSH_AUTH_SOCK"] = "/ssh-agent"
-            else:
-                logger.warning("No running ssh agent available")
 
         container = self._client.containers.run(
             self._image.name,
@@ -629,14 +626,12 @@ def _get_aws_ecr_authentication(ctx: StepRunContext, aws: AwsCredentials) -> Doc
     return DockerCredentials(username=username, password=password)
 
 
-def is_running_on_windows() -> bool:
-    uname = platform.uname()
-
-    return uname.system == "Windows" or "microsoft" in uname.release.lower()
-
-
 def get_ssh_agent_socket_path(client: DockerClient) -> str | None:
     if docker_is_docker_desktop(client):
+        if is_running_on_windows():
+            logger.warning("ssh agent forwarding is not supported on Docker Desktop for Windows")
+            return None
+
         logger.debug("Using docker desktop's host service ssh agent")
         return "/run/host-services/ssh-auth.sock"
 
@@ -656,3 +651,9 @@ def docker_is_docker_desktop(client: DockerClient) -> bool:
         platform_name = ""
 
     return platform_name.startswith("Docker Desktop ")
+
+
+def is_running_on_windows() -> bool:
+    uname = platform.uname()
+
+    return uname.system == "Windows" or "microsoft" in uname.release.lower()
