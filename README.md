@@ -53,8 +53,12 @@ On macOS:
 Note: Docker cache is stored in a docker volume instead.
 
 ## SSH Agent Forwarding
+> [!WARNING]
+SSH Agent forwarding is only available on Linux and macOS<br />
+See: https://docs.docker.com/desktop/features/networking/#ssh-agent-forwarding
+
 You can expose your ssh-agent to the container running the pipelines. This is useful if the pipeline needs to clone
-from a private repository for example.
+from a private repository, for example.
 To do so, run the pipeline with the `--ssh` flag:
 
 ```shell

@@ -1,13 +1,14 @@
 import base64
 import os
+import platform
 from collections.abc import Callable
-from unittest.mock import ANY, MagicMock, Mock, call
+from unittest.mock import ANY, MagicMock, Mock, call, patch
 
 import pytest
 from _pytest.logging import LogCaptureFixture
 from _pytest.monkeypatch import MonkeyPatch
 from docker import DockerClient  # type: ignore[import-untyped]
-from faker.proxy import Faker
+from faker import Faker
 from pytest_mock import MockerFixture
 
 from pipeline_runner.config import Config
@@ -16,6 +17,7 @@ from pipeline_runner.container import (
     docker_is_docker_desktop,
     get_image_authentication,
     get_ssh_agent_socket_path,
+    is_running_on_windows,
 )
 from pipeline_runner.context import StepRunContext
 from pipeline_runner.models import AwsCredentials, Image
@@ -227,6 +229,25 @@ def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker:
     assert kwargs["cpu_period"] == 100_000
     assert kwargs["cpu_quota"] == 400_000
     assert kwargs["cpu_shares"] == 4096
+
+
+@pytest.mark.parametrize(
+    ("system", "release", "is_windows"),
+    [
+        ("Windows", "3.11 for workspace", True),
+        ("Linux", "6.6.87.2-microsoft-standard-WSL2", True),
+        ("Linux", "4.20", False),
+    ],
+)
+def test_is_running_on_windows(
+    faker: Faker,
+    system: str,
+    release: str,
+    is_windows: bool,
+) -> None:
+    uname = platform.uname_result(system, faker.pystr(), release, faker.pystr(), faker.pystr())
+    with patch("pipeline_runner.container.platform.uname", return_value=uname):
+        assert is_running_on_windows() == is_windows
 
 
 def test_get_ssh_agent_socket_path_returns_nothing_if_none_is_found(
