@@ -2,6 +2,7 @@ import base64
 import io
 import logging
 import os.path
+import platform
 import posixpath
 import sys
 import tarfile
@@ -164,9 +165,9 @@ class ContainerRunner:
         opts = {"cpu_period": 100000, "cpu_quota": 400000, "cpu_shares": 4096} if config.cpu_limits else {}
 
         if config.expose_ssh_agent:
-            ssh_agent_socket_path = get_ssh_agent_socket_path(self._client)
-
-            if ssh_agent_socket_path:
+            if is_running_on_windows():
+                logger.warning("ssh agent forwarding is not supported on Windows/WSL")
+            elif ssh_agent_socket_path := get_ssh_agent_socket_path(self._client):
                 logger.info("Mounting ssh agent in container")
                 volumes[ssh_agent_socket_path] = {"bind": "/ssh-agent"}
                 environment["SSH_AUTH_SOCK"] = "/ssh-agent"
@@ -628,18 +629,22 @@ def _get_aws_ecr_authentication(ctx: StepRunContext, aws: AwsCredentials) -> Doc
     return DockerCredentials(username=username, password=password)
 
 
-def get_ssh_agent_socket_path(client: DockerClient) -> str | None:
-    ssh_sock_path: str | None
+def is_running_on_windows() -> bool:
+    uname = platform.uname()
 
+    return uname.system == "Windows" or "microsoft" in uname.release.lower()
+
+
+def get_ssh_agent_socket_path(client: DockerClient) -> str | None:
     if docker_is_docker_desktop(client):
         logger.debug("Using docker desktop's host service ssh agent")
-        ssh_sock_path = "/run/host-services/ssh-auth.sock"
-    elif ssh_sock_path := os.environ.get("SSH_AUTH_SOCK"):
-        logger.debug("Using ssh agent specified by $SSH_AUTH_SOCK")
-    else:
-        return None
+        return "/run/host-services/ssh-auth.sock"
 
-    return os.path.realpath(os.path.expanduser(ssh_sock_path))
+    if ssh_sock_path := os.environ.get("SSH_AUTH_SOCK"):
+        logger.debug("Using ssh agent specified by $SSH_AUTH_SOCK")
+        return os.path.realpath(os.path.expanduser(ssh_sock_path))
+
+    return None
 
 
 def docker_is_docker_desktop(client: DockerClient) -> bool:

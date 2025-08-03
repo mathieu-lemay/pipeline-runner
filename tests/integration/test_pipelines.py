@@ -534,6 +534,21 @@ def test_pipeline_with_pipe(pipeline_data_directory: Path, project_path_slug: st
         assert any(i for i in log_lines if i == expected)
 
 
+def test_ssh_agent_forwarding(config: Config, monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    config.expose_ssh_agent = True
+
+    ssh_agent = tmp_path / "ssh_agent"
+    with ssh_agent.open("w") as f:
+        f.write("some-ssh-agent")
+
+    monkeypatch.setenv("SSH_AUTH_SOCK", str(ssh_agent))
+
+    runner = PipelineRunner(PipelineRunRequest("custom.test_ssh_agent"))
+    result = runner.run()
+
+    assert result.ok
+
+
 def test_ssh_key_is_present_in_runner() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_ssh_key"))
     result = runner.run()
