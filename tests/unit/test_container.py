@@ -2,7 +2,7 @@ import base64
 import os
 import platform
 from collections.abc import Callable
-from unittest.mock import ANY, MagicMock, Mock, call, patch
+from unittest.mock import ANY, MagicMock, Mock, call
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -241,12 +241,13 @@ def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker:
 )
 def test_is_running_on_windows(
     faker: Faker,
+    mocker: MockerFixture,
     system: str,
     release: str,
     is_windows: bool,
 ) -> None:
     uname = platform.uname_result(system, faker.pystr(), release, faker.pystr(), faker.pystr())
-    with patch("pipeline_runner.container.platform.uname", return_value=uname):
+    with mocker.patch("pipeline_runner.container.platform.uname", return_value=uname):
         assert is_running_on_windows() == is_windows
 
 
@@ -272,6 +273,21 @@ def test_get_ssh_agent_socket_path_returns_docker_desktops_host_service_agent(
 
     assert get_ssh_agent_socket_path(client) == "/run/host-services/ssh-auth.sock"
     assert "Using docker desktop's host service ssh agent" in caplog.text
+
+
+def test_get_ssh_agent_socket_path_returns_none_for_docker_desktop_for_windows(
+    monkeypatch: MonkeyPatch,
+    mocker: MockerFixture,
+    docker_is_docker_desktop_mock: MagicMock,
+    caplog: LogCaptureFixture,
+) -> None:
+    client = MagicMock(DockerClient)
+    monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
+    docker_is_docker_desktop_mock.return_value = True
+
+    with mocker.patch("pipeline_runner.container.is_running_on_windows", return_value=True):
+        assert get_ssh_agent_socket_path(client) is None
+        assert "ssh agent forwarding is not supported on Docker Desktop for Windows" in caplog.text
 
 
 def test_get_ssh_agent_socket_path_returns_value_of_ssh_auth_sock_env(
