@@ -44,6 +44,7 @@ class PipelineRunContext:
         repository: Repository,
         env_vars: dict[str, str] | None = None,
         selected_steps: list[str] | None = None,
+        selected_stages: list[str] | None = None,
     ) -> None:
         self.pipeline_name = pipeline_name
         self.pipeline = pipeline
@@ -56,6 +57,7 @@ class PipelineRunContext:
         self.repository = repository
         self.env_vars = env_vars or {}
         self.selected_steps = selected_steps or []
+        self.selected_stages = selected_stages or []
 
         self.pipeline_uuid = uuid.uuid4()
         self.pipeline_variables: dict[str, str] = {}

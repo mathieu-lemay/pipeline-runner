@@ -639,6 +639,17 @@ def test_user_defined_volumes(tmp_path: Path, config: Config) -> None:
     assert not (custom_ro / "file").exists()
 
 
+def test_stages(artifacts_directory: Path) -> None:
+    runner = PipelineRunner(PipelineRunRequest("custom.test_stages"))
+    result = runner.run()
+
+    assert result.ok
+
+    assert (artifacts_directory / "dev1").exists()
+    assert (artifacts_directory / "dev2").exists()
+    assert (artifacts_directory / "prod").exists()
+
+
 def _sha256hash(data: bytes) -> str:
     hasher = hashlib.sha256()
     hasher.update(data)

@@ -424,3 +424,34 @@ pipelines:
             - if echo ok > /custom-ro/file; then
             -   exit 1
             - fi
+
+    test_stages:
+      - stage:
+          name: Deploy to Dev
+          deployment: dev
+          steps:
+            - step:
+                name: Deploy to Dev 1
+                environment: dev1
+                script:
+                  - touch dev1
+                artifacts:
+                  - dev1
+            - step:
+                name: Deploy to Dev 2
+                environment: dev2
+                script:
+                  - touch dev2
+                artifacts:
+                  - dev2
+      - stage:
+          name: Deploy to Prod
+          deployment: prod
+          steps:
+            - step:
+                name: Deploy to Prod
+                environment: prod
+                script:
+                  - touch prod
+                artifacts:
+                  - prod
