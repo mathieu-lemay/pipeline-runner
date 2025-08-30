@@ -38,12 +38,15 @@ class PipelineRunRequest:
     def __init__(
         self,
         pipeline_name: str,
+        *,
         repository_path: str | None = None,
         selected_steps: list[str] | None = None,
+        selected_stages: list[str] | None = None,
         env_files: list[str] | None = None,
     ) -> None:
         self.pipeline_name = pipeline_name
         self.selected_steps = selected_steps or []
+        self.selected_stages = selected_stages or []
         self.env_files = env_files or []
         self.repository_path = os.path.abspath(repository_path or ".")
 

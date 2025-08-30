@@ -94,6 +94,7 @@ class PipelineRunContext:
             repository,
             env_vars,
             req.selected_steps,
+            req.selected_stages,
         )
 
     @staticmethod
