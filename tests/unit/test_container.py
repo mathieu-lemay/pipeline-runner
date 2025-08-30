@@ -247,8 +247,9 @@ def test_is_running_on_windows(
     is_windows: bool,
 ) -> None:
     uname = platform.uname_result(system, faker.pystr(), release, faker.pystr(), faker.pystr())
-    with mocker.patch("pipeline_runner.container.platform.uname", return_value=uname):
-        assert is_running_on_windows() == is_windows
+    mocker.patch("pipeline_runner.container.platform.uname", return_value=uname)
+
+    assert is_running_on_windows() == is_windows
 
 
 def test_get_ssh_agent_socket_path_returns_nothing_if_none_is_found(
@@ -285,9 +286,10 @@ def test_get_ssh_agent_socket_path_returns_none_for_docker_desktop_for_windows(
     monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
     docker_is_docker_desktop_mock.return_value = True
 
-    with mocker.patch("pipeline_runner.container.is_running_on_windows", return_value=True):
-        assert get_ssh_agent_socket_path(client) is None
-        assert "ssh agent forwarding is not supported on Docker Desktop for Windows" in caplog.text
+    mocker.patch("pipeline_runner.container.is_running_on_windows", return_value=True)
+
+    assert get_ssh_agent_socket_path(client) is None
+    assert "ssh agent forwarding is not supported on Docker Desktop for Windows" in caplog.text
 
 
 def test_get_ssh_agent_socket_path_returns_value_of_ssh_auth_sock_env(
