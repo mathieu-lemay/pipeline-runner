@@ -3,9 +3,12 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from http import HTTPStatus
+from pathlib import Path
+from tempfile import mkstemp
 from time import time as ts
 
 import docker  # type: ignore[import-untyped]
+import dotenv
 from docker.errors import APIError  # type: ignore[import-untyped]
 from docker.models.networks import Network  # type: ignore[import-untyped]
 
@@ -15,6 +18,7 @@ from .cache import CacheManager
 from .config import DEFAULT_IMAGE, config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
+from .errors import InvalidOutputVariablesError
 from .models import (
     Image,
     ParallelStep,
@@ -140,6 +144,8 @@ class StepRunner(BaseStepRunner):
             self._ctx.pipeline_ctx.get_log_directory(), f"{self._container_name}"
         )
 
+        self._pipeline_variables_file = self._get_pipeline_variables_file()
+
     # TODO: Decomplexify
     # C901: Too complex (>10)
     # PLR0915: Too many statements (>50)
@@ -163,7 +169,6 @@ class StepRunner(BaseStepRunner):
         s = ts()
 
         network = None
-
         exit_code: int
 
         try:
@@ -189,6 +194,7 @@ class StepRunner(BaseStepRunner):
                 environment,
                 self._output_logger,
                 mem_limit,
+                self._pipeline_variables_file,
             )
             self._container_runner = container_runner
 
@@ -218,6 +224,9 @@ class StepRunner(BaseStepRunner):
 
             if self._container_runner:
                 self._container_runner.stop()
+
+            if self._pipeline_variables_file:
+                self._pipeline_variables_file.unlink()
 
             if network:
                 network.remove()
@@ -298,6 +307,7 @@ class StepRunner(BaseStepRunner):
             "BITBUCKET_REPO_UUID": str(self._ctx.pipeline_ctx.project_metadata.repo_uuid),
             "BITBUCKET_STEP_UUID": str(self._ctx.step_uuid),
             "BITBUCKET_WORKSPACE": project_slug,
+            "BITBUCKET_PIPELINES_VARIABLES_PATH": f"{config.temp_dir}/pipeline-variables.env",
         }
 
         if self._ctx.is_parallel():
@@ -314,6 +324,13 @@ class StepRunner(BaseStepRunner):
 
     def _get_build_container_memory_limit(self, services_memory_usage: int) -> int:
         return config.total_memory_limit * self._step.size.as_int() - services_memory_usage
+
+    def _get_pipeline_variables_file(self) -> Path | None:
+        if not self._step.output_variables:
+            return None
+
+        _fd, filename = mkstemp()
+        return Path(filename)
 
     def _docker_is_needed(self) -> bool:
         return any(i for i in self._step.script + self._step.after_script if isinstance(i, Pipe))
@@ -399,6 +416,8 @@ class StepRunner(BaseStepRunner):
         self._download_artifacts()
         self._stop_services()
 
+        self._extract_output_variables()
+
         logger.info("Build teardown finished in %.3fs: '%s'", ts() - s, self._step.name)
 
     def _download_caches(self, exit_code: int) -> None:
@@ -433,6 +452,23 @@ class StepRunner(BaseStepRunner):
     def _stop_services(self) -> None:
         # TODO: Remove
         pass
+
+    def _extract_output_variables(self):
+        if not self._pipeline_variables_file:
+            return
+
+        values = dotenv.dotenv_values(self._pipeline_variables_file)
+
+        # TODO: Validate invalid format
+        # TODO: What about `FOO=`?
+
+        invalid_keys = values.keys() - set(self._step.output_variables)
+        if invalid_keys:
+            raise InvalidOutputVariablesError(invalid_keys)
+
+        values
+
+        self._ctx.pipeline_ctx.pipeline_variables.update(values)
 
 
 class ParallelStepRunner(BaseStepRunner):

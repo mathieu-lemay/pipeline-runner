@@ -326,6 +326,7 @@ class Step(BaseModel):
     max_time: int | None = Field(None, alias="max-time")
     condition: Condition | None = None
     oidc: bool = False
+    output_variables: list[str] = Field(default_factory=list, alias="output-variables")
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 
