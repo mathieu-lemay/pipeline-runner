@@ -24,6 +24,7 @@ from pipeline_runner.models import (
     Pipelines,
     ProjectMetadata,
     Service,
+    Stage,
     Step,
     StepWrapper,
     WorkspaceMetadata,
@@ -516,3 +517,57 @@ def test_workspace_metadata_load_from_file_loads_existing_metadata(
     )
 
     assert WorkspaceMetadata.load_from_file() == expected_metadata
+
+
+def test_stage_cant_contain_steps_with_manual_triggers() -> None:
+    spec = {
+        "deployment": "dev",
+        "environment": "qa1",
+        "name": "Build and test",
+        "steps": [
+            {
+                "step": {
+                    "name": "Succeed",
+                    "script": ["exit 0"],
+                },
+            },
+            {
+                "step": {
+                    "name": "Wait",
+                    "trigger": "manual",
+                    "script": ["exit 0"],
+                },
+            },
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="A step within stage can't contain a manual trigger"):
+        Stage.model_validate(spec)
+
+    spec = {
+        "deployment": "dev",
+        "environment": "qa1",
+        "name": "Build and test",
+        "steps": [
+            {
+                "parallel": [
+                    {
+                        "step": {
+                            "name": "Succeed",
+                            "script": ["exit 0"],
+                        }
+                    },
+                    {
+                        "step": {
+                            "name": "Wait",
+                            "trigger": "manual",
+                            "script": ["exit 0"],
+                        }
+                    },
+                ]
+            },
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="A step within stage can't contain a manual trigger"):
+        Stage.model_validate(spec)
