@@ -559,6 +559,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                         "max-time": None,
                         "condition": None,
                         "oidc": False,
+                        "output-variables": [],
                     },
                 },
                 {
@@ -589,6 +590,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "max-time": None,
                                 "condition": None,
                                 "oidc": False,
+                                "output-variables": [],
                             }
                         },
                         {
@@ -617,6 +619,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "max-time": None,
                                 "condition": None,
                                 "oidc": False,
+                                "output-variables": [],
                             }
                         },
                     ],
