@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from importlib.resources import as_file, files
 from io import BufferedReader
 from logging import Logger
+from pathlib import Path
 from time import time
 from typing import Any, TypedDict, cast
 
@@ -49,6 +50,7 @@ class ContainerRunner:
         env_vars: dict[str, str],
         output_logger: Logger,
         mem_limit: int = 512,
+        pipeline_variables_file: Path | None = None,
     ) -> None:
         self._ctx = ctx
         self._name = name
@@ -59,6 +61,7 @@ class ContainerRunner:
         self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2**20  # MiB to B
+        self._pipeline_variables_file = pipeline_variables_file
         self._ssh_private_key = ctx.pipeline_ctx.project_metadata.ssh_key
         self._platform = os.getenv("PIPELINE_RUNNER_DOCKER_PLATFORM")
 
@@ -266,6 +269,8 @@ class ContainerRunner:
                 self._data_volume_name: {"bind": config.remote_pipeline_dir},
             }
         )
+        if self._pipeline_variables_file is not None:
+            volumes[str(self._pipeline_variables_file)] = {"bind": f"{config.temp_dir}/pipeline-variables.env"}
 
         return volumes
 
