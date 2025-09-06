@@ -438,6 +438,7 @@ def test_environment_variables(
         "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
         "BITBUCKET_STEP_UUID": str(step_uuid),
         "BITBUCKET_WORKSPACE": slug,
+        "BITBUCKET_PIPELINES_VARIABLES_PATH": "/opt/atlassian/pipelines/agent/tmp/pipeline-variables.env",
         "BUILD_DIR": "/opt/atlassian/pipelines/agent/build",
         "CI": "true",
     }
