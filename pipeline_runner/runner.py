@@ -18,7 +18,7 @@ from .cache import CacheManager
 from .config import DEFAULT_IMAGE, config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
-from .errors import InvalidOutputVariablesError
+from .errors import InvalidOutputVariablesError, UndefinedOutputVariablesError
 from .models import (
     Image,
     ParallelStep,
@@ -144,7 +144,7 @@ class StepRunner(BaseStepRunner):
             self._ctx.pipeline_ctx.get_log_directory(), f"{self._container_name}"
         )
 
-        self._pipeline_variables_file = self._get_pipeline_variables_file()
+        self._pipeline_variables_file: Path | None = None
 
     # TODO: Decomplexify
     # C901: Too complex (>10)
@@ -183,6 +183,8 @@ class StepRunner(BaseStepRunner):
 
             services_manager = ServicesManager(self._ctx, self._data_volume_name)
             self._services_manager = services_manager
+
+            self._pipeline_variables_file = self._get_pipeline_variables_file()
 
             mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
 
@@ -458,13 +460,18 @@ class StepRunner(BaseStepRunner):
         if not self._pipeline_variables_file:
             return
 
-        values = dotenv.dotenv_values(self._pipeline_variables_file)
+        with self._pipeline_variables_file.open() as f:
+            for line in f:
+                if "=" not in line:
+                    raise InvalidOutputVariablesError(line.strip())
+
+        values = dotenv.dotenv_values(self._pipeline_variables_file, interpolate=True)
 
         # TODO: Validate invalid format
 
         invalid_keys = values.keys() - set(self._step.output_variables)
         if invalid_keys:
-            raise InvalidOutputVariablesError(invalid_keys)
+            raise UndefinedOutputVariablesError(invalid_keys)
 
         # Bitbucket ignores variables with no values, but only after first validating the keys
         valid_values = {k: v for k, v in values.items() if v is not None}

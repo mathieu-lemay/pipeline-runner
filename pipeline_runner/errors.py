@@ -50,6 +50,11 @@ class ArtifactManagementError(Exception):
 
 
 class InvalidOutputVariablesError(UsageError):
+    def __init__(self, invalid_variable: str) -> None:
+        super().__init__(f"Invalid variable format: {invalid_variable}")
+
+
+class UndefinedOutputVariablesError(UsageError):
     def __init__(self, invalid_variables: set[str]) -> None:
         if len(invalid_variables) == 1:
             var = invalid_variables.pop()
