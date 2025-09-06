@@ -425,6 +425,59 @@ pipelines:
             -   exit 1
             - fi
 
+    test_output_variables:
+      - step:
+          name: Variables A
+          script:
+            - echo "${BITBUCKET_PIPELINES_VARIABLES_PATH:?not set}"
+
+            - if [ ! -e "${BITBUCKET_PIPELINES_VARIABLES_PATH}" ]; then
+            -   echo "File '${BITBUCKET_PIPELINES_VARIABLES_PATH}' does not exist"
+            -   exit 1
+            - fi
+
+            - echo "STEP_A_VAR_1=step-a-value-1" >> $BITBUCKET_PIPELINES_VARIABLES_PATH
+            - echo "STEP_A_VAR_2=step-a-value-2" >> $BITBUCKET_PIPELINES_VARIABLES_PATH
+          output-variables:
+            - STEP_A_VAR_1
+            - STEP_A_VAR_2
+            - STEP_A_VAR_3  # Unused
+      - step:
+          name: Variables B
+          script:
+            - echo "${BITBUCKET_PIPELINES_VARIABLES_PATH:?not set}"
+
+            - if [ ! -e "${BITBUCKET_PIPELINES_VARIABLES_PATH}" ]; then
+            -   echo "File '${BITBUCKET_PIPELINES_VARIABLES_PATH}' does not exist"
+            -   exit 1
+            - fi
+
+            # Those should be defined from the previous step
+            - test "${STEP_A_VAR_1:-}" = "step-a-value-1"
+            - test "${STEP_A_VAR_2:-}" = "step-a-value-2"
+
+            - echo "STEP_B_VAR_1=step-b-value-1" >> $BITBUCKET_PIPELINES_VARIABLES_PATH
+          output-variables:
+            - STEP_B_VAR_1
+      - step:
+          name: Validate Variables
+          script:
+            # The variable should still be set
+            - echo "${BITBUCKET_PIPELINES_VARIABLES_PATH:?not set}"
+
+            # But the file should not exist
+            - if [ -e "${BITBUCKET_PIPELINES_VARIABLES_PATH}" ]; then
+            -   echo "File '${BITBUCKET_PIPELINES_VARIABLES_PATH}' should not exist"
+            -   exit 1
+            - fi
+
+            # Those should be defined from the first step
+            - test "${STEP_A_VAR_1:-}" = "step-a-value-1"
+            - test "${STEP_A_VAR_2:-}" = "step-a-value-2"
+
+            # Those should be defined from the previous step
+            - test "${STEP_B_VAR_1:-}" = "step-b-value-1"
+
     test_stages:
       - stage:
           name: Deploy to Dev

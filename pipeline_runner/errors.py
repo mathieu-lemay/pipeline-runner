@@ -47,3 +47,20 @@ class InvalidCacheKeyError(ValueError):
 class ArtifactManagementError(Exception):
     def __init__(self, msg: str) -> None:
         super().__init__(msg)
+
+
+class InvalidOutputVariablesError(UsageError):
+    def __init__(self, invalid_variable: str) -> None:
+        super().__init__(f"Invalid variable format: {invalid_variable}")
+
+
+class UndefinedOutputVariablesError(UsageError):
+    def __init__(self, invalid_variables: set[str]) -> None:
+        if len(invalid_variables) == 1:
+            var = invalid_variables.pop()
+            msg = f"The {var} variable is not defined in the output variables. Define this output variable."
+        else:
+            var_names = ", ".join(invalid_variables)
+            msg = f"The {var_names} variables are not defined in the output variables. Define these output variables."
+
+        super().__init__(msg)

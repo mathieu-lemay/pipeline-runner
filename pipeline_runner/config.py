@@ -73,7 +73,7 @@ class Config(BaseSettings):
     remote_pipeline_dir: str = "/opt/atlassian/pipelines/agent"
     build_dir: str = "/opt/atlassian/pipelines/agent/build"
     scripts_dir: str = "/opt/atlassian/pipelines/agent/scripts"
-    temp_dir: str = "/opt/atlassian/pipelines/agent/temp"
+    temp_dir: str = "/opt/atlassian/pipelines/agent/tmp"
     caches_dir: str = "/opt/atlassian/pipelines/agent/caches"
     ssh_key_dir: str = "/opt/atlassian/pipelines/agent/ssh"
 

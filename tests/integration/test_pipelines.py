@@ -438,6 +438,7 @@ def test_environment_variables(
         "BITBUCKET_REPO_UUID": str(project_metadata.repo_uuid),
         "BITBUCKET_STEP_UUID": str(step_uuid),
         "BITBUCKET_WORKSPACE": slug,
+        "BITBUCKET_PIPELINES_VARIABLES_PATH": "/opt/atlassian/pipelines/agent/tmp/pipeline-variables.env",
         "BUILD_DIR": "/opt/atlassian/pipelines/agent/build",
         "CI": "true",
     }
@@ -637,6 +638,13 @@ def test_user_defined_volumes(tmp_path: Path, config: Config) -> None:
     assert result.ok
     assert (custom_rw / "file").exists()
     assert not (custom_ro / "file").exists()
+
+
+def test_output_variables() -> None:
+    runner = PipelineRunner(PipelineRunRequest("custom.test_output_variables"))
+    result = runner.run()
+
+    assert result.ok
 
 
 def test_stages(artifacts_directory: Path) -> None:
