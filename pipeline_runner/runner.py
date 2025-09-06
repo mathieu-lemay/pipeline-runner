@@ -148,8 +148,9 @@ class StepRunner(BaseStepRunner):
 
     # TODO: Decomplexify
     # C901: Too complex (>10)
+    # PLR0912: Too many branches (>12)
     # PLR0915: Too many statements (>50)
-    def run(self) -> int | None:  # noqa: C901, PLR0915
+    def run(self) -> int | None:  # noqa: C901, PLR0912, PLR0915
         if not self._should_run():
             logger.info("Skipping step: %s", self._step.name)
             return None
@@ -453,22 +454,22 @@ class StepRunner(BaseStepRunner):
         # TODO: Remove
         pass
 
-    def _extract_output_variables(self):
+    def _extract_output_variables(self) -> None:
         if not self._pipeline_variables_file:
             return
 
         values = dotenv.dotenv_values(self._pipeline_variables_file)
 
         # TODO: Validate invalid format
-        # TODO: What about `FOO=`?
 
         invalid_keys = values.keys() - set(self._step.output_variables)
         if invalid_keys:
             raise InvalidOutputVariablesError(invalid_keys)
 
-        values
+        # Bitbucket ignores variables with no values, but only after first validating the keys
+        valid_values = {k: v for k, v in values.items() if v is not None}
 
-        self._ctx.pipeline_ctx.pipeline_variables.update(values)
+        self._ctx.pipeline_ctx.pipeline_variables.update(valid_values)
 
 
 class ParallelStepRunner(BaseStepRunner):
