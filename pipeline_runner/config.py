@@ -32,7 +32,7 @@ DEFAULT_SERVICES: Mapping[str, Any] = MappingProxyType(
         "docker": {
             "image": (
                 "docker-public.packages.atlassian.com/sox/atlassian"
-                "/bitbucket-pipelines-docker-daemon:v25.0.3-prod-stable"
+                "/bitbucket-pipelines-docker-daemon:v25.0.5-tlsfalse-prod-stable"
             ),
             "memory": 1024,
         }

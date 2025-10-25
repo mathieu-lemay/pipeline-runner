@@ -1,10 +1,10 @@
 import concurrent.futures
 import os
 import time
-from collections.abc import Generator
 from concurrent.futures import Future
 from logging import Logger
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,17 +20,17 @@ from pipeline_runner.runner import StageRunner, StepRunner
 
 
 @pytest.fixture(autouse=True)
-def docker_client(mocker: MockerFixture) -> Generator[DockerClient]:
+def docker_client(mocker: MockerFixture) -> DockerClient:
     mock_client = mocker.Mock()
-    with mocker.patch("pipeline_runner.runner.docker.from_env", return_value=mock_client):
-        yield mock_client
+    mocker.patch("pipeline_runner.runner.docker.from_env", return_value=mock_client)
+    return mock_client
 
 
 @pytest.fixture(autouse=True)
-def output_logger(mocker: MockerFixture) -> Generator[Logger]:
+def output_logger(mocker: MockerFixture) -> Logger:
     mock_logger = mocker.Mock()
-    with mocker.patch("pipeline_runner.runner.utils.get_output_logger", return_value=mock_logger):
-        yield mock_logger
+    mocker.patch("pipeline_runner.runner.utils.get_output_logger", return_value=mock_logger)
+    return cast("Logger", mock_logger)
 
 
 def test_step_runner_extract_output_variables(mocker: MockerFixture, faker: Faker, tmp_path: Path) -> None:

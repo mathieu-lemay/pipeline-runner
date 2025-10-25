@@ -173,7 +173,7 @@ def test_cpu_limits_are_not_applied_if_config_is_set_to_false(
     step = Mock()
     step.name = faker.pystr()
 
-    ctx = StepRunContext(step=step, pipeline_run_context=Mock())
+    ctx = StepRunContext(step=step, pipeline_ctx=Mock())
 
     runner = ContainerRunner(
         ctx=ctx,
@@ -204,7 +204,7 @@ def test_cpu_limits_are_applied_if_config_is_set_to_true(config: Config, mocker:
     step = Mock()
     step.name = faker.pystr()
 
-    ctx = StepRunContext(step=step, pipeline_run_context=Mock())
+    ctx = StepRunContext(step=step, pipeline_ctx=Mock())
 
     runner = ContainerRunner(
         ctx=ctx,
