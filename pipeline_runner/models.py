@@ -197,6 +197,10 @@ class CloneSettings(BaseModel):
         raise TypeError(f"Invalid type for 'depth': {type(value)}")
 
 
+class Options(BaseModel):
+    docker: bool = False
+
+
 class Trigger(str, Enum):
     __slots__ = ()
 
@@ -488,6 +492,7 @@ class PipelineSpec(BaseModel):
     image: Image | None = None
     definitions: Definitions = Field(default_factory=Definitions)
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
+    options: Options = Field(default_factory=Options)
     pipelines: Pipelines
 
     __env_var_expand_fields__: Sequence[str] = ["image", "definitions", "pipelines"]

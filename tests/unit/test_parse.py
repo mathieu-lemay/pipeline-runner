@@ -531,6 +531,7 @@ def test_parse_pipeline_with_env_vars() -> None:
             },
         },
         "clone": {"depth": None, "lfs": None, "enabled": None},
+        "options": {"docker": False},
         "pipelines": {
             "default": [
                 {
