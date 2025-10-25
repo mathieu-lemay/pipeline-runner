@@ -48,12 +48,12 @@ class OIDCPayload(BaseModel):
         iat = int(now.timestamp())
         exp = iat + 3600
 
-        account_uuid = f"{{{ctx.pipeline_run_context.workspace_metadata.owner_uuid}}}"
-        workspace_uuid = f"{{{ctx.pipeline_run_context.workspace_metadata.workspace_uuid}}}"
-        repository_uuid = f"{{{ctx.pipeline_run_context.project_metadata.repo_uuid}}}"
-        pipeline_uuid = f"{{{ctx.pipeline_run_context.pipeline_uuid}}}"
+        account_uuid = f"{{{ctx.pipeline_ctx.workspace_metadata.owner_uuid}}}"
+        workspace_uuid = f"{{{ctx.pipeline_ctx.workspace_metadata.workspace_uuid}}}"
+        repository_uuid = f"{{{ctx.pipeline_ctx.project_metadata.repo_uuid}}}"
+        pipeline_uuid = f"{{{ctx.pipeline_ctx.pipeline_uuid}}}"
         step_uuid = f"{{{ctx.step_uuid}}}"
-        branch_name = ctx.pipeline_run_context.repository.get_current_branch()
+        branch_name = ctx.pipeline_ctx.repository.get_current_branch()
 
         if ctx.step.deployment:
             deployment_environment_uuid = f"{{{uuid.uuid5(uuid.NAMESPACE_OID, ctx.step.deployment)}}}"
@@ -82,7 +82,7 @@ def get_step_oidc_token(ctx: StepRunContext) -> str:
     payload = OIDCPayload.new(ctx)
 
     public_key = load_pem_private_key(
-        ctx.pipeline_run_context.workspace_metadata.oidc_private_key.encode(), password=None
+        ctx.pipeline_ctx.workspace_metadata.oidc_private_key.encode(), password=None
     ).public_key()
     public_key_pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
@@ -94,7 +94,7 @@ def get_step_oidc_token(ctx: StepRunContext) -> str:
 
     return jwt.encode(
         payload.model_dump(),
-        ctx.pipeline_run_context.workspace_metadata.oidc_private_key,
+        ctx.pipeline_ctx.workspace_metadata.oidc_private_key,
         algorithm="RS256",
         headers={"kid": str(kid)},
     )

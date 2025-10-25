@@ -299,7 +299,7 @@ def test_step_run_context_init(faker: Faker) -> None:
 
     ctx = StepRunContext(
         step=step,
-        pipeline_run_context=pipeline_run_ctx,
+        pipeline_ctx=pipeline_run_ctx,
     )
 
     assert step.name.lower() in ctx.slug
@@ -328,7 +328,7 @@ def test_step_run_context_init_raises_error_on_invalid_parallel_step(
     if is_valid:
         StepRunContext(
             step=step,
-            pipeline_run_context=pipeline_run_ctx,
+            pipeline_ctx=pipeline_run_ctx,
             parallel_step_index=parallel_step_index,
             parallel_step_count=parallel_step_count,
         )
@@ -338,7 +338,7 @@ def test_step_run_context_init_raises_error_on_invalid_parallel_step(
         ):
             StepRunContext(
                 step=step,
-                pipeline_run_context=pipeline_run_ctx,
+                pipeline_ctx=pipeline_run_ctx,
                 parallel_step_index=parallel_step_index,
                 parallel_step_count=parallel_step_count,
             )
@@ -357,7 +357,7 @@ def test_step_run_context_merges_global_options(faker: Faker) -> None:
 
     ctx = StepRunContext(
         step=step,
-        pipeline_run_context=pipeline_run_ctx,
+        pipeline_ctx=pipeline_run_ctx,
     )
 
     assert "docker" in ctx.step.services

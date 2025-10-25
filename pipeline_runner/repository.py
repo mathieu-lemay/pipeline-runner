@@ -22,9 +22,9 @@ class RepositoryCloner:
         output_logger: logging.Logger,
     ) -> None:
         self._ctx = ctx
-        self._repository = ctx.pipeline_run_context.repository
+        self._repository = ctx.pipeline_ctx.repository
         self._step_clone_settings = ctx.step.clone_settings
-        self._global_clone_settings = ctx.pipeline_run_context.clone_settings
+        self._global_clone_settings = ctx.pipeline_ctx.clone_settings
         self._environment = environment
         self._user = str(user) if user is not None else None
         self._name = f"{parent_container_name}-clone"

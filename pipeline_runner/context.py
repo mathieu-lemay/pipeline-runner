@@ -147,19 +147,19 @@ class PipelineRunContext:
 @dataclass
 class StepRunContext:
     step: Step
-    pipeline_run_context: PipelineRunContext
+    pipeline_ctx: PipelineRunContext
     parallel_step_index: int | None = None
     parallel_step_count: int | None = None
 
     step_uuid: uuid.UUID = field(default_factory=uuid.uuid4)
 
     def __post_init__(self) -> None:
-        self.slug = f"{self.pipeline_run_context.project_metadata.path_slug}-step-{slugify(self.step.name)}"
+        self.slug = f"{self.pipeline_ctx.project_metadata.path_slug}-step-{slugify(self.step.name)}"
 
         if (self.parallel_step_index is None) != (self.parallel_step_count is None):
             raise ValueError("`parallel_step_index` and `parallel_step_count` must be both defined or both undefined")
 
-        if self.pipeline_run_context.options.docker:
+        if self.pipeline_ctx.options.docker:
             self.step.services.append("docker")
 
     def is_parallel(self) -> bool:
