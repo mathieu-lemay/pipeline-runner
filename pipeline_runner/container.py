@@ -56,13 +56,13 @@ class ContainerRunner:
         self._name = name
         self._image = image
         self._network_name = network_name
-        self._repository_path = ctx.pipeline_ctx.repository.path
+        self._repository_path = ctx.pipeline_run_context.repository.path
         self._data_volume_name = data_volume_name
         self._environment = env_vars
         self._logger = output_logger
         self._mem_limit = mem_limit * 2**20  # MiB to B
         self._pipeline_variables_file = pipeline_variables_file
-        self._ssh_private_key = ctx.pipeline_ctx.project_metadata.ssh_key
+        self._ssh_private_key = ctx.pipeline_run_context.project_metadata.ssh_key
         self._platform = os.getenv("PIPELINE_RUNNER_DOCKER_PLATFORM")
 
         self._client = docker.from_env()

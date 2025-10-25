@@ -141,7 +141,7 @@ class StepRunner(BaseStepRunner):
         self._container_name = self._ctx.slug
         self._data_volume_name = f"{self._container_name}-data"
         self._output_logger = utils.get_output_logger(
-            self._ctx.pipeline_ctx.get_log_directory(), f"{self._container_name}"
+            self._ctx.pipeline_run_context.get_log_directory(), f"{self._container_name}"
         )
 
         self._pipeline_variables_file: Path | None = None
@@ -244,23 +244,23 @@ class StepRunner(BaseStepRunner):
         return exit_code
 
     def _should_run(self) -> bool:
-        if not self._ctx.pipeline_ctx.selected_steps:
+        if not self._ctx.pipeline_run_context.selected_steps:
             # No step selection means we run everything
             return True
 
-        return self._step.name in self._ctx.pipeline_ctx.selected_steps
+        return self._step.name in self._ctx.pipeline_run_context.selected_steps
 
     def _get_image(self) -> Image:
         if self._step.image:
             return self._step.image
 
-        if self._ctx.pipeline_ctx.default_image:
-            return self._ctx.pipeline_ctx.default_image
+        if self._ctx.pipeline_run_context.default_image:
+            return self._ctx.pipeline_run_context.default_image
 
         return Image(name=DEFAULT_IMAGE)
 
     def _get_network(self) -> Network:
-        name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
+        name = f"{self._ctx.pipeline_run_context.project_metadata.slug}-network"
         try:
             bridge_network = self._docker_client.networks.get(name)
         except APIError as e:
@@ -282,32 +282,32 @@ class StepRunner(BaseStepRunner):
         if "docker" in self._step.services:
             env_vars["DOCKER_HOST"] = "tcp://localhost:2375"
 
-        env_vars.update(self._ctx.pipeline_ctx.env_vars)
-        env_vars.update(self._ctx.pipeline_ctx.pipeline_variables)
+        env_vars.update(self._ctx.pipeline_run_context.env_vars)
+        env_vars.update(self._ctx.pipeline_run_context.pipeline_variables)
 
         return env_vars
 
     def _get_bitbucket_env_vars(self) -> dict[str, str]:
-        project_slug = self._ctx.pipeline_ctx.project_metadata.slug
-        git_branch = self._ctx.pipeline_ctx.repository.get_current_branch()
-        git_commit = self._ctx.pipeline_ctx.repository.get_current_commit()
+        project_slug = self._ctx.pipeline_run_context.project_metadata.slug
+        git_branch = self._ctx.pipeline_run_context.repository.get_current_branch()
+        git_commit = self._ctx.pipeline_run_context.repository.get_current_commit()
 
         env_vars: dict[str, str] = {
             "CI": "true",
             "BUILD_DIR": config.build_dir,
             "BITBUCKET_BRANCH": git_branch,
-            "BITBUCKET_BUILD_NUMBER": str(self._ctx.pipeline_ctx.project_metadata.build_number),
-            "BITBUCKET_PROJECT_KEY": self._ctx.pipeline_ctx.project_metadata.key,
-            "BITBUCKET_PROJECT_UUID": str(self._ctx.pipeline_ctx.project_metadata.project_uuid),
+            "BITBUCKET_BUILD_NUMBER": str(self._ctx.pipeline_run_context.project_metadata.build_number),
+            "BITBUCKET_PROJECT_KEY": self._ctx.pipeline_run_context.project_metadata.key,
+            "BITBUCKET_PROJECT_UUID": str(self._ctx.pipeline_run_context.project_metadata.project_uuid),
             "BITBUCKET_CLONE_DIR": config.build_dir,
             "BITBUCKET_COMMIT": git_commit,
-            "BITBUCKET_PIPELINE_UUID": str(self._ctx.pipeline_ctx.pipeline_uuid),
+            "BITBUCKET_PIPELINE_UUID": str(self._ctx.pipeline_run_context.pipeline_uuid),
             "BITBUCKET_REPO_FULL_NAME": f"{project_slug}/{project_slug}",
             "BITBUCKET_REPO_IS_PRIVATE": "true",
             "BITBUCKET_REPO_OWNER": config.username,
-            "BITBUCKET_REPO_OWNER_UUID": str(self._ctx.pipeline_ctx.workspace_metadata.owner_uuid),
+            "BITBUCKET_REPO_OWNER_UUID": str(self._ctx.pipeline_run_context.workspace_metadata.owner_uuid),
             "BITBUCKET_REPO_SLUG": project_slug,
-            "BITBUCKET_REPO_UUID": str(self._ctx.pipeline_ctx.project_metadata.repo_uuid),
+            "BITBUCKET_REPO_UUID": str(self._ctx.pipeline_run_context.project_metadata.repo_uuid),
             "BITBUCKET_STEP_UUID": str(self._ctx.step_uuid),
             "BITBUCKET_WORKSPACE": project_slug,
             "BITBUCKET_PIPELINES_VARIABLES_PATH": f"{config.temp_dir}/pipeline-variables.env",
@@ -350,10 +350,10 @@ class StepRunner(BaseStepRunner):
         self._upload_artifacts()
         self._upload_caches()
 
-        if self._ctx.pipeline_ctx.pipeline_variables:
+        if self._ctx.pipeline_run_context.pipeline_variables:
             self._output_logger.info("Pipeline Variables:\n")
 
-            for k, v in self._ctx.pipeline_ctx.pipeline_variables.items():
+            for k, v in self._ctx.pipeline_run_context.pipeline_variables.items():
                 self._output_logger.info("\t%s: %s\n", k, v)
         self._output_logger.info("\n")
 
@@ -380,7 +380,7 @@ class StepRunner(BaseStepRunner):
         am = ArtifactManager(
             self._docker_client,
             self._container_name,
-            self._ctx.pipeline_ctx.get_artifact_directory(),
+            self._ctx.pipeline_run_context.get_artifact_directory(),
             self._ctx.step_uuid,
         )
         am.upload()
@@ -392,9 +392,9 @@ class StepRunner(BaseStepRunner):
 
         cm = CacheManager(
             self._container_runner,
-            self._ctx.pipeline_ctx.repository,
-            self._ctx.pipeline_ctx.get_cache_directory(),
-            self._ctx.pipeline_ctx.caches,
+            self._ctx.pipeline_run_context.repository,
+            self._ctx.pipeline_run_context.get_cache_directory(),
+            self._ctx.pipeline_run_context.caches,
         )
         cm.upload(self._step.caches)
 
@@ -431,9 +431,9 @@ class StepRunner(BaseStepRunner):
         if exit_code == 0:
             cm = CacheManager(
                 self._container_runner,
-                self._ctx.pipeline_ctx.repository,
-                self._ctx.pipeline_ctx.get_cache_directory(),
-                self._ctx.pipeline_ctx.caches,
+                self._ctx.pipeline_run_context.repository,
+                self._ctx.pipeline_run_context.get_cache_directory(),
+                self._ctx.pipeline_run_context.caches,
             )
             cm.download(self._step.caches)
         else:
@@ -447,7 +447,7 @@ class StepRunner(BaseStepRunner):
         am = ArtifactManager(
             self._docker_client,
             self._container_name,
-            self._ctx.pipeline_ctx.get_artifact_directory(),
+            self._ctx.pipeline_run_context.get_artifact_directory(),
             self._ctx.step_uuid,
         )
         am.download(self._step.artifacts)
@@ -476,7 +476,7 @@ class StepRunner(BaseStepRunner):
         # Bitbucket ignores variables with no values, but only after first validating the keys
         valid_values = {k: v for k, v in values.items() if v is not None}
 
-        self._ctx.pipeline_ctx.pipeline_variables.update(valid_values)
+        self._ctx.pipeline_run_context.pipeline_variables.update(valid_values)
 
 
 class ParallelStepRunner(BaseStepRunner):
