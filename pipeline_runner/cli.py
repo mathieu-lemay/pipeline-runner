@@ -80,6 +80,12 @@ def main(ctx: click.Context, *, show_version: bool) -> None:
     help="Steps to run. If none are specified, they will all be run. Can be specified multiple times.",
 )
 @click.option(
+    "--stage",
+    "stages",
+    multiple=True,
+    help="Stages to run. If none are specified, they will all be run. Can be specified multiple times.",
+)
+@click.option(
     "-e",
     "--env-file",
     "env_files",
@@ -113,6 +119,7 @@ def run(
     pipeline: str | None,
     repository_path: str,
     steps: list[str],
+    stages: list[str],
     env_files: list[str],
     *,
     color: bool,
@@ -143,7 +150,9 @@ def run(
         logger.error("pipeline not specified")
         sys.exit(2)
 
-    req = PipelineRunRequest(pipeline, repository_path, steps, env_files)
+    req = PipelineRunRequest(
+        pipeline, repository_path=repository_path, selected_steps=steps, selected_stages=stages, env_files=env_files
+    )
 
     runner = PipelineRunner(req)
     try:

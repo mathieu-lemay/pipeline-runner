@@ -477,3 +477,34 @@ pipelines:
 
             # Those should be defined from the previous step
             - test "${STEP_B_VAR_1:-}" = "step-b-value-1"
+
+    test_stages:
+      - stage:
+          name: Deploy to Dev
+          deployment: dev
+          steps:
+            - step:
+                name: Deploy to Dev 1
+                environment: dev1
+                script:
+                  - touch dev1
+                artifacts:
+                  - dev1
+            - step:
+                name: Deploy to Dev 2
+                environment: dev2
+                script:
+                  - touch dev2
+                artifacts:
+                  - dev2
+      - stage:
+          name: Deploy to Prod
+          deployment: prod
+          steps:
+            - step:
+                name: Deploy to Prod
+                environment: prod
+                script:
+                  - touch prod
+                artifacts:
+                  - prod

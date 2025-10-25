@@ -45,6 +45,7 @@ class PipelineRunContext:
     repository: Repository
     env_vars: dict[str, str] = field(default_factory=dict)
     selected_steps: list[str] = field(default_factory=list)
+    selected_stages: list[str] = field(default_factory=list)
 
     def __post_init__(
         self,
@@ -88,6 +89,7 @@ class PipelineRunContext:
             repository=repository,
             env_vars=env_vars,
             selected_steps=req.selected_steps,
+            selected_stages=req.selected_stages,
         )
 
     @staticmethod
