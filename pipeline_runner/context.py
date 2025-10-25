@@ -46,14 +46,14 @@ class PipelineRunContext:
     env_vars: dict[str, str] = field(default_factory=dict)
     selected_steps: list[str] = field(default_factory=list)
 
-    pipeline_uuid: uuid.UUID = field(default_factory=uuid.uuid4)
-    pipeline_variables: dict[str, str] = field(default_factory=dict)
-
     def __post_init__(
         self,
     ) -> None:
         self._merge_default_caches()
         self._merge_default_services()
+
+        self.pipeline_uuid = uuid.uuid4()
+        self.pipeline_variables: dict[str, str] = {}
 
         self._data_directory = self.get_pipeline_data_directory()
         self._cache_directory = utils.get_project_cache_directory(self.project_metadata.path_slug)
@@ -151,10 +151,9 @@ class StepRunContext:
     parallel_step_index: int | None = None
     parallel_step_count: int | None = None
 
-    step_uuid: uuid.UUID = field(default_factory=uuid.uuid4)
-
     def __post_init__(self) -> None:
         self.slug = f"{self.pipeline_ctx.project_metadata.path_slug}-step-{slugify(self.step.name)}"
+        self.step_uuid = uuid.uuid4()
 
         if (self.parallel_step_index is None) != (self.parallel_step_count is None):
             raise ValueError("`parallel_step_index` and `parallel_step_count` must be both defined or both undefined")
