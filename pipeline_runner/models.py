@@ -507,7 +507,7 @@ class Pipelines(BaseModel):
 
     def get_all(self) -> dict[str, Pipeline]:
         pipelines = {}
-        for attr in self.__annotations__:
+        for attr in self.model_fields_set:
             value = getattr(self, attr)
             if isinstance(value, Pipeline):
                 pipelines[attr] = value
