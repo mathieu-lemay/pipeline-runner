@@ -277,7 +277,7 @@ def test_docker_in_docker_with_custom_image(custom_pipelines_file: Path) -> None
     definitions:
       services:
         docker:
-          image: docker:dind
+          image: docker:25.0.5-dind
 
     pipelines:
       default:
