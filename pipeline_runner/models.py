@@ -426,11 +426,10 @@ class Variable(BaseModel):
     default: str | None = None
     allowed_values: list[str] | None = Field(alias="allowed-values", default=None)
 
-    @model_validator(mode="after")  # type: ignore[arg-type]
-    @classmethod
-    def validate_var_with_allowed_values_must_have_a_default_value(cls, model: "Variable") -> "Variable":
-        allowed_values = model.allowed_values
-        default = model.default
+    @model_validator(mode="after")
+    def validate_var_with_allowed_values_must_have_a_default_value(self) -> "Self":
+        allowed_values = self.allowed_values
+        default = self.default
 
         if allowed_values:
             if not default:
@@ -442,7 +441,7 @@ class Variable(BaseModel):
             if default not in allowed_values:
                 raise ValueError(f'The variable allowed values list doesn\'t contain a default value "{default}".')
 
-        return model
+        return self
 
 
 class Variables(ListWrapper[Variable]):
