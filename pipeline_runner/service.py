@@ -1,5 +1,5 @@
 import logging
-from importlib.resources import as_file, files
+from dataclasses import dataclass
 from typing import cast
 
 import docker  # type: ignore[import-untyped]
@@ -9,13 +9,11 @@ from docker.models.volumes import Volume  # type: ignore[import-untyped]
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
-import pipeline_runner
-
 from .config import config
 from .container import ContainerScriptRunner, pull_image
 from .context import StepRunContext
 from .errors import InvalidServiceError
-from .models import Service
+from .models import Image, Service
 
 logger = logging.getLogger(__name__)
 
@@ -103,61 +101,48 @@ class ServicesManager:
         return config.total_memory_limit * self._memory_multiplier - config.build_container_minimum_memory
 
 
+@dataclass
 class ServiceRunner:
-    def __init__(
-        self,
-        docker_client: DockerClient,
-        step_ctx: StepRunContext,
-        service_name: str,
-        service: Service,
-        network_name: str,
-        shared_data_volume_name: str,
-        project_slug: str,
-        pipeline_cache_directory: str,
-    ) -> None:
-        self._client = docker_client
-        self._step_ctx = step_ctx
-        self._service_name = service_name
-        self._service = service
-        self._network_name = network_name
-        self._shared_data_volume_name = shared_data_volume_name
-        self._project_slug = project_slug
-        self._pipeline_cache_directory = pipeline_cache_directory
-        self._container = None
+    docker_client: DockerClient
+    step_ctx: StepRunContext
+    service_name: str
+    service: Service
+    network_name: str
+    shared_data_volume_name: str
+    project_slug: str
+    pipeline_cache_directory: str
+    container: Container | None = None
 
-        self._slug = slugify(self._service_name)
+    def __post_init__(self) -> None:
+        self._slug = slugify(self.service_name)
 
     @property
     def slug(self) -> str:
         return self._slug
 
-    @property
-    def container(self) -> Container:
-        return self._container
-
     def start(self) -> None:
-        if not self._service.image:
+        if not self.service.image:
             msg = "Service has no image."
             raise ValueError(msg)
 
-        logger.info("Starting service: %s", self._service_name)
-        pull_image(self._client, self._step_ctx, self._service.image)
+        logger.info("Starting service: %s", self.service_name)
+        pull_image(self.docker_client, self.step_ctx, self.service.image)
 
-        self._container = self._start_container()
+        self.container = self._start_container()
 
-        logger.info("Waiting for service to be ready: %s", self._service_name)
-        self._ensure_container_ready(self._container)
+        logger.info("Waiting for service to be ready: %s", self.service_name)
+        self._ensure_container_ready(self.container)
 
     def _start_container(self) -> Container:
-        if not self._service.image:
+        if not self.service.image:
             msg = "Service has no image."
             raise ValueError(msg)
 
-        return self._client.containers.run(
-            self._service.image.name,
+        return self.docker_client.containers.run(
+            self.service.image.name,
             name=self._get_container_name(),
-            environment=self._service.variables,
-            network=self._network_name,
+            environment=self.service.variables,
+            network=self.network_name,
             mem_limit=self._get_mem_limit(),
             detach=True,
         )
@@ -166,40 +151,51 @@ class ServiceRunner:
         pass
 
     def _get_container_name(self) -> str:
-        return f"{self._project_slug}-service-{self._slug}"
+        return f"{self.project_slug}-service-{self._slug}"
 
     def stop(self) -> None:
-        if not self._container:
+        if not self.container:
             # TODO: Refactor to remove illegal state.
             raise Exception("called on uninitialized service")
 
-        logger.info("Removing service: %s", self._service_name)
+        logger.info("Removing service: %s", self.service_name)
 
         self._teardown()
 
-        self._container.remove(v=True, force=True)
+        self.container.remove(v=True, force=True)
 
     def _get_mem_limit(self) -> int:
-        return self._service.memory * 2**20
+        return self.service.memory * 2**20
 
     def _teardown(self) -> None:
         pass
 
 
 class DockerServiceRunner(ServiceRunner):
+    def __post_init__(self) -> None:
+        if self.service.image is None:
+            self.service.image = Image(
+                name=(
+                    "docker-public.packages.atlassian.com/sox/atlassian"
+                    "/bitbucket-pipelines-docker-daemon:v25.0.5-tlsfalse-prod-stable"
+                )
+            )
+
+        super().__post_init__()
+
     def _start_container(self) -> Container:
-        if not self._service.image:
+        if not self.service.image:  # type check
             raise ValueError("Service has no image.")
 
-        environment = self._service.variables
+        environment = self.service.variables
         environment["DOCKER_TLS_CERTDIR"] = ""
 
-        return self._client.containers.run(
-            self._service.image.name,
+        return self.docker_client.containers.run(
+            self.service.image.name,
             name=self._get_container_name(),
             command=["--tls=false"],
             environment=environment,
-            network=self._network_name,
+            network=self.network_name,
             privileged=True,
             volumes=self._get_volumes(),
             mem_limit=self._get_mem_limit(),
@@ -213,7 +209,7 @@ class DockerServiceRunner(ServiceRunner):
     @retry(wait=wait_fixed(1), stop=stop_after_delay(30), retry=retry_if_exception_type(ServiceNotReadyError))
     def _ensure_container_ready(self, container: Container) -> None:
         # Refresh container to ensure we have its health status
-        container = self._client.containers.get(container.name)
+        container = self.docker_client.containers.get(container.name)
 
         match container.health:
             case "healthy":
@@ -221,7 +217,7 @@ class DockerServiceRunner(ServiceRunner):
             case "unhealthy":
                 raise ServiceUnhealthyError
             case "unknown":
-                # Fallback to non-heathcheck running check
+                # Fallback to non-healthcheck running check
                 pass
             case _:
                 raise ServiceNotReadyError
@@ -244,27 +240,28 @@ class DockerServiceRunner(ServiceRunner):
             raise ServiceNotReadyError
 
     def _get_volumes(self) -> dict[str, dict[str, str]]:
-        static_files = files(pipeline_runner).joinpath("static")
-
-        with as_file(static_files.joinpath("runit.sh")) as p:
-            runit_script_path = p
+        volumes = {}
 
         cache_volume = self._get_cache_volume()
+        if cache_volume:
+            volumes[cache_volume.name] = {"bind": "/var/lib/docker"}
 
-        return {
-            cache_volume.name: {"bind": "/var/lib/docker"},
-            self._shared_data_volume_name: {"bind": config.remote_pipeline_dir},
-            str(runit_script_path): {"bind": "/usr/local/bin/runit.sh"},
-        }
+        volumes.update(
+            {
+                self.shared_data_volume_name: {"bind": config.remote_pipeline_dir},
+            }
+        )
 
-    def _get_cache_volume(self) -> Volume:
+        return volumes
+
+    def _get_cache_volume(self) -> Volume | None:
         label_name = "org.acidrain.pipeline_runner.project"
-        label_value = self._project_slug
+        label_value = self.project_slug
 
-        volumes = self._client.volumes.list(filters={"label": f"{label_name}={label_value}"})
+        volumes = self.docker_client.volumes.list(filters={"label": f"{label_name}={label_value}"})
 
         if not volumes:
-            volume = self._client.volumes.create(
+            volume = self.docker_client.volumes.create(
                 f"{self._get_container_name()}-cache", labels={label_name: label_value}
             )
         elif len(volumes) == 1:
@@ -275,15 +272,31 @@ class DockerServiceRunner(ServiceRunner):
         return volume
 
     def _teardown(self) -> None:
-        logger.info("Executing teardown for service: %s", self._service_name)
+        logger.info("Executing teardown for service: %s", self.service_name)
 
         script = [
             "docker ps -q | xargs -r docker kill",
             "docker container prune -f",
             "docker volume prune -f",
         ]
-        csr = ContainerScriptRunner(self._container, script)
+        csr = ContainerScriptRunner(self.container, script)
         csr.run()
+
+
+class DockerServiceV3Runner(DockerServiceRunner):
+    def __post_init__(self) -> None:
+        if self.service.image is None:
+            self.service.image = Image(
+                name=(
+                    "docker-public.packages.atlassian.com/sox/atlassian"
+                    "/bitbucket-pipelines-docker-daemon:v25.0.5-unrestricted-tlsfalse-prod-stable"
+                )
+            )
+
+        super().__post_init__()
+
+    def _get_cache_volume(self) -> Volume | None:
+        return None
 
 
 class ServiceRunnerFactory:
@@ -300,7 +313,15 @@ class ServiceRunnerFactory:
     ) -> ServiceRunner:
         cls: type[ServiceRunner | DockerServiceRunner]
 
-        cls = DockerServiceRunner if service_name == "docker" else ServiceRunner
+        if service_name == "docker":
+            # PLR2004: Magic value used in comparison
+            # SIM108: Use ternaty operator
+            if step_ctx.step.runtime_version == 3:  # noqa: PLR2004, SIM108
+                cls = DockerServiceV3Runner
+            else:
+                cls = DockerServiceRunner
+        else:
+            cls = ServiceRunner
 
         return cls(
             docker_client,

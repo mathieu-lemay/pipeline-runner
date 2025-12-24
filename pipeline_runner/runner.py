@@ -210,8 +210,7 @@ class StepRunner(BaseStepRunner):
 
             services_manager.start_services(f"container:{container_runner.get_container_name()}")
 
-            services = services_manager.get_services_containers()
-            container_runner.install_docker_client_if_needed(services)
+            container_runner.install_docker_client_if_needed()
 
             self._build_setup()
 

@@ -4,15 +4,17 @@ from textwrap import dedent
 from unittest.mock import MagicMock, Mock
 
 import pytest
+from _pytest.subtests import Subtests
 from faker import Faker
 from pytest_mock import MockerFixture
 
 from pipeline_runner.context import PipelineRunContext, StepRunContext
 from pipeline_runner.models import (
     CloneSettings,
-    Image,
+    CloudRuntime,
     Options,
     ProjectMetadata,
+    Runtime,
     Service,
     StepSize,
     StepWrapper,
@@ -118,10 +120,7 @@ def test_docker_is_added_to_services_if_not_present(
     )
 
     docker_service = Service(
-        image=Image(
-            name="docker-public.packages.atlassian.com/sox/atlassian"
-            "/bitbucket-pipelines-docker-daemon:v25.0.5-tlsfalse-prod-stable"
-        ),
+        image=None,
         variables={},
         memory=1024,
     )
@@ -147,10 +146,7 @@ def test_docker_service_uses_fallback_values(
     )
 
     docker_service = Service(
-        image=Image(
-            name="docker-public.packages.atlassian.com/sox/atlassian"
-            "/bitbucket-pipelines-docker-daemon:v25.0.5-tlsfalse-prod-stable"
-        ),
+        image=None,
         variables={"FOO": "bar"},
         memory=2048,
     )
@@ -351,16 +347,19 @@ def test_step_run_context_init_merges_global_options(faker: Faker) -> None:
     step.services = faker.words(2)
     step.size = None
     step.max_time = None
+    step.runtime = None
 
     pipeline_run_ctx = MagicMock()
     pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
 
     size = faker.random_element(list(StepSize))
     max_time = faker.pyint()
+    runtime_version = faker.pyint()
 
     pipeline_run_ctx.options.docker = True
     pipeline_run_ctx.options.size = size
     pipeline_run_ctx.options.max_time = max_time
+    pipeline_run_ctx.options.runtime.cloud.version = runtime_version
 
     assert "docker" not in step.services
 
@@ -372,22 +371,27 @@ def test_step_run_context_init_merges_global_options(faker: Faker) -> None:
     assert "docker" in ctx.step.services
     assert ctx.step.size == size
     assert ctx.step.max_time == max_time
+    assert ctx.step.runtime  # type check
+    assert ctx.step.runtime.cloud.version == runtime_version
 
 
 def test_step_run_context_init_step_options_have_precedence_if_defined(faker: Faker) -> None:
     size = faker.random_element(list(StepSize))
     max_time = faker.pyint()
+    runtime_version = faker.pyint()
 
     step = MagicMock()
     step.name = faker.pystr()
     step.services = faker.words(2)
     step.size = size
     step.max_time = max_time
+    step.runtime = Runtime(cloud=CloudRuntime(version=runtime_version))
 
     pipeline_run_ctx = MagicMock()
     pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
     pipeline_run_ctx.options.size = faker.random_element(set(StepSize) - {size})
     pipeline_run_ctx.options.max_time = faker.pyint()
+    pipeline_run_ctx.options.runtime.cloud.version = faker.pyint()
 
     ctx = StepRunContext(
         step=step,
@@ -396,3 +400,57 @@ def test_step_run_context_init_step_options_have_precedence_if_defined(faker: Fa
 
     assert ctx.step.size == size
     assert ctx.step.max_time == max_time
+    assert ctx.step.runtime  # type check
+    assert ctx.step.runtime.cloud.version == runtime_version
+
+
+def test_should_install_docker_client(faker: Faker, subtests: Subtests) -> None:
+    with subtests.test(msg="should return false if docker is not in services"):
+        step = MagicMock()
+        step.name = faker.pystr()
+        step.services = [faker.pystr(), faker.pystr()]
+
+        pipeline_run_ctx = MagicMock()
+        pipeline_run_ctx.options.docker = False
+        pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
+
+        ctx = StepRunContext(
+            step=step,
+            pipeline_ctx=pipeline_run_ctx,
+        )
+
+        assert not ctx.should_install_docker_client()
+
+    with subtests.test(msg="should return false if runtime is >= 3"):
+        step = MagicMock()
+        step.name = faker.pystr()
+        step.services = ["docker"]
+        step.runtime_version = faker.pyint(min_value=3, max_value=10)
+
+        pipeline_run_ctx = MagicMock()
+        pipeline_run_ctx.options.docker = False
+        pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
+
+        ctx = StepRunContext(
+            step=step,
+            pipeline_ctx=pipeline_run_ctx,
+        )
+
+        assert not ctx.should_install_docker_client()
+
+    with subtests.test(msg="should return false if runtime is <= 2"):
+        step = MagicMock()
+        step.name = faker.pystr()
+        step.services = ["docker"]
+        step.runtime_version = faker.pyint(min_value=0, max_value=2)
+
+        pipeline_run_ctx = MagicMock()
+        pipeline_run_ctx.options.docker = False
+        pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
+
+        ctx = StepRunContext(
+            step=step,
+            pipeline_ctx=pipeline_run_ctx,
+        )
+
+        assert ctx.should_install_docker_client()

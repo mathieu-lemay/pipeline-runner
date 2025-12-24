@@ -210,10 +210,19 @@ class StepSize(str, Enum):
         return {self.Size1: 1, self.Size2: 2, self.Size4: 4, self.Size8: 8, self.Size16: 16}[self]
 
 
+class CloudRuntime(BaseModel):
+    version: int = 0
+
+
+class Runtime(BaseModel):
+    cloud: CloudRuntime = Field(default_factory=CloudRuntime)
+
+
 class Options(BaseModel):
     docker: bool = False
     max_time: int | None = Field(None, alias="max-time")
     size: StepSize = StepSize.Size1
+    runtime: Runtime = Field(default_factory=Runtime)
 
 
 class Trigger(str, Enum):
@@ -334,6 +343,7 @@ class Step(BaseModel):
     condition: Condition | None = None
     oidc: bool = False
     output_variables: list[str] = Field(default_factory=list, alias="output-variables")
+    runtime: Runtime | None = None
 
     __env_var_expand_fields__: Sequence[str] = ["image"]
 
@@ -350,6 +360,13 @@ class Step(BaseModel):
             return self.size.as_int()
 
         return 1
+
+    @property
+    def runtime_version(self) -> int:
+        if self.runtime is not None:
+            return self.runtime.cloud.version
+
+        return 0  # Default/Unspecified version
 
 
 class Stage(BaseModel):

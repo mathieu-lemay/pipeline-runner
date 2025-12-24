@@ -74,12 +74,12 @@ class ContainerRunner:
         self._insert_ssh_private_key()
         self._insert_ssh_known_hosts()
 
-    def install_docker_client_if_needed(self, services: dict[str, Container]) -> None:
+    def install_docker_client_if_needed(self) -> None:
         if not self._container:
             # TODO: Refactor
             raise Exception("called on uninitialized container")
 
-        if "docker" not in services:
+        if not self._ctx.should_install_docker_client():
             return
 
         res = self.run_command("command -v docker")
