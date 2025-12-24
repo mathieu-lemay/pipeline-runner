@@ -24,6 +24,8 @@ from .models import (
     ParallelStep,
     Pipe,
     PipelineResult,
+    Stage,
+    StageWrapper,
     Step,
     StepWrapper,
     Trigger,
@@ -40,12 +42,15 @@ class PipelineRunRequest:
     def __init__(
         self,
         pipeline_name: str,
+        *,
         repository_path: str | None = None,
         selected_steps: list[str] | None = None,
+        selected_stages: list[str] | None = None,
         env_files: list[str] | None = None,
     ) -> None:
         self.pipeline_name = pipeline_name
         self.selected_steps = selected_steps or []
+        self.selected_stages = selected_stages or []
         self.env_files = env_files or []
         self.repository_path = os.path.abspath(repository_path or ".")
 
@@ -152,7 +157,7 @@ class StepRunner(BaseStepRunner):
     # PLR0915: Too many statements (>50)
     def run(self) -> int | None:  # noqa: C901, PLR0912, PLR0915
         if not self._should_run():
-            logger.info("Skipping step: %s", self._step.name)
+            logger.warning("Skipping step: %s", self._step.name)
             return None
 
         logger.info("Running step: %s", self._step.name)
@@ -499,16 +504,54 @@ class ParallelStepRunner(BaseStepRunner):
         return return_code
 
 
+class StageRunner(BaseStepRunner):
+    def __init__(self, stage: Stage, pipeline_run_context: PipelineRunContext) -> None:
+        self._stage = stage
+        self._pipeline_ctx = pipeline_run_context
+
+    def run(self) -> int | None:
+        if not self._should_run():
+            logger.warning("Skipping stage: %s", self._stage.name)
+            return 0
+
+        if self._stage.condition is not None:
+            logger.warning("Ignoring condition on stage: %s", self._stage.name)
+
+        if self._stage.trigger == Trigger.Manual:
+            input("Press enter to run stage ")
+
+        for s in self._stage.steps:
+            runner = StepRunnerFactory.get(s, self._pipeline_ctx)
+            exit_code = runner.run()
+            if (exit_code or 0) > 0:
+                return exit_code
+
+        return 0
+
+    def _should_run(self) -> bool:
+        if not self._pipeline_ctx.selected_stages:
+            # No stage selection means we run everything
+            return True
+
+        return self._stage.name in self._pipeline_ctx.selected_stages
+
+
 class StepRunnerFactory:
     @staticmethod
     def get(
-        step: Step | StepWrapper | ParallelStep,
+        item: Step | StepWrapper | ParallelStep | StageWrapper,
         pipeline_run_context: PipelineRunContext,
         parallel_step_index: int | None = None,
         parallel_step_count: int | None = None,
     ) -> BaseStepRunner:
-        if isinstance(step, ParallelStep):
-            return ParallelStepRunner(step, pipeline_run_context)
-
-        s = step.step if isinstance(step, StepWrapper) else step
-        return StepRunner(StepRunContext(s, pipeline_run_context, parallel_step_index, parallel_step_count))
+        match item:
+            case StepWrapper():
+                return StepRunner(
+                    StepRunContext(item.step, pipeline_run_context, parallel_step_index, parallel_step_count)
+                )
+            case ParallelStep():
+                return ParallelStepRunner(item, pipeline_run_context)
+            case StageWrapper():
+                return StageRunner(item.stage, pipeline_run_context)
+            case _:
+                raise TypeError(f"unknown step type: {type(item)}")

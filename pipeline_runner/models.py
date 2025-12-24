@@ -342,6 +342,35 @@ class Step(BaseModel):
         return value
 
 
+class Stage(BaseModel):
+    name: str = "<unnamed>"
+    steps: "list[StepWrapper|ParallelStep]" = Field(min_length=1)
+    trigger: Trigger = Trigger.Automatic
+    deployment: str | None = None
+    condition: Condition | None = None
+
+    __env_var_expand_fields__: Sequence[str] = ["steps"]
+
+    @field_validator("steps")
+    def validate_steps(cls, values: "list[StepWrapper|ParallelStep]") -> "list[StepWrapper|ParallelStep]":
+        for val in values:
+            match val:
+                case StepWrapper():
+                    if val.step.trigger != Trigger.Automatic:
+                        raise ValueError(
+                            "A step within stage can't contain a manual trigger. "
+                            "Try defining a manual trigger on a stage."
+                        )
+                case ParallelStep():
+                    if any(s for s in val.parallel if s.trigger != Trigger.Automatic):
+                        raise ValueError(
+                            "A step within stage can't contain a manual trigger. "
+                            "Try defining a manual trigger on a stage."
+                        )
+
+        return values
+
+
 T = TypeVar("T")
 
 
@@ -419,7 +448,20 @@ class Variables(ListWrapper[Variable]):
     wrapped: list[Variable] = Field(alias="variables")
 
 
-PipelineElement = StepWrapper | ParallelStep | Variables
+class StageWrapper(BaseModel):
+    stage: Stage
+
+    def expand_env_vars(self, variables: dict[str, str]) -> None:
+        self.stage.expand_env_vars(variables)
+
+    def __getattr__(self, item: str) -> Any:  # noqa: ANN401  # Dynamically typed expressions (typing.Any) are disallowed
+        if item in self.__dict__:
+            return self.__dict__[item]
+
+        return getattr(self.stage, item)
+
+
+PipelineElement = StepWrapper | ParallelStep | Variables | StageWrapper
 
 
 class Pipeline(RootModel[list[PipelineElement]]):
@@ -440,7 +482,7 @@ class Pipeline(RootModel[list[PipelineElement]]):
 
         return Variables(wrapped=[])
 
-    def get_steps(self) -> list[StepWrapper | ParallelStep]:
+    def get_steps(self) -> list[StepWrapper | ParallelStep | StageWrapper]:
         return [i for i in self.root if not isinstance(i, Variables)]
 
     def __iter__(self) -> Iterator[PipelineElement]:  # type: ignore[override]
