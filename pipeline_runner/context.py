@@ -161,6 +161,7 @@ class StepRunContext:
         # Merge global options in step values
         self.step.size = coalesce(self.step.size, self.pipeline_ctx.options.size)
         self.step.max_time = coalesce(self.step.max_time, self.pipeline_ctx.options.max_time)
+        self.step.runtime = coalesce(self.step.runtime, self.pipeline_ctx.options.runtime)
 
         if (self.parallel_step_index is None) != (self.parallel_step_count is None):
             raise ValueError("`parallel_step_index` and `parallel_step_count` must be both defined or both undefined")
@@ -170,3 +171,14 @@ class StepRunContext:
 
     def is_parallel(self) -> bool:
         return bool(self.parallel_step_count)
+
+    def should_install_docker_client(self) -> bool:
+        if "docker" not in self.step.services:
+            return False
+
+        # PLR2004: Magic value used in comparison
+        # SIM103: Return the negated condition directly
+        if self.step.runtime_version >= 3:  # noqa: PLR2004, SIM103
+            return False
+
+        return True

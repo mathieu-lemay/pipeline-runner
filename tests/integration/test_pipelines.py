@@ -272,6 +272,13 @@ def test_docker_in_docker() -> None:
     assert result.exit_code == 0
 
 
+def test_docker_in_docker_with_runtime_v3() -> None:
+    runner = PipelineRunner(PipelineRunRequest("custom.test_docker_in_docker_runtime_v3"))
+    result = runner.run()
+
+    assert result.exit_code == 0
+
+
 def test_docker_in_docker_with_custom_image(custom_pipelines_file: Path) -> None:
     pipeline_definition = dedent("""
     definitions:

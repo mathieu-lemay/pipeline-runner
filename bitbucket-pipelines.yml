@@ -230,6 +230,32 @@ pipelines:
           caches:
             - docker
 
+    test_docker_in_docker_runtime_v3:
+      - step:
+          name: Test docker in docker, with privileged
+          image: docker:cli
+          runtime:
+            cloud:
+              version: 3
+          script:
+            - apk --no-cache add curl
+            - docker run -d --privileged --name nginx -p 8080:80 nginx:alpine
+            - ./ci-scripts/retry.sh 20 .1 curl --fail 127.0.0.1:8080
+          services:
+            - docker
+      - step:
+          name: Check for client and cache directory
+          runtime:
+            cloud:
+              version: 3
+          script:
+            # The client should _not_ have been injected
+            - if command -v docker; then exit 1; fi
+            # The cache directory should not exist
+            - if test -d /var/lib/docker; then exit 1; fi
+          services:
+            - docker
+
     test_run_as_user:
       - step:
           name: Test Default User

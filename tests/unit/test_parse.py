@@ -531,7 +531,16 @@ def test_parse_pipeline_with_env_vars() -> None:
             },
         },
         "clone": {"depth": None, "lfs": None, "enabled": None},
-        "options": {"docker": False, "max-time": None, "size": StepSize.Size1},
+        "options": {
+            "docker": False,
+            "max-time": None,
+            "size": StepSize.Size1,
+            "runtime": {
+                "cloud": {
+                    "version": 0,
+                },
+            },
+        },
         "pipelines": {
             "default": [
                 {
@@ -561,6 +570,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                         "condition": None,
                         "oidc": False,
                         "output-variables": [],
+                        "runtime": None,
                     },
                 },
                 {
@@ -592,6 +602,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "condition": None,
                                 "oidc": False,
                                 "output-variables": [],
+                                "runtime": None,
                             }
                         },
                         {
@@ -621,6 +632,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "condition": None,
                                 "oidc": False,
                                 "output-variables": [],
+                                "runtime": None,
                             }
                         },
                     ],
