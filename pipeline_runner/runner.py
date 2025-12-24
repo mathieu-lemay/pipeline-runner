@@ -331,7 +331,7 @@ class StepRunner(BaseStepRunner):
         return env_vars
 
     def _get_build_container_memory_limit(self, services_memory_usage: int) -> int:
-        return config.total_memory_limit * self._step.size.as_int() - services_memory_usage
+        return config.total_memory_limit * self._step.size_multiplier - services_memory_usage
 
     def _get_pipeline_variables_file(self) -> Path | None:
         if not self._step.output_variables:

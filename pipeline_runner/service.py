@@ -40,7 +40,7 @@ class ServicesManager:
         service_definitions = ctx.pipeline_ctx.services
         self._services_by_name = self._get_services(service_names, service_definitions)
 
-        self._memory_multiplier = ctx.step.size.as_int()
+        self._memory_multiplier = ctx.step.size_multiplier
         self._shared_data_volume_name = shared_data_volume_name
         self._repository_slug = ctx.pipeline_ctx.project_metadata.path_slug
         self._pipeline_cache_directory = ctx.pipeline_ctx.get_cache_directory()

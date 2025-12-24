@@ -14,6 +14,7 @@ from pipeline_runner.models import (
     Options,
     ProjectMetadata,
     Service,
+    StepSize,
     StepWrapper,
     WorkspaceMetadata,
 )
@@ -344,14 +345,22 @@ def test_step_run_context_init_raises_error_on_invalid_parallel_step(
             )
 
 
-def test_step_run_context_merges_global_options(faker: Faker) -> None:
+def test_step_run_context_init_merges_global_options(faker: Faker) -> None:
     step = MagicMock()
     step.name = faker.pystr()
     step.services = faker.words(2)
+    step.size = None
+    step.max_time = None
 
     pipeline_run_ctx = MagicMock()
-    pipeline_run_ctx.options.docker = True
     pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
+
+    size = faker.random_element(list(StepSize))
+    max_time = faker.pyint()
+
+    pipeline_run_ctx.options.docker = True
+    pipeline_run_ctx.options.size = size
+    pipeline_run_ctx.options.max_time = max_time
 
     assert "docker" not in step.services
 
@@ -361,3 +370,29 @@ def test_step_run_context_merges_global_options(faker: Faker) -> None:
     )
 
     assert "docker" in ctx.step.services
+    assert ctx.step.size == size
+    assert ctx.step.max_time == max_time
+
+
+def test_step_run_context_init_step_options_have_precedence_if_defined(faker: Faker) -> None:
+    size = faker.random_element(list(StepSize))
+    max_time = faker.pyint()
+
+    step = MagicMock()
+    step.name = faker.pystr()
+    step.services = faker.words(2)
+    step.size = size
+    step.max_time = max_time
+
+    pipeline_run_ctx = MagicMock()
+    pipeline_run_ctx.project_metadata.path_slug = faker.pystr()
+    pipeline_run_ctx.options.size = faker.random_element(set(StepSize) - {size})
+    pipeline_run_ctx.options.max_time = faker.pyint()
+
+    ctx = StepRunContext(
+        step=step,
+        pipeline_ctx=pipeline_run_ctx,
+    )
+
+    assert ctx.step.size == size
+    assert ctx.step.max_time == max_time

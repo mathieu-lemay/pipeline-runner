@@ -24,6 +24,7 @@ from .models import (
     WorkspaceMetadata,
 )
 from .parse import parse_pipeline_file
+from .utils import coalesce
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,10 @@ class StepRunContext:
     def __post_init__(self) -> None:
         self.slug = f"{self.pipeline_ctx.project_metadata.path_slug}-step-{slugify(self.step.name)}"
         self.step_uuid = uuid.uuid4()
+
+        # Merge global options in step values
+        self.step.size = coalesce(self.step.size, self.pipeline_ctx.options.size)
+        self.step.max_time = coalesce(self.step.max_time, self.pipeline_ctx.options.max_time)
 
         if (self.parallel_step_index is None) != (self.parallel_step_count is None):
             raise ValueError("`parallel_step_index` and `parallel_step_count` must be both defined or both undefined")
