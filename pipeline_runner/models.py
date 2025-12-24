@@ -197,17 +197,6 @@ class CloneSettings(BaseModel):
         raise TypeError(f"Invalid type for 'depth': {type(value)}")
 
 
-class Options(BaseModel):
-    docker: bool = False
-
-
-class Trigger(str, Enum):
-    __slots__ = ()
-
-    Automatic = "automatic"
-    Manual = "manual"
-
-
 class StepSize(str, Enum):
     __slots__ = ()
 
@@ -215,9 +204,23 @@ class StepSize(str, Enum):
     Size2 = "2x"
     Size4 = "4x"
     Size8 = "8x"
+    Size16 = "16x"
 
     def as_int(self) -> int:
-        return {self.Size1: 1, self.Size2: 2, self.Size4: 4, self.Size8: 8}[self]
+        return {self.Size1: 1, self.Size2: 2, self.Size4: 4, self.Size8: 8, self.Size16: 16}[self]
+
+
+class Options(BaseModel):
+    docker: bool = False
+    max_time: int | None = Field(None, alias="max-time")
+    size: StepSize = StepSize.Size1
+
+
+class Trigger(str, Enum):
+    __slots__ = ()
+
+    Automatic = "automatic"
+    Manual = "manual"
 
 
 class Changesets(BaseModel):
@@ -323,7 +326,7 @@ class Step(BaseModel):
     services: list[str] = Field(default_factory=list)
     artifacts: Artifacts = Field(default_factory=Artifacts)
     after_script: list[str | Pipe] = Field(default_factory=list, alias="after-script")
-    size: StepSize = StepSize.Size1
+    size: StepSize | None = None
     clone_settings: CloneSettings = Field(default_factory=CloneSettings.empty, alias="clone")
     deployment: str | None = None
     trigger: Trigger = Trigger.Automatic
@@ -340,6 +343,13 @@ class Step(BaseModel):
             return Image(name=value)
 
         return value
+
+    @property
+    def size_multiplier(self) -> int:
+        if self.size is not None:
+            return self.size.as_int()
+
+        return 1
 
 
 class Stage(BaseModel):

@@ -531,7 +531,7 @@ def test_parse_pipeline_with_env_vars() -> None:
             },
         },
         "clone": {"depth": None, "lfs": None, "enabled": None},
-        "options": {"docker": False},
+        "options": {"docker": False, "max-time": None, "size": StepSize.Size1},
         "pipelines": {
             "default": [
                 {
@@ -553,7 +553,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                             "paths": [],
                         },
                         "after-script": [],
-                        "size": StepSize.Size1,
+                        "size": None,
                         "clone": {"depth": None, "lfs": None, "enabled": None},
                         "deployment": None,
                         "trigger": Trigger.Automatic,
@@ -584,7 +584,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                     "paths": [],
                                 },
                                 "after-script": [],
-                                "size": StepSize.Size1,
+                                "size": None,
                                 "clone": {"depth": None, "lfs": None, "enabled": None},
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,
@@ -613,7 +613,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                     "paths": [],
                                 },
                                 "after-script": [],
-                                "size": StepSize.Size1,
+                                "size": None,
                                 "clone": {"depth": None, "lfs": None, "enabled": None},
                                 "deployment": None,
                                 "trigger": Trigger.Automatic,

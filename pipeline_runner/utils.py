@@ -6,7 +6,7 @@ import sys
 from collections.abc import Iterator
 from logging import Logger
 from tarfile import TarFile
-from typing import IO
+from typing import IO, TypeVar
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -19,6 +19,8 @@ from .errors import NegativeIntegerError
 logger = logging.getLogger(__name__)
 
 ONE_KB = 1024
+
+T = TypeVar("T")
 
 
 def get_output_logger(output_directory: str, name: str) -> Logger:
@@ -118,6 +120,14 @@ def generate_rsa_key() -> str:
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     )
     return private_key.decode()
+
+
+def coalesce(*args: T | None) -> T | None:
+    for arg in args:
+        if arg is not None:
+            return arg
+
+    return None
 
 
 class PathTraversalError(Exception):

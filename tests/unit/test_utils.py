@@ -1,18 +1,22 @@
 import tarfile
 from io import BytesIO
 from pathlib import Path
+from typing import TypeVar
 
 import pytest
 
 from pipeline_runner.errors import NegativeIntegerError
 from pipeline_runner.utils import (
     PathTraversalError,
+    coalesce,
     ensure_directory,
     escape_shell_string,
     get_human_readable_size,
     safe_extract_tar,
     stringify,
 )
+
+T = TypeVar("T")
 
 
 def test_ensure_directory(tmp_path: Path) -> None:
@@ -91,6 +95,21 @@ def test_escape_shell_string() -> None:
         escape_shell_string(r"cat /proc/$$/environ | xargs -0 -n1 echo | tr '\n' ','")
         == r"cat /proc/\x24\x24/environ | xargs -0 -n1 echo | tr \x27\x5cn\x27 \x27,\x27"
     )
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        ([0, 1, 2], 0),
+        ([None, 1, 2], 1),
+        (["", "a"], ""),
+        ([None, None, "b", "c"], "b"),
+        ([], None),
+        ([None], None),
+    ],
+)
+def test_coalesce(values: list[T | None], expected: T | None) -> None:
+    assert coalesce(*values) == expected
 
 
 def test_safe_extract_tar(tmp_path: Path) -> None:
