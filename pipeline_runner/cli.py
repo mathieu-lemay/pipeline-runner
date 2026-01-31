@@ -57,7 +57,8 @@ def _prompt_for_pipeline(pipeline_file: str) -> str | None:
 @click.pass_context
 def main(ctx: click.Context, *, show_version: bool) -> None:
     if show_version:
-        click.echo(f"Pipeline Runner {version('bitbucket_pipeline_runner')}")
+        py_version = f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
+        click.echo(f"Pipeline Runner {version('bitbucket_pipeline_runner')} (Python {py_version})")
         ctx.exit()
 
     if not ctx.invoked_subcommand:

@@ -22,9 +22,9 @@ def test_show_version() -> None:
     # noinspection PyTypeChecker
     result = runner.invoke(main, ["--version"])
 
-    expected = f"Pipeline Runner {version('bitbucket_pipeline_runner')}\n"
+    expected = f"Pipeline Runner {version('bitbucket_pipeline_runner')}"
     assert result.exit_code == 0
-    assert result.output == expected
+    assert expected in result.output
 
 
 def test_list_pipelines(tmp_path_chdir: Path) -> None:
