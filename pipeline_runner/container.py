@@ -548,7 +548,7 @@ class RemoteActionManager:
             raise Exception("Error uploading scripts to container")
 
 
-_pulled_images = set()
+_pulled_images: set[str] = set()
 
 
 def pull_image(client: DockerClient, step_ctx: StepRunContext, image: Image, platform: str | None = None) -> None:
