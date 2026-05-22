@@ -241,7 +241,10 @@ class StepRunner(BaseStepRunner):
             volume = next(iter(self._docker_client.volumes.list(filters={"name": self._data_volume_name})), None)
             if volume:
                 logger.info("Removing volume: %s", volume.name)
-                volume.remove()
+                try:
+                    volume.remove()
+                except Exception:
+                    logger.exception("Error removing volume, it will need to be removed manually: %s", volume.name)
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 

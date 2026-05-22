@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
 
 import docker  # type: ignore[import-untyped]
@@ -69,7 +69,9 @@ class ServicesManager:
             try:
                 sr.stop()
             except Exception:  # noqa: PERF203  # try-except within a loop incurs performance overhead
-                logger.exception("Error removing service '%s'", s)
+                logger.exception(
+                    "Error removing service '%s'. Container will need to be removed manually: %s", s, sr.container_name
+                )
 
     def get_services_containers(self) -> dict[str, Container]:
         return {name: runner.container for name, runner in self._service_runners.items()}
@@ -111,10 +113,12 @@ class ServiceRunner:
     shared_data_volume_name: str
     project_slug: str
     pipeline_cache_directory: str
+    container_name: str = field(init=False)
     container: Container | None = None
 
     def __post_init__(self) -> None:
         self._slug = slugify(self.service_name)
+        self.container_name = f"{self.project_slug}_{self.service_name}_service"
 
     @property
     def slug(self) -> str:
@@ -140,7 +144,7 @@ class ServiceRunner:
 
         return self.docker_client.containers.run(
             self.service.image.name,
-            name=self._get_container_name(),
+            name=self.container_name,
             environment=self.service.variables,
             network=self.network_name,
             mem_limit=self._get_mem_limit(),
@@ -149,9 +153,6 @@ class ServiceRunner:
 
     def _ensure_container_ready(self, container: Container) -> None:
         pass
-
-    def _get_container_name(self) -> str:
-        return f"{self.project_slug}-service-{self._slug}"
 
     def stop(self) -> None:
         if not self.container:
@@ -192,7 +193,7 @@ class DockerServiceRunner(ServiceRunner):
 
         return self.docker_client.containers.run(
             self.service.image.name,
-            name=self._get_container_name(),
+            name=self.container_name,
             command=["--tls=false"],
             environment=environment,
             network=self.network_name,
@@ -261,9 +262,7 @@ class DockerServiceRunner(ServiceRunner):
         volumes = self.docker_client.volumes.list(filters={"label": f"{label_name}={label_value}"})
 
         if not volumes:
-            volume = self.docker_client.volumes.create(
-                f"{self._get_container_name()}-cache", labels={label_name: label_value}
-            )
+            volume = self.docker_client.volumes.create(f"{self.container_name}-cache", labels={label_name: label_value})
         elif len(volumes) == 1:
             volume = volumes[0]
         else:
