@@ -1,4 +1,5 @@
 import base64
+import codecs
 import io
 import logging
 import os.path
@@ -362,11 +363,16 @@ class ContainerScriptRunner:
         self._print_execution_log(output_stream)
 
     def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
+        # Use incremental decoders: the docker stream is chunked, so a multibyte
+        # UTF-8 character can be split across two chunks. Decoding each chunk
+        # independently would raise UnicodeDecodeError on the boundary.
+        stdout_decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        stderr_decoder = codecs.getincrementaldecoder("utf-8")("replace")
         for stdout, stderr in output_stream:
             if stdout:
-                self._stdout_print(stdout.decode().replace(GROUP_SEPARATOR, ""))
+                self._stdout_print(stdout_decoder.decode(stdout).replace(GROUP_SEPARATOR, ""))
             if stderr:
-                self._stderr_print(stderr.decode())
+                self._stderr_print(stderr_decoder.decode(stderr))
 
         self._stdout_print("\n")
 
@@ -398,9 +404,14 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
         self._timestamp: float | None = None
 
     def _print_execution_log(self, output_stream: Iterator[tuple[bytes, bytes]]) -> None:
+        # Use incremental decoders: the docker stream is chunked, so a multibyte
+        # UTF-8 character can be split across two chunks. Decoding each chunk
+        # independently would raise UnicodeDecodeError on the boundary.
+        stdout_decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        stderr_decoder = codecs.getincrementaldecoder("utf-8")("replace")
         for stdout, stderr in output_stream:
             if stdout:
-                chunks = iter(stdout.decode().split(GROUP_SEPARATOR))
+                chunks = iter(stdout_decoder.decode(stdout).split(GROUP_SEPARATOR))
 
                 self._stdout_print(next(chunks))
 
@@ -408,7 +419,7 @@ class ContainerScriptRunnerWithExecTime(ContainerScriptRunner):
                     self._print_timing()
                     self._stdout_print(c)
             if stderr:
-                self._stderr_print(stderr.decode())
+                self._stderr_print(stderr_decoder.decode(stderr))
 
         self._print_timing()
 
