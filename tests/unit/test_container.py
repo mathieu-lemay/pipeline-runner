@@ -358,7 +358,7 @@ def test_print_execution_log_decodes_utf8_char_split_across_chunks() -> None:
 
     # "café" is b"caf\xc3\xa9"; the multibyte "é" is split across two chunks, as
     # can happen with the chunked docker stream.
-    output_stream = iter([(b"caf\xc3", None), (b"\xa9", None)])
+    output_stream = iter([(b"caf\xc3", b""), (b"\xa9", b"")])
 
     runner._print_execution_log(output_stream)
 
@@ -372,7 +372,7 @@ def test_print_execution_log_with_exec_time_decodes_utf8_char_split_across_chunk
 
     # The multibyte "é" is split across two chunks, and a group separator must
     # still split the timing groups.
-    output_stream = iter([(b"caf\xc3", None), (b"\xa9" + GROUP_SEPARATOR.encode() + b"done", None)])
+    output_stream = iter([(b"caf\xc3", b""), (b"\xa9" + GROUP_SEPARATOR.encode() + b"done", b"")])
 
     runner._print_execution_log(output_stream)
 
