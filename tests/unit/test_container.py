@@ -13,7 +13,10 @@ from pytest_mock import MockerFixture
 
 from pipeline_runner.config import Config
 from pipeline_runner.container import (
+    GROUP_SEPARATOR,
     ContainerRunner,
+    ContainerScriptRunner,
+    ContainerScriptRunnerWithExecTime,
     docker_is_docker_desktop,
     get_image_authentication,
     get_ssh_agent_socket_path,
@@ -347,3 +350,32 @@ def test_docker_is_docker_desktop(platform_name: str | None, expected: bool) -> 
         client.version.return_value = {"Platform": {}}
 
     assert docker_is_docker_desktop(client) == expected
+
+
+def test_print_execution_log_decodes_utf8_char_split_across_chunks() -> None:
+    logger = MagicMock()
+    runner = ContainerScriptRunner(MagicMock(), MagicMock(), output_logger=logger)
+
+    # "café" is b"caf\xc3\xa9"; the multibyte "é" is split across two chunks, as
+    # can happen with the chunked docker stream.
+    output_stream = iter([(b"caf\xc3", b""), (b"\xa9", b"")])
+
+    runner._print_execution_log(output_stream)
+
+    printed = "".join(c.args[0] for c in logger.info.call_args_list)
+    assert printed == "café\n"
+
+
+def test_print_execution_log_with_exec_time_decodes_utf8_char_split_across_chunks() -> None:
+    logger = MagicMock()
+    runner = ContainerScriptRunnerWithExecTime(MagicMock(), MagicMock(), output_logger=logger)
+
+    # The multibyte "é" is split across two chunks, and a group separator must
+    # still split the timing groups.
+    output_stream = iter([(b"caf\xc3", b""), (b"\xa9" + GROUP_SEPARATOR.encode() + b"done", b"")])
+
+    runner._print_execution_log(output_stream)
+
+    printed = "".join(c.args[0] for c in logger.info.call_args_list)
+    assert "café" in printed
+    assert "done" in printed
