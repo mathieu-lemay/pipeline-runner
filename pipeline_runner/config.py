@@ -38,6 +38,7 @@ DEFAULT_SERVICES: Mapping[str, Any] = MappingProxyType(
 # This is the version of the client that is injected in the container if docker is not already present.
 # It is _not_ the same as the docker daemon version.
 ATLASSIAN_DOCKER_CLI_VERSION = "20.10.24"
+ATLASSIAN_PAUSE_IMAGE: Final[str] = "k8s-docker.packages.atlassian.com/pause:3.8"
 
 
 class OIDCSettings(BaseSettings):
@@ -53,6 +54,7 @@ class Config(BaseSettings):
     cpu_limits: bool = False
     expose_ssh_agent: bool = False
     volumes: list[str] = Field(default_factory=list)
+    docker_platform: str | None = None
 
     username: str = Field(default_factory=getpass.getuser)
 
