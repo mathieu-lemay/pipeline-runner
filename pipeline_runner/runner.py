@@ -2,20 +2,21 @@ import logging
 import os
 import sys
 from abc import ABC, abstractmethod
-from http import HTTPStatus
+from collections.abc import Generator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import mkstemp
 from time import time as ts
 
 import docker  # type: ignore[import-untyped]
 import dotenv
-from docker.errors import APIError  # type: ignore[import-untyped]
-from docker.models.networks import Network  # type: ignore[import-untyped]
+from docker.models.containers import Container  # type: ignore[import-untyped]
 
 from . import utils
 from .artifacts import ArtifactManager
 from .cache import CacheManager
-from .config import DEFAULT_IMAGE, config
+from .config import ATLASSIAN_PAUSE_IMAGE, DEFAULT_IMAGE, config
 from .container import ContainerRunner
 from .context import PipelineRunContext, StepRunContext
 from .errors import InvalidOutputVariablesError, UndefinedOutputVariablesError
@@ -174,77 +175,75 @@ class StepRunner(BaseStepRunner):
 
         s = ts()
 
-        network = None
         exit_code: int
 
-        try:
-            if "docker" not in self._step.services and self._docker_is_needed():
-                logger.debug("Docker service is needed, but wasn't requested. Adding it.")
-                self._step.services.append("docker")
+        with self._get_pause_container() as pause_container:
+            try:
+                if "docker" not in self._step.services and self._docker_is_needed():
+                    logger.debug("Docker service is needed, but wasn't requested. Adding it.")
+                    self._step.services.append("docker")
 
-            image = self._get_image()
-            network = self._get_network()
-            environment = self._get_step_env_vars()
+                image = self._get_image()
+                environment = self._get_step_env_vars()
 
-            services_manager = ServicesManager(self._ctx, self._data_volume_name)
-            self._services_manager = services_manager
+                services_manager = ServicesManager(self._ctx, self._data_volume_name)
+                self._services_manager = services_manager
 
-            self._pipeline_variables_file = self._get_pipeline_variables_file()
+                self._pipeline_variables_file = self._get_pipeline_variables_file()
 
-            mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
+                mem_limit = self._get_build_container_memory_limit(services_manager.get_memory_usage())
 
-            container_runner = ContainerRunner(
-                self._ctx,
-                self._container_name,
-                image,
-                network.name,
-                self._data_volume_name,
-                environment,
-                self._output_logger,
-                mem_limit,
-                self._pipeline_variables_file,
-            )
-            self._container_runner = container_runner
+                container_runner = ContainerRunner(
+                    self._ctx,
+                    self._container_name,
+                    image,
+                    pause_container.network_name,
+                    self._data_volume_name,
+                    environment,
+                    self._output_logger,
+                    mem_limit,
+                    self._pipeline_variables_file,
+                )
+                self._container_runner = container_runner
 
-            container_runner.start()
+                container_runner.start()
 
-            services_manager.start_services(f"container:{container_runner.get_container_name()}")
+                services_manager.start_services(pause_container.network_name)
 
-            container_runner.install_docker_client_if_needed()
+                container_runner.install_docker_client_if_needed()
 
-            self._build_setup()
+                self._build_setup()
 
-            exit_code = container_runner.run_script(self._step.script, exec_time=True)
+                exit_code = container_runner.run_script(self._step.script, exec_time=True)
 
-            container_runner.run_script(self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True)
+                container_runner.run_script(
+                    self._step.after_script, env={"BITBUCKET_EXIT_CODE": exit_code}, exec_time=True
+                )
 
-            if exit_code:
-                logger.error("Step '%s': FAIL", self._step.name)
+                if exit_code:
+                    logger.error("Step '%s': FAIL", self._step.name)
 
-            self._build_teardown(exit_code)
-        except Exception:
-            logger.exception("Error during pipeline execution")
-            exit_code = 1
-        finally:
-            if self._services_manager:
-                self._services_manager.stop_services()
+                self._build_teardown(exit_code)
+            except Exception:
+                logger.exception("Error during pipeline execution")
+                exit_code = 1
+            finally:
+                if self._services_manager:
+                    self._services_manager.stop_services()
 
-            if self._container_runner:
-                self._container_runner.stop()
+                if self._container_runner:
+                    self._container_runner.stop()
 
-            if self._pipeline_variables_file:
-                self._pipeline_variables_file.unlink()
+                if self._pipeline_variables_file:
+                    self._pipeline_variables_file.unlink()
 
-            if network:
-                network.remove()
-
-            volume = next(iter(self._docker_client.volumes.list(filters={"name": self._data_volume_name})), None)
-            if volume:
-                logger.info("Removing volume: %s", volume.name)
-                try:
-                    volume.remove()
-                except Exception:
-                    logger.exception("Error removing volume, it will need to be removed manually: %s", volume.name)
+                volume = next(iter(self._docker_client.volumes.list(filters={"name": self._data_volume_name})), None)
+                if volume:
+                    logger.info("Removing volume: %s", volume.name)
+                    try:
+                        volume.remove()
+                    except Exception:
+                        logger.exception("Error removing volume, it will need to be removed manually: %s", volume.name)
 
         logger.info("Step '%s' executed in %.3fs with exit code: %s", self._step.name, ts() - s, exit_code)
 
@@ -266,22 +265,21 @@ class StepRunner(BaseStepRunner):
 
         return Image(name=DEFAULT_IMAGE)
 
-    def _get_network(self) -> Network:
-        name = f"{self._ctx.pipeline_ctx.project_metadata.slug}-network"
-        try:
-            bridge_network = self._docker_client.networks.get(name)
-        except APIError as e:
-            if e.status_code != HTTPStatus.NOT_FOUND:
-                raise
+    @contextmanager
+    def _get_pause_container(self) -> Generator["PauseContainer"]:
+        name = f"{self._ctx.pipeline_ctx.project_metadata.slug}_system_pause"
+        logger.info("Starting pause container: %s", name)
 
-            logger.debug("Creating network %s.", name)
-            bridge_network = self._create_network(name)
-        else:
-            logger.debug("Network %s already exists.", name)
-        return bridge_network
+        container = self._docker_client.containers.run(
+            ATLASSIAN_PAUSE_IMAGE, name=name, detach=True, platform=config.docker_platform
+        )
 
-    def _create_network(self, name: str) -> Network:
-        return self._docker_client.networks.create(name, driver="bridge")
+        pc = PauseContainer(container=container, name=name)
+
+        yield pc
+
+        logger.info("Removing pause container: %s", name)
+        pc.container.remove(v=True, force=True)
 
     def _get_step_env_vars(self) -> dict[str, str]:
         env_vars = self._get_bitbucket_env_vars()
@@ -557,3 +555,13 @@ class StepRunnerFactory:
                 return StageRunner(item.stage, pipeline_run_context)
             case _:
                 raise TypeError(f"unknown step type: {type(item)}")
+
+
+@dataclass(kw_only=True, frozen=True)
+class PauseContainer:
+    container: Container
+    name: str
+
+    @property
+    def network_name(self) -> str:
+        return f"container:{self.name}"

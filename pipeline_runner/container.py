@@ -64,7 +64,6 @@ class ContainerRunner:
         self._mem_limit = mem_limit * 2**20  # MiB to B
         self._pipeline_variables_file = pipeline_variables_file
         self._ssh_private_key = ctx.pipeline_ctx.project_metadata.ssh_key
-        self._platform = os.getenv("PIPELINE_RUNNER_DOCKER_PLATFORM")
 
         self._client = docker.from_env()
         self._container = None
@@ -159,7 +158,7 @@ class ContainerRunner:
         return self._container.put_archive(path, data)
 
     def start_container(self) -> None:
-        pull_image(self._client, self._ctx, self._image, self._platform)
+        pull_image(self._client, self._ctx, self._image, config.docker_platform)
 
         logger.info("Creating container: %s", self._name)
 
@@ -187,7 +186,7 @@ class ContainerRunner:
             network=self._network_name,
             tty=True,
             detach=True,
-            platform=self._platform,
+            platform=config.docker_platform,
             **opts,
         )
 
