@@ -3,7 +3,7 @@ set dotenv-load := true
 app := "pipeline_runner"
 
 lint:
-    pre-commit run --all
+    pre-commit run -a
 
 test: _deps
     poetry run pytest --verbosity=1 --cov --cov-append --cov-report=term-missing:skip-covered --cov-fail-under=90
