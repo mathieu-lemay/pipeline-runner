@@ -2,13 +2,19 @@ name: Tests
 
 on:
   push:
-    branches: ["*"]
+    branches:
+      - master
+      - main
   pull_request:
     types:
       - opened
       - reopened
       - synchronize
   workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:
