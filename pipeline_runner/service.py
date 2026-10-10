@@ -1,8 +1,7 @@
-import json
 import logging
 import os.path
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import cast
 
 import docker  # type: ignore[import-untyped]
 from docker import DockerClient
@@ -250,12 +249,11 @@ class DockerServiceRunner(ServiceRunner):
         if cache_volume:
             volumes[cache_volume.name] = {"bind": "/var/lib/docker"}
 
-        volumes.update(
-            {
-                self.shared_data_volume_name: {"bind": config.remote_pipeline_dir},
-                self._write_daemon_config(): {"bind": "/etc/docker/daemon.json", "mode": "ro"},
-            }
-        )
+        daemon_config_fname = self._try_write_daemon_config()
+        if daemon_config_fname:
+            volumes[daemon_config_fname] = {"bind": "/etc/docker/daemon.json", "mode": "ro"}
+
+        volumes[self.shared_data_volume_name] = {"bind": config.remote_pipeline_dir}
 
         return volumes
 
@@ -274,22 +272,15 @@ class DockerServiceRunner(ServiceRunner):
 
         return volume
 
-    def _write_daemon_config(self) -> str:
-        daemon_config = {
-            "bip": config.docker_bridge_ip,
-            "default-address-pools": [
-                {
-                    "base": config.docker_default_address_pool_base,
-                    "size": config.docker_default_address_pool_size,
-                }
-            ],
-        }
+    def _try_write_daemon_config(self) -> str | None:
+        if not config.docker_daemon:
+            return None
 
         data_directory = utils.ensure_directory(self.step_ctx.pipeline_ctx.get_pipeline_data_directory())
         fname = os.path.join(data_directory, f"{self.container_name}-daemon.json")
-        
-        with open(fname, "w") as f:
-            json.dump(daemon_config, f, indent=2)
+
+        with open(fname, "wb") as f:
+            f.write(config.docker_daemon.to_config_file())
 
         return fname
 
@@ -300,6 +291,7 @@ class DockerServiceRunner(ServiceRunner):
             "docker ps -q | xargs -r docker kill",
             "docker container prune -f",
             "docker volume prune -f",
+            "docker network prune -f",
         ]
         csr = ContainerScriptRunner(self.container, script)
         csr.run()

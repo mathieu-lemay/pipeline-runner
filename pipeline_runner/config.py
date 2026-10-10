@@ -3,10 +3,12 @@ import logging
 import os
 from collections.abc import Mapping
 from functools import lru_cache
+from ipaddress import IPv4Network
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final, cast
 
 from pydantic import Field, field_validator
+from pydantic_core import to_json
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from . import __name__ as __project_name__
@@ -41,6 +43,33 @@ ATLASSIAN_DOCKER_CLI_VERSION = "20.10.24"
 ATLASSIAN_PAUSE_IMAGE: Final[str] = "k8s-docker.packages.atlassian.com/pause:3.8"
 
 
+# This corresponds to the inner docker daemon config file
+# note: due to limitations in pydantic-settings with env_nested_delimiter="_", field names are pretty condensed here
+class DockerDaemonSettings(BaseSettings):
+    bip: str  # Even if it looks so, this is not a CIDR network address. It is a host address and a size.
+    """IP4 address of the default bridge."""
+    dapbase: IPv4Network
+    """Default address pool network address."""
+    dapsize: int
+    """Default address pool size."""
+
+    def to_config_file(self, indent: int | None = 2) -> bytes:
+        # see https://docs.docker.com/reference/cli/dockerd/#daemon-configuration-file
+
+        return to_json(
+            {
+                "bip": self.bip,
+                "default-address-pools": [
+                    {
+                        "base": self.dapbase,
+                        "size": self.dapsize,
+                    },
+                ],
+            },
+            indent=indent,
+        )
+
+
 class OIDCSettings(BaseSettings):
     enabled: bool = False
     issuer: str = "https://example.org"
@@ -55,12 +84,7 @@ class Config(BaseSettings):
     expose_ssh_agent: bool = False
     volumes: list[str] = Field(default_factory=list)
     docker_platform: str | None = None
-
-    # Networking of the docker daemon running inside the `docker` service.
-    # This should not conflict with the host's docker daemon configuration, which is important e.g. for DNS on WSL 2.
-    docker_bridge_ip: str = "172.31.160.1/24"
-    docker_default_address_pool_base: str = "172.31.161.0/24"
-    docker_default_address_pool_size: int = 27 # 8 networks, 30 hosts each
+    docker_daemon: DockerDaemonSettings | None = None
 
     username: str = Field(default_factory=getpass.getuser)
 
