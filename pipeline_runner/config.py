@@ -56,6 +56,12 @@ class Config(BaseSettings):
     volumes: list[str] = Field(default_factory=list)
     docker_platform: str | None = None
 
+    # Networking of the docker daemon running inside the `docker` service.
+    # This should not conflict with the host's docker daemon configuration, which is important e.g. for DNS on WSL 2.
+    docker_bridge_ip: str = "172.31.160.1/24"
+    docker_default_address_pool_base: str = "172.31.161.0/24"
+    docker_default_address_pool_size: int = 27 # 8 networks, 30 hosts each
+
     username: str = Field(default_factory=getpass.getuser)
 
     oidc: OIDCSettings = Field(default_factory=OIDCSettings)

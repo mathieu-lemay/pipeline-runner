@@ -1,6 +1,8 @@
+import json
 import logging
+import os.path
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Any, cast
 
 import docker  # type: ignore[import-untyped]
 from docker import DockerClient
@@ -9,6 +11,7 @@ from docker.models.volumes import Volume  # type: ignore[import-untyped]
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
+from . import utils
 from .config import config
 from .container import ContainerScriptRunner, pull_image
 from .context import StepRunContext
@@ -250,6 +253,7 @@ class DockerServiceRunner(ServiceRunner):
         volumes.update(
             {
                 self.shared_data_volume_name: {"bind": config.remote_pipeline_dir},
+                self._write_daemon_config(): {"bind": "/etc/docker/daemon.json", "mode": "ro"},
             }
         )
 
@@ -269,6 +273,25 @@ class DockerServiceRunner(ServiceRunner):
             raise Exception("Found more than one cache volume")
 
         return volume
+
+    def _write_daemon_config(self) -> str:
+        daemon_config = {
+            "bip": config.docker_bridge_ip,
+            "default-address-pools": [
+                {
+                    "base": config.docker_default_address_pool_base,
+                    "size": config.docker_default_address_pool_size,
+                }
+            ],
+        }
+
+        data_directory = utils.ensure_directory(self.step_ctx.pipeline_ctx.get_pipeline_data_directory())
+        fname = os.path.join(data_directory, f"{self.container_name}-daemon.json")
+        
+        with open(fname, "w") as f:
+            json.dump(daemon_config, f, indent=2)
+
+        return fname
 
     def _teardown(self) -> None:
         logger.info("Executing teardown for service: %s", self.service_name)
