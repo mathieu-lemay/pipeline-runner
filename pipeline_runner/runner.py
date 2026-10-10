@@ -227,6 +227,9 @@ class StepRunner(BaseStepRunner):
             except Exception:
                 logger.exception("Error during pipeline execution")
                 exit_code = 1
+            except KeyboardInterrupt:
+                logger.warning("ctrl+c received, stopping pipeline execution")
+                exit_code = 2
             finally:
                 if self._services_manager:
                     self._services_manager.stop_services()
