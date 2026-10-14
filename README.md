@@ -71,8 +71,17 @@ container running the pipeline. If you have more than one ssh key linked to an
 account on the target git hosting, ensure that the one you need to use is the
 first one in the agent.
 
+## Networking
+Pipelines and other containers run inside a nested Docker daemon with a dedicated network. By default, Docker's standard networking settings are used. In case of conflicts with the host network, these settings can be adjusted via environment variables:
+```shell
+# make name resolution work on WSL2
+export PIPELINE_RUNNER_DOCKER_DAEMON_BIP=172.31.160.1/24
+export PIPELINE_RUNNER_DOCKER_DAEMON_DAPBASE=172.31.161.0/24
+export PIPELINE_RUNNER_DOCKER_DAEMON_DAPSIZE=27
+```
+
 ## Alternate Platform
-To force a different plaform for the pipeline container, you can set the following environment variable:
+To force a different platform for the pipeline container, you can set the following environment variable:
 ```shell
 # Replace linux/amd64 by the target platform
 export PIPELINE_RUNNER_DOCKER_PLATFORM=linux/amd64
