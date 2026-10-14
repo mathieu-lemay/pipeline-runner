@@ -26,6 +26,7 @@ from faker import Faker
 from pytest_mock import MockerFixture
 from tenacity import retry, stop_after_delay, wait_fixed
 
+from pipeline_runner import config as config_module
 from pipeline_runner.cache import compute_cache_key
 from pipeline_runner.config import Config
 from pipeline_runner.models import ProjectMetadata, Repository, WorkspaceMetadata
@@ -302,6 +303,42 @@ def test_docker_in_docker_with_custom_image(custom_pipelines_file: Path) -> None
     result = runner.run()
 
     assert result.exit_code == 0
+
+
+def test_docker_in_docker_daemon_with_config_from_env(
+    custom_pipelines_file: Path, pipeline_data_directory: Path, monkeypatch: MonkeyPatch, mocker: MockerFixture
+) -> None:
+    monkeypatch.setenv("PIPELINE_RUNNER_DOCKER_DAEMON_BIP", "172.31.160.1/24")
+    monkeypatch.setenv("PIPELINE_RUNNER_DOCKER_DAEMON_DAPBASE", "172.31.161.0/24")
+    monkeypatch.setenv("PIPELINE_RUNNER_DOCKER_DAEMON_DAPSIZE", "27")
+    mocker.patch.object(config_module, "get_config", return_value=Config())
+
+    pipeline_definition = dedent("""
+    pipelines:
+      default:
+        - step:
+            name: "Test Docker in Docker with Daemon Config"
+            image: "alpine"
+            script:
+              - test "$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')" = "172.31.160.1"
+              - docker network create probe
+              - docker network inspect probe -f '{{(index .IPAM.Config 0).Subnet}}' | grep '^172\\.31\\.161\\.'
+            services:
+              - docker
+    """)
+    with custom_pipelines_file.open("w") as f:
+        f.write(pipeline_definition)
+    runner = PipelineRunner(PipelineRunRequest("default"))
+    result = runner.run()
+
+    assert result.ok
+
+    daemon_config_files = list(pipeline_data_directory.glob("*_docker_service-daemon.json"))
+    assert len(daemon_config_files) == 1
+    assert json.loads(daemon_config_files[0].read_text()) == {
+        "bip": "172.31.160.1/24",
+        "default-address-pools": [{"base": "172.31.161.0/24", "size": 27}],
+    }
 
 
 def test_run_as_user() -> None:
