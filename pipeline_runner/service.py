@@ -1,4 +1,5 @@
 import logging
+import os.path
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -9,6 +10,7 @@ from docker.models.volumes import Volume  # type: ignore[import-untyped]
 from slugify import slugify
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
+from . import utils
 from .config import config
 from .container import ContainerScriptRunner, pull_image
 from .context import StepRunContext
@@ -247,11 +249,11 @@ class DockerServiceRunner(ServiceRunner):
         if cache_volume:
             volumes[cache_volume.name] = {"bind": "/var/lib/docker"}
 
-        volumes.update(
-            {
-                self.shared_data_volume_name: {"bind": config.remote_pipeline_dir},
-            }
-        )
+        daemon_config_fname = self._try_write_daemon_config()
+        if daemon_config_fname:
+            volumes[daemon_config_fname] = {"bind": "/etc/docker/daemon.json", "mode": "ro"}
+
+        volumes[self.shared_data_volume_name] = {"bind": config.remote_pipeline_dir}
 
         return volumes
 
@@ -270,6 +272,18 @@ class DockerServiceRunner(ServiceRunner):
 
         return volume
 
+    def _try_write_daemon_config(self) -> str | None:
+        if not config.docker_daemon:
+            return None
+
+        data_directory = utils.ensure_directory(self.step_ctx.pipeline_ctx.get_pipeline_data_directory())
+        fname = os.path.join(data_directory, f"{self.container_name}-daemon.json")
+
+        with open(fname, "wb") as f:
+            f.write(config.docker_daemon.to_config_file())
+
+        return fname
+
     def _teardown(self) -> None:
         logger.info("Executing teardown for service: %s", self.service_name)
 
@@ -277,6 +291,7 @@ class DockerServiceRunner(ServiceRunner):
             "docker ps -q | xargs -r docker kill",
             "docker container prune -f",
             "docker volume prune -f",
+            "docker network prune -f",
         ]
         csr = ContainerScriptRunner(self.container, script)
         csr.run()

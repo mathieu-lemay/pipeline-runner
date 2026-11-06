@@ -1,10 +1,14 @@
 import os
+from ipaddress import IPv4Network
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from pydantic import ValidationError
 
-from pipeline_runner.config import Config
+from pipeline_runner.config import (
+    Config,
+    DockerDaemonSettings,
+)
 
 
 @pytest.mark.parametrize(
@@ -34,6 +38,28 @@ def test_validate_validates_all_volumes() -> None:
     assert "Invalid volume: : empty volume spec" in str(exc_info.value)
     assert "Invalid volume: foo:x:y:z: invalid volume spec" in str(exc_info.value)
     assert "Invalid volume: bar:x:y:z: invalid volume spec" in str(exc_info.value)
+
+
+def test_docker_daemon_settings_to_config_file() -> None:
+    settings = DockerDaemonSettings(bip="172.31.160.1/24", dapbase=IPv4Network("172.31.161.0/24"), dapsize=27)
+    assert (
+        settings.to_config_file(indent=None)
+        == b'{"bip":"172.31.160.1/24","default-address-pools":[{"base":"172.31.161.0/24","size":27}]}'
+    )
+
+
+def test_docker_daemon_settings_from_env(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("PIPELINE_RUNNER_DOCKER_DAEMON_BIP", "172.31.160.1/24")
+    monkeypatch.setenv("PIPELINE_RUNNER_DOCKER_DAEMON_DAPBASE", "172.31.161.0/24")
+    monkeypatch.setenv("PIPELINE_RUNNER_DOCKER_DAEMON_DAPSIZE", "27")
+
+    assert Config().docker_daemon == DockerDaemonSettings(
+        bip="172.31.160.1/24", dapbase=IPv4Network("172.31.161.0/24"), dapsize=27
+    )
+
+
+def test_docker_daemon_settings_default_to_none() -> None:
+    assert Config().docker_daemon is None
 
 
 @pytest.mark.parametrize(
