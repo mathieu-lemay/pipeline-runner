@@ -187,6 +187,69 @@ pipelines:
             - "[ -e file-b.txt ] && exit 1"
             - exit 0
 
+    test_artifacts_upload:
+      - step:
+          name: Create unnamed artifact
+          artifacts:
+            - "*.log"
+          script:
+            - touch top.log
+      - step:
+          name: Create named artifacts
+          artifacts:
+            upload:
+              - name: reports
+                type: shared
+                paths:
+                  - reports/**
+                ignore-paths:
+                  - reports/*.html
+              - name: shallow
+                paths:
+                  - deep/**
+                depth: 2
+              - name: scoped-logs
+                type: scoped
+                paths:
+                  - logs/**
+              - name: only-on-failure
+                paths:
+                  - failure.txt
+                capture-on: failed
+          script:
+            - mkdir -p reports deep/sub logs
+            - touch reports/a.txt reports/b.html deep/a deep/sub/b logs/x failure.txt
+      - step:
+          name: Validate all shared artifacts are downloaded
+          script:
+            - "[ -e reports/a.txt ] || exit 1"
+            - "[ -e deep/a ] || exit 1"
+            - "[ -e top.log ] || exit 1"
+            - "[ -e reports/b.html ] && exit 1"
+            - "[ -e deep/sub/b ] && exit 1"
+            - "[ -e logs/x ] && exit 1"
+            - "[ -e failure.txt ] && exit 1"
+            - exit 0
+      - step:
+          name: Validate download by name
+          artifacts:
+            download:
+              - reports
+          script:
+            - "[ -e reports/a.txt ] || exit 1"
+            - "[ -e deep/a ] && exit 1"
+            - "[ -e top.log ] && exit 1"
+            - exit 0
+      - step:
+          name: Validate download by glob
+          artifacts:
+            download:
+              - "*.log"
+          script:
+            - "[ -e top.log ] || exit 1"
+            - "[ -e reports/a.txt ] && exit 1"
+            - exit 0
+
     test_deployment_environment:
       - step:
           name: Test Bitbucket Deployment Environment

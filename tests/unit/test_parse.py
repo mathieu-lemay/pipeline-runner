@@ -560,6 +560,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                         "artifacts": {
                             "download": True,
                             "paths": [],
+                            "upload": [],
                         },
                         "after-script": [],
                         "size": None,
@@ -592,6 +593,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "artifacts": {
                                     "download": True,
                                     "paths": [],
+                                    "upload": [],
                                 },
                                 "after-script": [],
                                 "size": None,
@@ -622,6 +624,7 @@ def test_parse_pipeline_with_env_vars() -> None:
                                 "artifacts": {
                                     "download": True,
                                     "paths": [],
+                                    "upload": [],
                                 },
                                 "after-script": [],
                                 "size": None,

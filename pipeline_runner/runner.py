@@ -379,19 +379,15 @@ class StepRunner(BaseStepRunner):
             # TODO: Refactor
             raise Exception("called on uninitialized runner")
 
-        if not self._step.artifacts.download:
-            # Note: Bitbucket Pipelines downloads from a storage, while we upload to the container,
-            #       hence the discrepancy between download and upload.
-            logger.info("Artifacts downloading disabled, skipping sending artifacts to container")
-            return
-
+        # Note: Bitbucket Pipelines downloads from a storage, while we upload to the container,
+        #       hence the discrepancy between download and upload.
         am = ArtifactManager(
             self._docker_client,
             self._container_name,
             self._ctx.pipeline_ctx.get_artifact_directory(),
             self._ctx.step_uuid,
         )
-        am.upload()
+        am.upload(selector=self._step.artifacts.download)
 
     def _upload_caches(self) -> None:
         if not self._container_runner:
@@ -424,7 +420,7 @@ class StepRunner(BaseStepRunner):
         s = ts()
 
         self._download_caches(exit_code)
-        self._download_artifacts()
+        self._download_artifacts(exit_code)
         self._stop_services()
 
         self._extract_output_variables()
@@ -447,7 +443,7 @@ class StepRunner(BaseStepRunner):
         else:
             logger.warning("Skipping caches for failed step")
 
-    def _download_artifacts(self) -> None:
+    def _download_artifacts(self, exit_code: int) -> None:
         if not self._container_runner:
             # TODO: Refactor
             raise Exception("called on uninitialized runner")
@@ -458,7 +454,7 @@ class StepRunner(BaseStepRunner):
             self._ctx.pipeline_ctx.get_artifact_directory(),
             self._ctx.step_uuid,
         )
-        am.download(self._step.artifacts)
+        am.download(self._step.artifacts, exit_code)
 
     def _stop_services(self) -> None:
         # TODO: Remove
