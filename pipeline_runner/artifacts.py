@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import os.path
+import shlex
 import tarfile
 from tarfile import TarInfo
 from time import time as ts
@@ -15,7 +16,7 @@ from slugify import slugify
 from pipeline_runner.config import config
 from pipeline_runner.errors import ArtifactManagementError
 from pipeline_runner.models import ArtifactDefinition, Artifacts
-from pipeline_runner.utils import FileStreamer, get_human_readable_size, safe_extract_tar, stringify, wrap_in_shell
+from pipeline_runner.utils import FileStreamer, get_human_readable_size, safe_extract_tar, wrap_in_shell
 
 logger = logging.getLogger(__name__)
 
@@ -174,31 +175,43 @@ class ArtifactManager:
         )
 
     @staticmethod
-    def _build_find_command(definition: ArtifactDefinition) -> list[str]:
-        cmd = ["find"]
+    def _build_find_args(definition: ArtifactDefinition) -> list[str]:
+        """Build the (unquoted) argv of the `find` command selecting the files of an artifact."""
+
+        def _path_filters(globs: list[str]) -> list[str]:
+            args = ["("]
+            for i, glob in enumerate(globs):
+                if i:
+                    args.append("-o")
+                args += ["-path", f"./{glob}"]
+            args.append(")")
+            return args
+
+        args = ["find"]
         if definition.depth is not None:
-            cmd += ["-maxdepth", str(definition.depth)]
+            args += ["-maxdepth", str(definition.depth)]
 
-        cmd += ["-type", "f"]
-
-        path_filters = " -o ".join(f"-path './{p}'" for p in definition.paths)
-        cmd += [r"\(", path_filters, r"\)"]
+        args += ["-type", "f", *_path_filters(definition.paths)]
 
         if definition.ignore_paths:
-            ignore_filters = " -o ".join(f"-path './{p}'" for p in definition.ignore_paths)
-            cmd += ["!", r"\(", ignore_filters, r"\)"]
+            args += ["!", *_path_filters(definition.ignore_paths)]
 
-        return cmd
+        return args
+
+    @classmethod
+    def _build_prepare_command(cls, definition: ArtifactDefinition, artifact_file: str) -> str:
+        # Every argument is quoted individually; only the pipe is interpreted by the shell.
+        find_args = cls._build_find_args(definition)
+        tar_args = ["tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
+
+        return f"{shlex.join(find_args)} | {shlex.join(tar_args)}"
 
     def _collect(
         self, container: Container, definition: ArtifactDefinition, artifact_file: str, target_directory: str
     ) -> tuple[list[str], int]:
         artifact_remote_path = os.path.join(config.build_dir, artifact_file)
 
-        prepare_artifacts_cmd = self._build_find_command(definition)
-        prepare_artifacts_cmd += ["|", "tar", "cf", artifact_file, "-C", config.build_dir, "-T", "-"]
-
-        cmd = wrap_in_shell(stringify(prepare_artifacts_cmd))
+        cmd = wrap_in_shell(self._build_prepare_command(definition, artifact_file))
         logger.debug("preparing artifact '%s' cmd: %s", definition.name, cmd)
         exit_code, output = container.exec_run(cmd)
         if exit_code != 0:
