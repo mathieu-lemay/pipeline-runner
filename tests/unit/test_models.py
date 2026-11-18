@@ -11,10 +11,13 @@ from pydantic import ValidationError
 from pipeline_runner import utils
 from pipeline_runner.config import Config
 from pipeline_runner.models import (
+    ArtifactDefinition,
     Artifacts,
+    ArtifactType,
     AwsCredentials,
     Cache,
     CacheKey,
+    CaptureOn,
     Definitions,
     ParallelStep,
     ParallelSteps,
@@ -326,6 +329,90 @@ def test_step_artifacts_parses_object() -> None:
     artifacts = Artifacts.model_validate(spec)
 
     assert artifacts == Artifacts(paths=["foo", "bar", "baz"], download=False)
+
+
+def test_step_artifacts_download_accepts_list_of_names() -> None:
+    spec: dict[str, Any] = {"download": ["reports/*.txt", "pdv-test-reports"]}
+
+    artifacts = Artifacts.model_validate(spec)
+
+    assert artifacts.download == ["reports/*.txt", "pdv-test-reports"]
+    assert artifacts.get_definitions() == []
+
+
+def test_step_artifacts_upload_named_definitions() -> None:
+    spec: dict[str, Any] = {
+        "upload": [
+            {
+                "name": "pdv-test-reports",
+                "type": "shared",
+                "paths": ["test-reports/**"],
+                "ignore-paths": ["test-reports/*.html"],
+            },
+            {
+                "name": "pdv logs",
+                "type": "scoped",
+                "paths": ["logs/**"],
+                "capture-on": "failed",
+            },
+            {"name": "Bottle", "paths": ["bottle.log"], "depth": 2},
+        ]
+    }
+
+    artifacts = Artifacts.model_validate(spec)
+
+    assert artifacts.get_definitions() == [
+        ArtifactDefinition(
+            name="pdv-test-reports",
+            type=ArtifactType.Shared,
+            paths=["test-reports/**"],
+            ignore_paths=["test-reports/*.html"],
+        ),
+        ArtifactDefinition(name="pdv logs", type=ArtifactType.Scoped, paths=["logs/**"], capture_on=CaptureOn.Failed),
+        ArtifactDefinition(name="Bottle", paths=["bottle.log"], depth=2),
+    ]
+
+
+def test_step_artifacts_unnamed_globs_are_named_after_glob() -> None:
+    spec: dict[str, Any] = {"paths": ["dist/**"], "upload": ["*.log", {"name": "named", "paths": ["x"]}]}
+
+    artifacts = Artifacts.model_validate(spec)
+
+    assert artifacts.get_definitions() == [
+        ArtifactDefinition(name="dist/**", paths=["dist/**"]),
+        ArtifactDefinition(name="*.log", paths=["*.log"]),
+        ArtifactDefinition(name="named", paths=["x"]),
+    ]
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        {"name": "a", "paths": ["x"], "type": "invalid"},
+        {"name": "a", "paths": ["x"], "capture-on": "never"},
+        {"name": "a", "paths": []},
+        {"paths": ["x"]},
+        {"name": "a", "paths": ["x"], "depth": 0},
+    ],
+)
+def test_step_artifacts_upload_rejects_invalid_definitions(definition: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        Artifacts.model_validate({"upload": [definition]})
+
+
+@pytest.mark.parametrize(
+    ("capture_on", "exit_code", "expected"),
+    [
+        (CaptureOn.Always, 0, True),
+        (CaptureOn.Always, 1, True),
+        (CaptureOn.Success, 0, True),
+        (CaptureOn.Success, 1, False),
+        (CaptureOn.Failed, 0, False),
+        (CaptureOn.Failed, 1, True),
+    ],
+)
+def test_capture_on_matches_exit_code(capture_on: CaptureOn, exit_code: int, expected: bool) -> None:
+    assert capture_on.matches(exit_code) is expected
 
 
 def test_step_condition_is_optional() -> None:

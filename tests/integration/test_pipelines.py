@@ -252,6 +252,57 @@ def test_artifacts(artifacts_directory: Path) -> None:
     assert sorted(files) == ["file-name", "valid-folder/a", "valid-folder/b", "valid-folder/sub/c"]
 
 
+def test_artifacts_upload(artifacts_directory: Path) -> None:
+    runner = PipelineRunner(PipelineRunRequest("custom.test_artifacts_upload"))
+    result = runner.run()
+
+    assert result.ok
+
+    index = json.loads(Path(f"{artifacts_directory}.index.json").read_text())
+    assert index == {
+        "*.log": ["top.log"],
+        "reports": ["reports/a.txt"],
+        "shallow": ["deep/a"],
+    }
+
+    scoped_files = list(Path(f"{artifacts_directory}-scoped").glob("*/scoped-logs/logs/x"))
+    assert len(scoped_files) == 1
+    assert not (artifacts_directory / "logs").exists()
+
+
+def test_artifacts_capture_on(custom_pipelines_file: Path, artifacts_directory: Path) -> None:
+    pipeline_definition = dedent("""
+    pipelines:
+      default:
+        - step:
+            name: "Failing step"
+            artifacts:
+              upload:
+                - name: on-success
+                  paths:
+                    - success.txt
+                  capture-on: success
+                - name: on-failure
+                  paths:
+                    - failure.txt
+                  capture-on: failed
+                - name: always
+                  paths:
+                    - always.txt
+            script:
+              - touch success.txt failure.txt always.txt
+              - exit 1
+    """)
+    with custom_pipelines_file.open("w") as f:
+        f.write(pipeline_definition)
+
+    runner = PipelineRunner(PipelineRunRequest("default"))
+    result = runner.run()
+
+    assert result.exit_code == 1
+    assert sorted(os.listdir(artifacts_directory)) == ["always.txt", "failure.txt"]
+
+
 def test_deployment() -> None:
     runner = PipelineRunner(PipelineRunRequest("custom.test_deployment_environment"))
     result = runner.run()

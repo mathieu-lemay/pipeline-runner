@@ -314,9 +314,51 @@ class Pipe(BaseModel):
         return self.pipe
 
 
+class ArtifactType(str, Enum):
+    Shared = "shared"
+    Scoped = "scoped"
+    TestReports = "test-reports"
+
+
+class CaptureOn(str, Enum):
+    Success = "success"
+    Failed = "failed"
+    Always = "always"
+
+    def matches(self, exit_code: int) -> bool:
+        match self:
+            case CaptureOn.Success:
+                return exit_code == 0
+            case CaptureOn.Failed:
+                return exit_code != 0
+            case _:
+                return True
+
+
+class ArtifactDefinition(BaseModel):
+    name: str
+    type: ArtifactType = ArtifactType.Shared
+    paths: list[str] = Field(min_length=1)
+    ignore_paths: list[str] = Field(default_factory=list, alias="ignore-paths")
+    depth: int | None = Field(None, ge=1)
+    capture_on: CaptureOn = Field(CaptureOn.Always, alias="capture-on")
+
+    @property
+    def is_shared(self) -> bool:
+        return self.type == ArtifactType.Shared
+
+
 class Artifacts(BaseModel):
-    download: bool = True
+    """
+    Artifacts definition of a step.
+
+    `download` is either a boolean (all or no artifacts) or a list of artifact names to download.
+    Artifacts defined by a glob (in `paths`, or as a plain string in `upload`) are named after that glob.
+    """
+
+    download: bool | list[str] = True
     paths: list[str] = Field(default_factory=list)
+    upload: list[str | ArtifactDefinition] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -325,6 +367,13 @@ class Artifacts(BaseModel):
             return {"paths": data}
 
         return data
+
+    def get_definitions(self) -> list[ArtifactDefinition]:
+        globs = self.paths + [u for u in self.upload if isinstance(u, str)]
+        definitions = [ArtifactDefinition(name=g, paths=[g]) for g in globs]
+        definitions += [u for u in self.upload if isinstance(u, ArtifactDefinition)]
+
+        return definitions
 
 
 class Step(BaseModel):

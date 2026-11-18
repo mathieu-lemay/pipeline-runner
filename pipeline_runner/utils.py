@@ -134,7 +134,9 @@ class PathTraversalError(Exception):
     pass
 
 
-def safe_extract_tar(tar: TarFile, path: str = ".", *, numeric_owner: bool = False) -> None:
+def safe_extract_tar(tar: TarFile, path: str = ".", *, numeric_owner: bool = False) -> list[str]:
+    """Extract all members of `tar` into `path`, returning the normalized names of the extracted regular files."""
+
     def _is_within_directory(directory: str, target: str) -> bool:
         abs_directory = os.path.abspath(directory)
         abs_target = os.path.abspath(target)
@@ -142,6 +144,8 @@ def safe_extract_tar(tar: TarFile, path: str = ".", *, numeric_owner: bool = Fal
         prefix = os.path.commonprefix([abs_directory, abs_target])
 
         return prefix == abs_directory
+
+    extracted_files = []
 
     for member in tar:
         member_path = os.path.join(path, member.name)
@@ -152,6 +156,11 @@ def safe_extract_tar(tar: TarFile, path: str = ".", *, numeric_owner: bool = Fal
             tar.extract(member, path, numeric_owner=numeric_owner, filter="data")
         else:
             tar.extract(member, path, numeric_owner=numeric_owner)
+
+        if member.isfile():
+            extracted_files.append(os.path.normpath(member.name))
+
+    return extracted_files
 
 
 class FileStreamer(IO[bytes]):
